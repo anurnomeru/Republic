@@ -18,7 +18,7 @@ class ClientOperateHandler(kanashiNode: KanashiNode,
                            /**
                             * 当受到对方的注册回调后，触发此函数，注意 它可能会被多次调用
                             */
-                           doAfterConnectToServer: (() -> Unit)? = null,
+                           private val doAfterConnectToServer: (() -> Unit)? = null,
 
                            /**
                             * 当连接上对方后，如果断开了连接，做什么处理
@@ -26,7 +26,7 @@ class ClientOperateHandler(kanashiNode: KanashiNode,
                             * 返回 true 代表继续重连
                             * 返回 false 则不再重连
                             */
-                           doAfterDisConnectToServer: (() -> Boolean)? = null)
+                           private val doAfterDisConnectToServer: (() -> Boolean)? = null)
 
     : KanashiRunnable(), Shutdownable {
 

@@ -34,7 +34,8 @@ class RegisterResponseHandleService : AbstractRequestMapping() {
 
     override fun handleRequest(fromServer: String, msg: ByteBuffer, channel: Channel) {
         logger.info("与节点 $fromServer 的连接已建立")
-        callbackMapping[RegisterResponse(msg).getRegistrySign()]?.invoke()
+        val function = callbackMapping[RegisterResponse(msg).getRegistrySign()]
+        function?.invoke()?:logger.debug("没有！！！！")
     }
 
     fun registerCallBack(doAfterConnectToServer: (() -> Unit)?): Long {

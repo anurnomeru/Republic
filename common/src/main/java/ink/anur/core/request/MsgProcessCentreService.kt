@@ -48,7 +48,7 @@ class MsgProcessCentreService : ReentrantReadWriteLocker() {
     private val requestMappingRegister = mutableMapOf<RequestTypeEnum, RequestMapping>()
 
     @NigatePostConstruct
-    private fun init() {
+    fun postConstruct() {
         EventDriverPool.register(Request::class.java,
             8,
             200,
