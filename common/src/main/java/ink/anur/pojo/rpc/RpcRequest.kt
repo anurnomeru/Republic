@@ -17,7 +17,7 @@ class RpcRequest : AbstractStruct {
     constructor(requestMeta: RpcRequestMeta) {
         this.requestMeta = requestMeta
         val ser = HessianUtil.ser(requestMeta)
-        init(OriginMessageOverhead + ser.size, RequestTypeEnum.CANVASS) {
+        init(OriginMessageOverhead + ser.size, RequestTypeEnum.RPC_REQUEST) {
             it.put(ser)
         }
     }

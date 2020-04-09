@@ -254,7 +254,7 @@ object Nigate {
         }
 
         /**
-         * 为某个bean注入成员变量，如果注入的接口是一个 RPC 接口，则会为接口创建一个动态代理
+         * 为某个bean注入成员变量，如果注入的接口是一个 RPC_REQUEST 接口，则会为接口创建一个动态代理
          */
         fun inject(injected: Any) {
             for (kProperty in injected::class.declaredMemberProperties) {

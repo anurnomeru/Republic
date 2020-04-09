@@ -1,4 +1,4 @@
-package ink.anur.rpc
+package ink.anur.rpc.handler
 
 import ink.anur.common.KanashiExecutors
 import ink.anur.core.common.AbstractRequestMapping
@@ -28,7 +28,7 @@ class RpcHandlerService : AbstractRequestMapping() {
     private lateinit var msgProcessCentreService: MsgProcessCentreService
 
     override fun typeSupport(): RequestTypeEnum {
-        return RequestTypeEnum.RPC
+        return RequestTypeEnum.RPC_REQUEST
     }
 
     override fun handleRequest(fromServer: String, msg: ByteBuffer, channel: Channel) {
@@ -36,6 +36,9 @@ class RpcHandlerService : AbstractRequestMapping() {
         invokeRequestMetaAsync(rpcRequest.requestMeta, fromServer)
     }
 
+    /**
+     * 异步去实现 RPC_REQUEST 的调用
+     */
     fun invokeRequestMetaAsync(requestMeta: RpcRequestMeta, fromServer: String) {
         KanashiExecutors.execute(Runnable {
             if (requestMeta.requestBean == null) {

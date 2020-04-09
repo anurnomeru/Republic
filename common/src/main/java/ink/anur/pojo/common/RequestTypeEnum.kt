@@ -7,7 +7,9 @@ import ink.anur.pojo.coordinate.Voting
 import ink.anur.exception.KanashiException
 import ink.anur.pojo.coordinate.Canvass
 import ink.anur.pojo.HeartBeat
+import ink.anur.pojo.rpc.RpcRegistration
 import ink.anur.pojo.rpc.RpcRequest
+import ink.anur.pojo.rpc.RpcResponse
 import java.util.HashMap
 
 /**
@@ -48,7 +50,17 @@ enum class RequestTypeEnum(val byteSign: Int, val clazz: Class<out AbstractStruc
     /**
      * 进行rpc请求
      */
-    RPC(99999, RpcRequest::class.java)
+    RPC_REQUEST(99999, RpcRequest::class.java),
+
+    /**
+     * 进行rpc回复
+     */
+    RPC_RESPONSE(99998, RpcResponse::class.java),
+
+    /**
+     * 进行rpc注册
+     */
+    RPC_REGISTRATION(9997, RpcRegistration::class.java),
     ;
 
     companion object {

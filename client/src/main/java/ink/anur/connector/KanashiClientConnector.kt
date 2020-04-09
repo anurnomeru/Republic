@@ -49,12 +49,10 @@ class KanashiClientConnector {
                 debugger.info("正在向服务器 $nowConnectNode 发起连接")
                 val connect = ClientOperateHandler(nowConnectNode,
                     {
-                        println("????")
                         connectLatch.countDown()
                     },
                     {
-                        println("????+1")
-                        debugger.info("与服务器 $nowConnectNode 的连接已经断开")
+                        connection = null
                         connectToServer()
                         false
                     })
@@ -69,6 +67,10 @@ class KanashiClientConnector {
                 }
             }
         })
+    }
+
+    private fun reportRegistration() {
+
     }
 
 }

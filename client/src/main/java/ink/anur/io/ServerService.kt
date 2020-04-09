@@ -1,4 +1,4 @@
-package ink.anur.core.server
+package ink.anur.io
 
 import ink.anur.common.Shutdownable
 import ink.anur.config.InetConfig
@@ -7,6 +7,7 @@ import ink.anur.inject.NigateInject
 import ink.anur.inject.NigatePostConstruct
 import ink.anur.io.common.ShutDownHooker
 import ink.anur.io.server.CoordinateServer
+import java.util.concurrent.CountDownLatch
 
 /**
  * Created by Anur IjuoKaruKas on 2020/2/22
@@ -16,22 +17,20 @@ import ink.anur.io.server.CoordinateServer
 @NigateBean
 class ServerService : Shutdownable {
 
-    @NigateInject
-    private lateinit var inetSocketAddressConfiguration: InetConfig
-
     /**
-     * 协调服务端
+     * rpc 服务端
      */
-    private lateinit var coordinateServer: CoordinateServer
+    private lateinit var rpcServer: RpcServer
 
     @NigatePostConstruct
     private fun init() {
-        val sdh = ShutDownHooker("终止协调服务器的套接字接口 ${inetSocketAddressConfiguration.getLocalPort()} 的监听！")
-        this.coordinateServer = CoordinateServer(inetSocketAddressConfiguration.getLocalPort(), sdh)
-        coordinateServer.start()
+        val startLatch = CountDownLatch(1)
+        this.rpcServer = RpcServer(ShutDownHooker(), startLatch)
+        this.rpcServer.start()
+        startLatch.await()
     }
 
     override fun shutDown() {
-        coordinateServer.shutDown()
+        rpcServer.shutDown()
     }
 }

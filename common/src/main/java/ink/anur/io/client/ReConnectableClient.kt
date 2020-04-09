@@ -48,7 +48,7 @@ class ReConnectableClient(private val node: KanashiNode, private val shutDownHoo
 
     private val reconnectLatch = CountDownLatch(1)
 
-    val registrySign: Long = Nigate.getBeanByClass(RegisterResponseHandleService::class.java).registerCallBack { doAfterConnectToServer }
+    val registrySign: Long = Nigate.getBeanByClass(RegisterResponseHandleService::class.java).registerCallBack (doAfterConnectToServer)
 
     fun start() {
 

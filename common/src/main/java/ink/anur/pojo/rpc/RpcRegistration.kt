@@ -8,23 +8,25 @@ import io.netty.channel.Channel
 import java.nio.ByteBuffer
 
 /**
- * Created by Anur IjuoKaruKas on 2020/4/7
+ * Created by Anur IjuoKaruKas on 2020/4/9
+ *
+ * 所有客户端在连接上服务器后，必须发送自己的接口信息
  */
-class RpcResponse : AbstractStruct {
+class RpcRegistration : AbstractStruct {
 
-    val responseMeta: RpcResponseMeta
+    val rpcRegistrationMeta: RpcRegistrationMeta
 
-    constructor(responseMeta: RpcResponseMeta) {
-        this.responseMeta = responseMeta
-        val ser = HessianUtil.ser(this.responseMeta)
-        init(OriginMessageOverhead + ser.size, RequestTypeEnum.RPC_RESPONSE) {
+    constructor(rpcRegistrationMeta: RpcRegistrationMeta) {
+        this.rpcRegistrationMeta = rpcRegistrationMeta
+        val ser = HessianUtil.ser(rpcRegistrationMeta)
+        init(AbstractStruct.OriginMessageOverhead + ser.size, RequestTypeEnum.RPC_REGISTRATION) {
             it.put(ser)
         }
     }
 
     constructor(byteBuffer: ByteBuffer) {
         val limit = byteBuffer.limit()
-        val position = OriginMessageOverhead
+        val position = AbstractStruct.OriginMessageOverhead
 
         this.buffer = byteBuffer
         val ba = ByteArray(limit - position)
@@ -33,7 +35,7 @@ class RpcResponse : AbstractStruct {
         byteBuffer.position(position)
         byteBuffer.get(ba)
 
-        responseMeta = HessianUtil.des(ba, RpcResponseMeta::class.java)
+        rpcRegistrationMeta = HessianUtil.des(ba, RpcRegistrationMeta::class.java)
         byteBuffer.reset()
     }
 

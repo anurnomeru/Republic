@@ -43,5 +43,4 @@ class RpcSenderService {
             responseMapping[msgSign]
         }
     }
-
 }

@@ -9,7 +9,7 @@ import java.io.Serializable
  */
 class RpcRequestMeta(
     /**
-     * 请求时直接指定 bean 名字来 RPC，可以不指定
+     * 请求时直接指定 bean 名字来 RPC_REQUEST，可以不指定
      */
     val requestBean: String?,
     /**

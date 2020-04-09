@@ -10,7 +10,7 @@ import java.util.HashSet
 /**
  * Created by Anur IjuoKaruKas on 2020/4/7
  *
- * 管理 RPC 模块 bean 的所有方法，负责做方法调用
+ * 管理 RPC_REQUEST 模块 bean 的所有方法，负责做方法调用
  */
 class KanashiRpcBean(private val bean: Any) {
     private val interfacesMapping = HashSet<String>()

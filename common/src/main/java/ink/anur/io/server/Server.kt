@@ -3,6 +3,7 @@ package ink.anur.io.server
 import ink.anur.common.KanashiRunnable
 import ink.anur.io.common.ShutDownHooker
 import io.netty.bootstrap.ServerBootstrap
+import io.netty.channel.ChannelFuture
 import io.netty.channel.ChannelInitializer
 import io.netty.channel.ChannelOption
 import io.netty.channel.ChannelPipeline
@@ -10,6 +11,8 @@ import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioServerSocketChannel
 import org.slf4j.LoggerFactory
+import java.util.concurrent.CountDownLatch
+import kotlin.random.Random
 import kotlin.system.exitProcess
 
 /**
@@ -18,7 +21,7 @@ import kotlin.system.exitProcess
  * 作为 server 端的抽象父类，暴露了可定制的 channelPipelineConsumer，
  * 接入了打印错误的 ErrorHandler，注册了 shutDownHooker 可供停止此server
  */
-abstract class Server(private val port: Int, private val shutDownHooker: ShutDownHooker) : KanashiRunnable() {
+abstract class Server(private var port: Int?, private val shutDownHooker: ShutDownHooker, private val startLatch: CountDownLatch?) : KanashiRunnable() {
 
     private val logger = LoggerFactory.getLogger(this::class.java)
 
@@ -53,14 +56,31 @@ abstract class Server(private val port: Int, private val shutDownHooker: ShutDow
                 // 保持连接
                 .childOption(ChannelOption.SO_KEEPALIVE, true)
 
-            val f = serverBootstrap.bind(port)
+
+            var f: ChannelFuture?
+            if (port == null) {
+                while (true) {
+                    val randomPort = Random(1).nextInt(60000, 65535)
+                    try {
+                        f = serverBootstrap.bind(randomPort)
+                        port = randomPort
+                        break
+                    } catch (t: Throwable) {
+                        // ignore
+                    }
+                }
+            } else {
+                f = serverBootstrap.bind(port!!)
+            }
+            f!!
 
             f.addListener { future ->
                 if (!future.isSuccess) {
                     logger.error("监听端口 {} 失败！项目启动失败！", port)
                     exitProcess(1)
                 } else {
-                    logger.info("协调服务器启动成功，监听端口 {}", port)
+                    startLatch?.countDown()
+                    logger.info("服务器启动成功，监听端口 {}", port)
                 }
             }
 
