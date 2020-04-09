@@ -84,6 +84,20 @@ object Nigate {
         }
     }
 
+    /**
+     * 获取当前 Provider 下所有提供服务的 bean 的方法定义 methodSign
+     */
+    fun getRpcBeanPath(): Map<String/* bean */, MutableSet<String /* method */>> {
+        return beanContainer.RPC_BEAN.mapValues { it.value.methodSignMapping.keys }
+    }
+
+    /**
+     * 获取当前 Provider 下所有提供服务的 接口 的方法定义 methodSign
+     */
+    fun getRpcInterfacePath(): Map<String/* bean */, List<MutableSet<String /* method */>>> {
+        return beanContainer.RPC_INTERFACE_BEAN.mapValues { it.value.map { bean -> bean.methodSignMapping.keys } }
+    }
+
     fun getRPCBeanByName(name: String): KanashiRpcBean? {
         return beanContainer.getRPCBeanByName(name)
     }
@@ -130,12 +144,12 @@ object Nigate {
         /**
          * 专门为远程调用准备的映射
          */
-        private val RPC_BEAN = mutableMapOf<String, KanashiRpcBean>()
+        val RPC_BEAN = mutableMapOf<String, KanashiRpcBean>()
 
         /**
          * 远程调用下，接口下的实现
          */
-        private val RPC_INTERFACE_BEAN = mutableMapOf<String, MutableList<KanashiRpcBean>>()
+        val RPC_INTERFACE_BEAN = mutableMapOf<String, MutableList<KanashiRpcBean>>()
 
         /**
          * bean 名字与 bean 的映射，只能一对一

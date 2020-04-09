@@ -22,12 +22,18 @@ class ServerService : Shutdownable {
      */
     private lateinit var rpcServer: RpcServer
 
+    /**
+     * rpc 端口
+     */
+    private var port: Int = -1
+
     @NigatePostConstruct
     private fun init() {
         val startLatch = CountDownLatch(1)
         this.rpcServer = RpcServer(ShutDownHooker(), startLatch)
         this.rpcServer.start()
         startLatch.await()
+        port = rpcServer.port!!
     }
 
     override fun shutDown() {

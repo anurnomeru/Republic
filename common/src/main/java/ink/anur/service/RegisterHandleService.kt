@@ -10,6 +10,7 @@ import ink.anur.pojo.Register
 import ink.anur.pojo.RegisterResponse
 import ink.anur.pojo.common.AbstractStruct
 import ink.anur.pojo.common.RequestTypeEnum
+import ink.anur.util.CharUtil
 import io.netty.channel.Channel
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
@@ -54,7 +55,7 @@ class RegisterHandleService : AbstractRequestMapping() {
         var serverName = register.getServerName()
         register.getRegistrySign()
         if (serverName == CLIENT_SIGN) {
-            serverName = randomName()
+            serverName = CharUtil.randomName(20)
             logger.info("客户端节点 {} 已注册到本节点", serverName)
         } else {
             logger.info("协调节点 {} 已注册到本节点", serverName)
@@ -67,16 +68,5 @@ class RegisterHandleService : AbstractRequestMapping() {
         msgCenterService.sendAsync(serverName, RegisterResponse(register.getRegistrySign()))
     }
 
-    private val random = Random(100)
 
-    private val str = "0123456789abcdefghijklmnopqrstuvwxyz"
-
-    private fun randomName(): String {
-        val sb = StringBuffer()
-        val charLength = str.length
-
-        for (i in 0..20)
-            sb.append(str[random.nextInt(charLength)])
-        return sb.toString()
-    }
 }

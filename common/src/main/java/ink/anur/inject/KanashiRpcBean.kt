@@ -18,8 +18,10 @@ class KanashiRpcBean(private val bean: Any) {
     /**
      * key   -> interface
      * value -> interfaceMeta
+     *
+     * 没做保护但是问题不大
      */
-    private val methodSignMapping = HashMap<String, Method>()
+    val methodSignMapping = HashMap<String, Method>()
 
     init {
         val clazz = bean.javaClass
