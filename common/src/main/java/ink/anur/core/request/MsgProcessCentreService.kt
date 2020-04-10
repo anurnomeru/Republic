@@ -1,6 +1,7 @@
 package ink.anur.core.request
 
 import ink.anur.common.Constant
+import ink.anur.common.KanashiExecutors
 import ink.anur.common.pool.EventDriverPool
 import ink.anur.common.struct.Request
 import ink.anur.core.common.RequestMapping
@@ -16,6 +17,8 @@ import ink.anur.service.RegisterHandleService
 import io.netty.channel.Channel
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
+import java.util.concurrent.Callable
+import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 
 /**
@@ -120,23 +123,27 @@ class MsgProcessCentreService : ReentrantReadWriteLocker() {
     /**
      * 获取到集群信息之后，可以用这个来发送
      */
-    fun sendAsyncTo(channel: Channel, msg: AbstractStruct): Boolean {
+    fun sendAsyncTo(channel: Channel, msg: AbstractStruct): Future<Boolean> {
         return sendAsync(null, msg, true, channel)
     }
 
     /**
      * 此发送器保证【一个类型的消息】只能在收到回复前发送一次，类似于仅有 1 容量的Queue
      */
-    fun sendAsync(serverName: String?, msg: AbstractStruct, keepError: Boolean = false, channel: Channel? = null): Boolean {
+    fun sendAsync(serverName: String?, msg: AbstractStruct, keepError: Boolean = false, channel: Channel? = null): Future<Boolean> {
         val typeEnum = msg.getRequestType()
 
-        val error = msgSendService.doSend(serverName, msg, channel)
-        if (error != null) {
-            if (keepError) {
-                logger.error("尝试发送到节点 $serverName 的 $typeEnum 任务失败", error)
+        return KanashiExecutors.submit(
+            Callable {
+                val error = msgSendService.doSend(serverName, msg, channel)
+                if (error != null) {
+                    if (keepError) {
+                        logger.error("尝试发送到节点 $serverName 的 $typeEnum 任务失败", error)
+                    }
+                    return@Callable false
+                }
+                return@Callable true
             }
-            return false
-        }
-        return true
+        )
     }
 }

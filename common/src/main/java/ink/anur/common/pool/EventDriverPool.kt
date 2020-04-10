@@ -31,7 +31,7 @@ class EventDriverPool<T> private constructor(private val clazz: Class<T>,
          * 注册一个池子
          */
         fun <T> register(clazz: Class<T>,
-                         maxPoolSize: Int,
+                         poolSize: Int,
                          consumeInternal: Long,
                          timeUnit: TimeUnit,
                          howToConsumeItem: ((T) -> Unit)?) {
@@ -39,10 +39,9 @@ class EventDriverPool<T> private constructor(private val clazz: Class<T>,
                 if (HANDLER_POOLS[clazz] != null) {
                     throw DuplicateHandlerPoolException("class $clazz is already register in Handler pool")
                 }
-                val initLatch = CountDownLatch(1)
-                HANDLER_POOLS[clazz] = EventDriverPool(clazz, maxPoolSize, consumeInternal, timeUnit, howToConsumeItem, initLatch)
-                initLatch.countDown()
-                logger.info("初始化 [$clazz] 处理池成功，共有 $maxPoolSize 个请求池被创建")
+                val initLatch = CountDownLatch(poolSize)
+                HANDLER_POOLS[clazz] = EventDriverPool(clazz, poolSize, consumeInternal, timeUnit, howToConsumeItem, initLatch)
+                logger.info("初始化 [$clazz] 处理池成功，共有 $poolSize 个请求池被创建")
             }
         }
 
