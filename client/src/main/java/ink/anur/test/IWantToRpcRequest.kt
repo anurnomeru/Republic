@@ -15,7 +15,7 @@ class IWantToRpcRequest {
 
     @NigateAfterBootStrap
     private fun afterBootstrap() {
-        val rpcResult = whatEverInterface.rpc()
+        val rpcResult = whatEverInterface.rpc("Anur", 996L)
         for (any in rpcResult) {
             println(any)
         }

@@ -44,7 +44,7 @@ class KanashiRpcBean(private val bean: Any) {
                 method.invoke(bean)
             }
             else -> {
-                method.invoke(bean, args)
+                method.invoke(bean, *args)
             }
         }
 

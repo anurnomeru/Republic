@@ -11,7 +11,7 @@ class Provider : WhatEverInterface {
     /**
      * 实现 provider 的逻辑
      */
-    override fun rpc(): List<Any> {
-        return arrayListOf("Anur", "LaLaLa")
+    override fun rpc(str1: String, long: Long): List<Any> {
+        return arrayListOf("Anur", str1, "LaLaLa", long)
     }
 }

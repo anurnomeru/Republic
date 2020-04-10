@@ -5,5 +5,5 @@ package ink.anur.test
  */
 interface WhatEverInterface {
 
-    fun rpc(): List<Any>
+    fun rpc(str1: String, long: Long): List<Any>
 }
