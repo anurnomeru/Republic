@@ -15,7 +15,7 @@ import java.nio.ByteBuffer
 class RpcRegistrationResponse : AbstractStruct {
 
     constructor(SIGN: Int) {
-        init(OriginMessageOverhead + 4, RequestTypeEnum.RPC_REGISTRATION) {
+        init(OriginMessageOverhead + 4, RequestTypeEnum.RPC_REGISTRATION_RESPONSE) {
             it.putInt(SIGN)
         }
     }

@@ -61,12 +61,12 @@ enum class RequestTypeEnum(val byteSign: Int, val clazz: Class<out AbstractStruc
     /**
      * 进行rpc注册
      */
-    RPC_REGISTRATION(9997, RpcRegistration::class.java),
+    RPC_REGISTRATION(99997, RpcRegistration::class.java),
 
     /**
      * 进行rpc注册的回复
      */
-    RPC_REGISTRATION_RESPONSE(9997, RpcRegistrationResponse::class.java)
+    RPC_REGISTRATION_RESPONSE(99996, RpcRegistrationResponse::class.java)
     ;
 
     companion object {

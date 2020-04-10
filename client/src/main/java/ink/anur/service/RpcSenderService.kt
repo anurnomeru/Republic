@@ -1,4 +1,4 @@
-package ink.anur.rpc
+package ink.anur.service
 
 import ink.anur.core.request.MsgProcessCentreService
 import ink.anur.inject.NigateBean

@@ -76,7 +76,7 @@ class KanashiClientConnector {
                 connect.start()
                 if (connectLatch.await(10, TimeUnit.SECONDS)) {
                     connection = connect
-                    debugger.info("与服务器 $nowConnectNode 建立连接，准备向节点发送节点的所有可用 RPC 信息")
+                    debugger.info("与服务器 $nowConnectNode 建立连接，正在向节点发送节点的所有可用 RPC 信息")
 
                     while (notifyMap[this.notifyNo] != null) {
                         notifyNo = random.nextInt()
@@ -95,7 +95,7 @@ class KanashiClientConnector {
                         )))
 
                     // 如果 5 秒钟没有收到回复，重新发送可用信息
-                    if (countDownLatch.await(10, TimeUnit.SECONDS)) {
+                    if (!countDownLatch.await(10, TimeUnit.SECONDS)) {
                         connect.shutDown()
                     } else {
                         debugger.info("收到服务器 $nowConnectNode 的 RPC 注册回调")

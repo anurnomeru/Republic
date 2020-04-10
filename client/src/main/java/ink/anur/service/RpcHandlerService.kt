@@ -1,4 +1,4 @@
-package ink.anur.rpc.handler
+package ink.anur.service
 
 import ink.anur.common.KanashiExecutors
 import ink.anur.core.common.AbstractRequestMapping
@@ -17,7 +17,7 @@ import java.nio.ByteBuffer
 /**
  * Created by Anur IjuoKaruKas on 2020/4/7
  *
- * 负责接收并处理 rpc 请求的 bean
+ * 负责接收并处理 rpc 请求的服务
  *
  * TODO : 与 handler 在线程上解耦，先同一线程没事，做出来再说
  */
@@ -41,7 +41,8 @@ class RpcHandlerService : AbstractRequestMapping() {
      */
     fun invokeRequestMetaAsync(requestMeta: RpcRequestMeta, fromServer: String) {
         KanashiExecutors.execute(Runnable {
-            if (requestMeta.requestBean == null) {
+            val requestBean = requestMeta.requestBean
+            if (requestBean == null) {
                 val rpcBeanByInterfaces = Nigate.getRPCBeanByInterface(requestMeta.requestInterface)
                 when {
                     rpcBeanByInterfaces == null -> {
@@ -59,7 +60,7 @@ class RpcHandlerService : AbstractRequestMapping() {
                     }
                 }
             } else {
-                when (val kanashiRpcBean = Nigate.getRPCBeanByName(requestMeta.requestBean)) {
+                when (val kanashiRpcBean = Nigate.getRPCBeanByName(requestBean)) {
                     null -> {
                         msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta("ERR3", requestMeta.msgSign, error = true)))
                     }

@@ -1,9 +1,8 @@
-package ink.anur.rpc
+package ink.anur.core.rpc
 
 import ink.anur.inject.NigateBean
 import ink.anur.mutex.ReentrantReadWriteLocker
 import ink.anur.pojo.rpc.RpcRegistrationMeta
-import ink.anur.util.CharUtil
 import java.net.InetSocketAddress
 
 /**
@@ -20,24 +19,23 @@ class RpcRegistrationCenterService : ReentrantReadWriteLocker() {
      * TODO 做诸如负载均衡
      */
     private val providerMapping = mutableMapOf<String/* bean */,
-        MutableMap<String /* methodSign */, MutableList<String/* serverName */>>>()
+        MutableMap<String /* methodSign */, MutableSet<String/* serverName */>>>()
 
     /**
      * 记录已有的 server 们的一个映射
      */
     private val enableServerMapping = mutableMapOf<String, RpcRegistrationMeta>()
 
+    /**
+     * 当前所有注册服务的地址
+     */
     private val addressMapping = mutableMapOf<String, InetSocketAddress>()
 
     /**
      * 向注册中心注册并获得一个服务名（用于取消注册）
      */
-    fun register(address: InetSocketAddress, registration: RpcRegistrationMeta): String {
+    fun register(serverName: String, address: InetSocketAddress, registration: RpcRegistrationMeta): String {
         return writeLockSupplierCompel {
-            val serverName = CharUtil.randomName(20)
-            if (addressMapping[serverName] != null) {
-                return@writeLockSupplierCompel register(address, registration)
-            }
 
             addressMapping[serverName] = address
             enableServerMapping[serverName] = registration
@@ -87,15 +85,15 @@ class RpcRegistrationCenterService : ReentrantReadWriteLocker() {
     /**
      * 将 rpc 信息注册到注册中心
      */
-    fun registerToGuiding(serverName: String, bean: String, methodSigns: MutableSet<String>) {
+    private fun registerToGuiding(serverName: String, bean: String, methodSigns: MutableSet<String>) {
         for (methodSign in methodSigns) {
             providerMapping.compute(serverName) { _, innerMap ->
                 val methodSignMapping = innerMap ?: mutableMapOf()
 
                 methodSignMapping.compute(methodSign) { _, iiMap ->
-                    val serverList = iiMap ?: mutableListOf()
-                    serverList.add(bean)
-                    return@compute serverList
+                    val serverSet = iiMap ?: mutableSetOf()
+                    serverSet.add(bean)
+                    return@compute serverSet
                 }
 
                 return@compute methodSignMapping
@@ -106,15 +104,15 @@ class RpcRegistrationCenterService : ReentrantReadWriteLocker() {
     /**
      * 将 rpc 信息从注册中心移除
      */
-    fun unRegisterFromGuiding(serverName: String, bean: String, methodSigns: MutableSet<String>) {
+    private fun unRegisterFromGuiding(serverName: String, bean: String, methodSigns: MutableSet<String>) {
         for (methodSign in methodSigns) {
             providerMapping.compute(serverName) { _, innerMap ->
                 val methodSignMapping = innerMap ?: mutableMapOf()
 
                 methodSignMapping.compute(methodSign) { _, iiMap ->
-                    val serverList = iiMap ?: mutableListOf()
-                    serverList.remove(bean)
-                    return@compute serverList
+                    val serverSet = iiMap ?: mutableSetOf()
+                    serverSet.remove(bean)
+                    return@compute serverSet
                 }
 
                 return@compute methodSignMapping
