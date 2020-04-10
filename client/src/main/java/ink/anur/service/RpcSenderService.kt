@@ -10,6 +10,7 @@ import ink.anur.pojo.rpc.RpcInetSocketAddress
 import ink.anur.pojo.rpc.RpcRequest
 import ink.anur.pojo.rpc.RpcRequestMeta
 import ink.anur.pojo.rpc.RpcResponse
+import ink.anur.pojo.rpc.RpcResponseMeta
 import ink.anur.rpc.RpcSender
 import ink.anur.util.ClassMetaUtil
 import io.netty.channel.Channel
@@ -35,13 +36,14 @@ class RpcSenderService : RpcSender {
 
     private val waitingMapping = ConcurrentHashMap<Long, CountDownLatch>()
 
-    private val responseMapping = ConcurrentHashMap<Long, RpcResponse>()
+    private val responseMapping = ConcurrentHashMap<Long, RpcResponseMeta>()
 
     private val random = Random(100)
 
     private var index = 0
 
     // todo 添加超时机制
+    // todo 各种异常的捕获
     override fun sendRpcRequest(method: Method, interfaceName: String, alias: String?, args: Array<out Any>?): Any? {
         val msgSign = random.nextLong()
         val cdl = CountDownLatch(1)
@@ -58,10 +60,20 @@ class RpcSenderService : RpcSender {
             }
 
             msgProcessCentreService.sendAsyncTo(getOrConnectToAChannel(searchValidProvider), rpcRequest)
-            responseMapping[msgSign]
+            cdl.await()// 等待收到response
+            val remove = responseMapping.remove(msgSign)!!
+            remove.result
         }
     }
 
+    /**
+     * 收到response以后，进行通知
+     */
+    fun notifyRpcResponse(rpcResponseMeta: RpcResponseMeta) {
+        val requestSign = rpcResponseMeta.requestSign
+        responseMapping[requestSign] = rpcResponseMeta
+        waitingMapping[requestSign]!!.countDown()
+    }
 
     private val openConnections = ConcurrentHashMap<String, ClientOperateHandler>()
 
@@ -78,6 +90,7 @@ class RpcSenderService : RpcSender {
             val entries = ArrayList(providers.entries)
             for (i in 0 until entries.size) {
                 val entry = entries[index % entries.size]// 用余数是避免每次连接都连到第一个元素
+                index++
                 val connectWaitingLatch = CountDownLatch(1)
                 val clientOperateHandler = ClientOperateHandler(KanashiNode(entry.key, entry.value.host, entry.value.port),
                     doAfterConnectToServer = {
