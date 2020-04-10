@@ -6,7 +6,6 @@ import ink.anur.common.struct.KanashiNode
 import ink.anur.io.client.ReConnectableClient
 import ink.anur.io.common.ShutDownHooker
 import io.netty.channel.Channel
-import io.netty.channel.ChannelHandlerContext
 
 /**
  * Created by Anur IjuoKaruKas on 2020/2/23
@@ -36,7 +35,7 @@ class ClientOperateHandler(kanashiNode: KanashiNode,
 
     private val coordinateClient = ReConnectableClient(kanashiNode, this.serverShutDownHooker, { synchronized(this) { ctx = it } }, doAfterConnectToServer, doAfterDisConnectToServer)
 
-    private fun getChannel(): Channel {
+    fun getChannel(): Channel {
         synchronized(this) {
             return ctx!!
         }

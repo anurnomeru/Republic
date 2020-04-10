@@ -1,5 +1,6 @@
 package ink.anur.service
 
+import ink.anur.common.struct.KanashiNode
 import ink.anur.core.client.ClientOperateHandler
 import ink.anur.core.request.MsgProcessCentreService
 import ink.anur.exception.KanashiNoneMatchRpcProviderException
@@ -11,10 +12,11 @@ import ink.anur.pojo.rpc.RpcRequestMeta
 import ink.anur.pojo.rpc.RpcResponse
 import ink.anur.rpc.RpcSender
 import ink.anur.util.ClassMetaUtil
+import io.netty.channel.Channel
 import java.lang.reflect.Method
-import java.nio.channels.Channel
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
 /**
@@ -55,17 +57,45 @@ class RpcSenderService : RpcSender {
                 throw KanashiNoneMatchRpcProviderException("无法找到相应的 RPC 提供者！")
             }
 
+            msgProcessCentreService.sendAsyncTo(getOrConnectToAChannel(searchValidProvider), rpcRequest)
             responseMapping[msgSign]
         }
     }
 
 
-    private val openConnections = mutableMapOf<String, ClientOperateHandler>()
+    private val openConnections = ConcurrentHashMap<String, ClientOperateHandler>()
 
     /**
      * 尝试从已经有的管道或者重新发起一个长连接
+     *
+     * todo 有些地方的异常捕获做的其实不到位
      */
-    fun getOrConnectToAChannel(providers: Map<String, RpcInetSocketAddress>): Channel {
-        ClientOperateHandler()
+    private fun getOrConnectToAChannel(providers: Map<String, RpcInetSocketAddress>): Channel {
+        val first = providers.keys.firstOrNull { openConnections.containsKey(it) }
+        if (first != null) {
+            return openConnections[first]!!.getChannel()
+        } else {
+            val entries = ArrayList(providers.entries)
+            for (i in 0 until entries.size) {
+                val entry = entries[index % entries.size]// 用余数是避免每次连接都连到第一个元素
+                val connectWaitingLatch = CountDownLatch(1)
+                val clientOperateHandler = ClientOperateHandler(KanashiNode(entry.key, entry.value.host, entry.value.port),
+                    doAfterConnectToServer = {
+                        connectWaitingLatch.countDown()
+                    },
+                    doAfterDisConnectToServer = {
+                        openConnections.remove(entry.key)
+                        false
+                    })
+                clientOperateHandler.start()
+
+                if (connectWaitingLatch.await(5, TimeUnit.SECONDS)) {
+                    openConnections[entry.key] = clientOperateHandler
+                    return clientOperateHandler.getChannel()
+                }
+            }
+
+            throw  KanashiNoneMatchRpcProviderException("无法连接上目前已经注册到注册中心的所有服务！")
+        }
     }
 }
