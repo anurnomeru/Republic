@@ -19,7 +19,7 @@ class RpcProviderMapping : AbstractStruct {
     constructor(rpcProviderMappingMeta: RpcProviderMappingMeta) {
         this.rpcProviderMappingMeta = rpcProviderMappingMeta
         val ser = HessianUtil.ser(rpcProviderMappingMeta)
-        init(AbstractStruct.OriginMessageOverhead + ser.size, RequestTypeEnum.RPC_REGISTRATION) {
+        init(AbstractStruct.OriginMessageOverhead + ser.size, RequestTypeEnum.RPC_PROVIDER_MAPPING) {
             it.put(ser)
         }
     }

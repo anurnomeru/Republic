@@ -10,6 +10,7 @@ import ink.anur.inject.Nigate
 import ink.anur.inject.NigateAfterBootStrap
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
+import ink.anur.inject.NigatePostConstruct
 import ink.anur.pojo.rpc.RpcRegistration
 import ink.anur.pojo.rpc.RpcRegistrationMeta
 import java.lang.StringBuilder
@@ -50,7 +51,7 @@ class KanashiClientConnector {
      */
     private var notifyMap = mutableMapOf<Int, CountDownLatch>()
 
-    @NigateAfterBootStrap
+    @NigatePostConstruct
     fun connectToServer() {
         KanashiExecutors.execute(Runnable {
             val cluster = inetSocketAddressConfiguration.getCluster()
@@ -74,7 +75,7 @@ class KanashiClientConnector {
                     })
 
                 connect.start()
-                if (connectLatch.await(10, TimeUnit.SECONDS)) {
+                if (connectLatch.await(5, TimeUnit.SECONDS)) {
                     connection = connect
                     debugger.info("与服务器 $nowConnectNode 建立连接，正在向节点发送节点的所有可用 RPC 信息")
 

@@ -1,12 +1,13 @@
 package ink.anur.inject
 
 import com.google.common.collect.Lists
+import ink.anur.common.KanashiExecutors
 import ink.anur.exception.DuplicateBeanException
 import ink.anur.exception.KanashiException
 import ink.anur.exception.NigateException
 import ink.anur.exception.NoSuchBeanException
 import ink.anur.exception.RPCInjectUnSupportException
-import ink.anur.rpc.RpcSenderService
+import ink.anur.rpc.RpcSender
 import ink.anur.util.ClassMetaUtil
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -107,6 +108,8 @@ object Nigate {
     }
 
     fun <T> getBeanByClass(clazz: Class<T>): T = beanContainer.getBeanByClass(clazz)
+
+    fun <T> getBeanByInterface(clazz: Class<T>): T = beanContainer.getBeanByInterface(clazz, true) as T
 
     fun getBeanByName(name: String): Any = beanContainer.getBeanByName(name)
 
@@ -268,6 +271,35 @@ object Nigate {
         }
 
         /**
+         * todo 代码从下面copy过来的，其实抛的异常不太对
+         */
+        fun <T> getBeanByInterface(clazz: Class<T>, useLocalFirst: Boolean): Any {
+            return if (clazz.isInterface) {
+                val mutableSet = INTERFACE_MAPPING[clazz]
+                if (mutableSet == null) {
+                    throw NoSuchBeanException("不存在接口类型为 $clazz 的 Bean！")
+                } else {
+                    if (mutableSet.size == 1) {// 如果只有一个实现，则注入此实现
+                        return getBeanByClassFirstThenName(mutableSet.first())
+                    } else if (useLocalFirst) {// 如果优先使用本地写的类
+                        val localBean = mutableSet.takeIf { BEAN_DEFINITION_MAPPING[it.javaClass.simpleName]?.fromJar == false }
+                        when {
+                            localBean == null -> throw DuplicateBeanException("bean ${clazz.javaClass} " +
+                                " 将注入的属性 $clazz 为接口类型，且存在多个来自【依赖】的子类实现，请改用 @NigateInject(name) 来指定别名注入")
+                            localBean.size > 1 -> throw DuplicateBeanException("bean ${clazz.javaClass} " +
+                                " 将注入的属性 $clazz 为接口类型，且存在多个来自【本地】的子类实现，请改用 @NigateInject(name) 来指定别名注入")
+                            else -> return getBeanByClassFirstThenName(mutableSet.first())
+                        }
+                    } else {
+                        throw DuplicateBeanException("将注入的属性 $clazz 为接口类型，且存在多个来自【依赖】的子类实现，请改用 @NigateInject(name) 来指定别名注入")
+                    }
+                }
+            } else {
+                throw KanashiException("$clazz 不是接口！")
+            }
+        }
+
+        /**
          * 为某个bean注入成员变量，如果注入的接口是一个 RPC_REQUEST 接口，则会为接口创建一个动态代理
          */
         fun inject(injected: Any) {
@@ -391,13 +423,16 @@ object Nigate {
                     for (annotation in memberFunction.annotations) {
                         if (annotation.annotationClass == NigateAfterBootStrap::class) {
                             annotation as NigateAfterBootStrap
-                            try {
-                                memberFunction.isAccessible = true
-                                memberFunction.call(bean)
-                            } catch (e: Exception) {
-                                logger.error("class [${bean::class}] invoke after bootstrap method [${memberFunction.name}] error : ${e.message}")
-                                e.printStackTrace()
-                            }
+                            KanashiExecutors.execute(Runnable {
+                                try {
+                                    memberFunction.isAccessible = true
+                                    memberFunction.call(bean)
+                                } catch (e: Exception) {
+                                    logger.error("class [${bean::class}] invoke after bootstrap method [${memberFunction.name}] error : ${e.message}")
+                                    e.printStackTrace()
+                                }
+
+                            })
                             val name = BEAN_TO_NAME_MAPPING[bean] ?: throw NoSuchBeanException("无法根据类 ${bean.javaClass.simpleName} 找到唯一的 Bean 找到指定的 BeanName")
                             hasBeanPostConstruct.add(name)
                         }
@@ -503,7 +538,7 @@ object Nigate {
         val proxyBean: Any = Proxy.newProxyInstance(interfaces.classLoader, arrayOf(interfaces), this)
 
         override fun invoke(proxy: Any?, method: Method, args: Array<out Any>?): Any? {
-            val rpcSenderService = getBeanByClass(RpcSenderService::class.java)
+            val rpcSenderService = getBeanByInterface(RpcSender::class.java)
             return rpcSenderService.sendRpcRequest(method, interfaceName, alias, args)
         }
     }

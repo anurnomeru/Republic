@@ -7,6 +7,7 @@ import ink.anur.pojo.coordinate.Voting
 import ink.anur.exception.KanashiException
 import ink.anur.pojo.coordinate.Canvass
 import ink.anur.pojo.HeartBeat
+import ink.anur.pojo.rpc.RpcProviderMapping
 import ink.anur.pojo.rpc.RpcRegistration
 import ink.anur.pojo.rpc.RpcRegistrationResponse
 import ink.anur.pojo.rpc.RpcRequest
@@ -66,7 +67,12 @@ enum class RequestTypeEnum(val byteSign: Int, val clazz: Class<out AbstractStruc
     /**
      * 进行rpc注册的回复
      */
-    RPC_REGISTRATION_RESPONSE(99996, RpcRegistrationResponse::class.java)
+    RPC_REGISTRATION_RESPONSE(99996, RpcRegistrationResponse::class.java),
+
+    /**
+     * 集群内 rpc 信息
+     */
+    RPC_PROVIDER_MAPPING(99995, RpcProviderMapping::class.java)
     ;
 
     companion object {

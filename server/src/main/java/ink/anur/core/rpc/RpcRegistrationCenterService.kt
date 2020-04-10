@@ -2,6 +2,8 @@ package ink.anur.core.rpc
 
 import ink.anur.inject.NigateBean
 import ink.anur.mutex.ReentrantReadWriteLocker
+import ink.anur.pojo.rpc.RpcProviderMapping
+import ink.anur.pojo.rpc.RpcProviderMappingMeta
 import ink.anur.pojo.rpc.RpcRegistrationMeta
 import java.net.InetSocketAddress
 
@@ -22,14 +24,26 @@ class RpcRegistrationCenterService : ReentrantReadWriteLocker() {
         MutableMap<String /* methodSign */, MutableSet<String/* serverName */>>>()
 
     /**
+     * 当前所有注册服务的地址
+     */
+    private val addressMapping = mutableMapOf<String, InetSocketAddress>()
+
+    /**
      * 记录已有的 server 们的一个映射
      */
     private val enableServerMapping = mutableMapOf<String, RpcRegistrationMeta>()
 
-    /**
-     * 当前所有注册服务的地址
-     */
-    private val addressMapping = mutableMapOf<String, InetSocketAddress>()
+    fun getEnableServerMapping(): MutableSet<String> {
+        return readLockSupplierCompel {
+            enableServerMapping.keys
+        }
+    }
+
+    fun getProviderMapping(): RpcProviderMapping {
+        return readLockSupplierCompel {
+            RpcProviderMapping(RpcProviderMappingMeta(providerMapping, addressMapping))
+        }
+    }
 
     /**
      * 向注册中心注册并获得一个服务名（用于取消注册）
