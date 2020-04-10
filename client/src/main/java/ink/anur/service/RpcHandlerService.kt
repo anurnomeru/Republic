@@ -38,8 +38,10 @@ class RpcHandlerService : AbstractRequestMapping() {
 
     /**
      * 异步去实现 RPC_REQUEST 的调用
+     *
+     * todo 改为异步
      */
-    fun invokeRequestMetaAsync(requestMeta: RpcRequestMeta, fromServer: String) {
+    private fun invokeRequestMetaAsync(requestMeta: RpcRequestMeta, fromServer: String) {
         KanashiExecutors.execute(Runnable {
             val requestBean = requestMeta.requestBean
             if (requestBean == null) {
@@ -52,9 +54,13 @@ class RpcHandlerService : AbstractRequestMapping() {
                         msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta("ERR2", requestMeta.msgSign, error = true)))
                     }
                     else -> {
-                        val kanashiRpcBean = rpcBeanByInterfaces[0]
-                        val result = requestMeta.requestParams?.let { kanashiRpcBean.invokeMethod(requestMeta.requestMethodSign, *it) }
-                            ?: kanashiRpcBean.invokeMethod(requestMeta.requestMethodSign)
+                        val result = try {
+                            val kanashiRpcBean = rpcBeanByInterfaces[0]
+                            requestMeta.requestParams?.let { kanashiRpcBean.invokeMethod(requestMeta.requestMethodSign, *it) }
+                                ?: kanashiRpcBean.invokeMethod(requestMeta.requestMethodSign)
+                        } catch (e: Exception) {
+                            msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta(e.message, requestMeta.msgSign, error = true)))
+                        }
 
                         msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta(result, requestMeta.msgSign)))
                     }
@@ -65,8 +71,12 @@ class RpcHandlerService : AbstractRequestMapping() {
                         msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta("ERR3", requestMeta.msgSign, error = true)))
                     }
                     else -> {
-                        val result = requestMeta.requestParams?.let { kanashiRpcBean.invokeMethod(requestMeta.requestMethodSign, *it) }
-                            ?: kanashiRpcBean.invokeMethod(requestMeta.requestMethodSign)
+                        val result = try {
+                            requestMeta.requestParams?.let { kanashiRpcBean.invokeMethod(requestMeta.requestMethodSign, *it) }
+                                ?: kanashiRpcBean.invokeMethod(requestMeta.requestMethodSign)
+                        } catch (e: Exception) {
+                            msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta(e.message, requestMeta.msgSign, error = true)))
+                        }
                         msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta(result, requestMeta.msgSign)))
                     }
                 }

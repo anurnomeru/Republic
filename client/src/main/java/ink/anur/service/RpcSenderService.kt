@@ -4,6 +4,9 @@ import ink.anur.common.struct.KanashiNode
 import ink.anur.core.client.ClientOperateHandler
 import ink.anur.core.request.MsgProcessCentreService
 import ink.anur.exception.KanashiNoneMatchRpcProviderException
+import ink.anur.exception.RpcErrorGenerator
+import ink.anur.exception.RpcOverTimeException
+import ink.anur.exception.RpcUnderRequestException
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
 import ink.anur.pojo.rpc.RpcInetSocketAddress
@@ -42,13 +45,12 @@ class RpcSenderService : RpcSender {
 
     private var index = 0
 
-    // todo 添加超时机制
-    // todo 各种异常的捕获
     override fun sendRpcRequest(method: Method, interfaceName: String, alias: String?, args: Array<out Any>?): Any? {
         val msgSign = random.nextLong()
         val cdl = CountDownLatch(1)
 
         return if (waitingMapping.putIfAbsent(msgSign, cdl) != null) {
+            println("re putting")
             sendRpcRequest(method, interfaceName, alias, args)
         } else {
             val rpcRequest = RpcRequest(RpcRequestMeta(alias, interfaceName, ClassMetaUtil.methodSignGen(method), args, msgSign))
@@ -60,9 +62,24 @@ class RpcSenderService : RpcSender {
             }
 
             msgProcessCentreService.sendAsyncTo(getOrConnectToAChannel(searchValidProvider), rpcRequest)
-            cdl.await()// 等待收到response
-            val remove = responseMapping.remove(msgSign)!!
-            remove.result
+
+            if (cdl.await(5, TimeUnit.SECONDS)) {// 需要做成可以配置的
+                val remove = responseMapping.remove(msgSign)!!
+
+                if (remove.error) {
+                    val function = RpcErrorGenerator.RPC_ERROR_MAPPING[remove.result]
+                    if (function == null) {
+                        throw RpcUnderRequestException(remove.result.toString())
+                    } else {
+                        throw function.invoke()
+                    }
+                }
+
+                return remove.result
+            } else {
+                responseMapping.remove(msgSign)
+                throw RpcOverTimeException(" RPC 请求超时！")
+            }
         }
     }
 
@@ -73,6 +90,7 @@ class RpcSenderService : RpcSender {
         val requestSign = rpcResponseMeta.requestSign
         responseMapping[requestSign] = rpcResponseMeta
         waitingMapping[requestSign]!!.countDown()
+        waitingMapping.remove(requestSign)
     }
 
     private val openConnections = ConcurrentHashMap<String, ClientOperateHandler>()

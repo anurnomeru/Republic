@@ -121,7 +121,7 @@ class MsgProcessCentreService : ReentrantReadWriteLocker() {
      * 获取到集群信息之后，可以用这个来发送
      */
     fun sendAsyncTo(channel: Channel, msg: AbstractStruct): Boolean {
-        return sendAsync(null, msg, false, channel)
+        return sendAsync(null, msg, true, channel)
     }
 
     /**
