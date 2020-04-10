@@ -17,6 +17,9 @@ import java.lang.reflect.Method
 import java.lang.reflect.Proxy
 import java.net.JarURLConnection
 import java.net.URL
+import java.util.function.Function
+import java.util.stream.Collectors
+import java.util.stream.Stream
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.full.memberFunctions
 import kotlin.reflect.jvm.isAccessible
@@ -88,15 +91,15 @@ object Nigate {
     /**
      * 获取当前 Provider 下所有提供服务的 bean 的方法定义 methodSign
      */
-    fun getRpcBeanPath(): Map<String/* bean */, MutableSet<String /* method */>> {
-        return beanContainer.RPC_BEAN.mapValues { it.value.methodSignMapping.keys }
+    fun getRpcBeanPath(): Map<String/* bean */, HashSet<String /* method */>> {
+        return beanContainer.RPC_BEAN.mapValues { HashSet(it.value.methodSignMapping.keys) }
     }
 
     /**
      * 获取当前 Provider 下所有提供服务的 接口 的方法定义 methodSign
      */
-    fun getRpcInterfacePath(): Map<String/* bean */, List<MutableSet<String /* method */>>> {
-        return beanContainer.RPC_INTERFACE_BEAN.mapValues { it.value.map { bean -> bean.methodSignMapping.keys } }
+    fun getRpcInterfacePath(): Map<String/* bean */, List<HashSet<String /* method */>>> {
+        return beanContainer.RPC_INTERFACE_BEAN.mapValues { it.value.map { bean -> HashSet(bean.methodSignMapping.keys) } }
     }
 
     fun getRPCBeanByName(name: String): KanashiRpcBean? {
@@ -355,7 +358,7 @@ object Nigate {
                         val javaField = kProperty.javaField!!
                         val fieldClass = kProperty.returnType.javaType as Class<*>
 
-                        val alias = if (annotation.alias == UNDEFINE_ALIAS) annotation.alias else null
+                        val alias = if (annotation.alias == UNDEFINE_ALIAS) null else annotation.alias
 
                         javaField.isAccessible = true
                         javaField.set(injected, RpcRequestInvocation(fieldClass, alias).proxyBean)

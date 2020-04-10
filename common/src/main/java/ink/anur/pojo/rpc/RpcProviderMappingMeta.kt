@@ -1,7 +1,6 @@
 package ink.anur.pojo.rpc
 
 import java.io.Serializable
-import java.net.InetSocketAddress
 
 /**
  * Created by Anur IjuoKaruKas on 2020/4/9
@@ -11,5 +10,5 @@ import java.net.InetSocketAddress
 class RpcProviderMappingMeta(
     val providerMapping: MutableMap<String/* bean */,
         MutableMap<String /* methodSign */, MutableSet<String/* serverName */>>>,
-    val addressMapping: MutableMap<String, InetSocketAddress>
+    val addressMapping: MutableMap<String, RpcInetSocketAddress>
 ) : Serializable

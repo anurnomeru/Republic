@@ -6,6 +6,7 @@ import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
 import ink.anur.mutex.ReentrantReadWriteLocker
 import ink.anur.pojo.common.RequestTypeEnum
+import ink.anur.pojo.rpc.RpcInetSocketAddress
 import ink.anur.pojo.rpc.RpcProviderMapping
 import ink.anur.pojo.rpc.RpcRequest
 import io.netty.channel.Channel
@@ -33,7 +34,7 @@ class RpcProviderMappingHolderService : AbstractRequestMapping() {
     /**
      * 当前所有注册服务的地址
      */
-    private lateinit var addressMapping: MutableMap<String, InetSocketAddress>
+    private lateinit var addressMapping: MutableMap<String, RpcInetSocketAddress>
 
     private val enableCDL = CountDownLatch(1)
 
@@ -50,7 +51,7 @@ class RpcProviderMappingHolderService : AbstractRequestMapping() {
         }
     }
 
-    fun searchValidProvider(rpcRequest: RpcRequest): Map<String, InetSocketAddress>? {
+    fun searchValidProvider(rpcRequest: RpcRequest): Map<String, RpcInetSocketAddress>? {
         enableCDL.await() // 没有收到任何一个服务端应答之前，不做任何响应也没法响应
         return lk.readLockSupplier {
             val requestMeta = rpcRequest.requestMeta

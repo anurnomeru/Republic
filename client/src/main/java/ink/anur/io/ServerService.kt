@@ -36,6 +36,13 @@ class ServerService : Shutdownable {
         port = rpcServer.port!!
     }
 
+    /**
+     * 获取rpc服务的端口
+     */
+    fun getLocalServerPort(): Int {
+        return port
+    }
+
     override fun shutDown() {
         rpcServer.shutDown()
     }

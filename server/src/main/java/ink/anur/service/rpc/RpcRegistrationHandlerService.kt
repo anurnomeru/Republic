@@ -9,6 +9,7 @@ import ink.anur.inject.NigateAfterBootStrap
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
 import ink.anur.pojo.common.RequestTypeEnum
+import ink.anur.pojo.rpc.RpcInetSocketAddress
 import ink.anur.pojo.rpc.RpcRegistration
 import ink.anur.pojo.rpc.RpcRegistrationResponse
 import io.netty.channel.Channel
@@ -72,7 +73,7 @@ class RpcRegistrationHandlerService : AbstractRequestMapping() {
         val rpcRegistrationMeta = rpcRegistration.rpcRegistrationMeta
 
         val isa = channel.remoteAddress() as InetSocketAddress
-        val name = rpcRegistrationCenterService.register(fromServer, isa, rpcRegistrationMeta)
+        val name = rpcRegistrationCenterService.register(fromServer, RpcInetSocketAddress(isa.hostName, rpcRegistrationMeta.port), rpcRegistrationMeta)
         channel.pipeline().addLast(UnRegisterHandler(name, rpcRegistrationCenterService, this))
 
         // 进行多一次检查，避免在 addLast 后，服务就不可用了
