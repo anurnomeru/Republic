@@ -2,6 +2,7 @@ package ink.anur.service
 
 import ink.anur.core.common.AbstractRequestMapping
 import ink.anur.exception.KanashiException
+import ink.anur.exception.RpcNonAvailableProviderException
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
 import ink.anur.mutex.ReentrantReadWriteLocker
@@ -59,7 +60,7 @@ class RpcProviderMappingHolderService : AbstractRequestMapping() {
 
             val validProvider = providerMapping[bean]?.let { it[requestMeta.requestMethodSign] }
             if (validProvider == null || validProvider.isEmpty()) {
-                throw KanashiException("")// todo 待完善
+                throw RpcNonAvailableProviderException("无法从注册中心找寻到相应的 Provider")// todo 待完善
             } else {
                 return@readLockSupplier addressMapping.filter { validProvider.contains(it.key) }
             }

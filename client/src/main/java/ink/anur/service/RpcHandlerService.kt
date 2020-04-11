@@ -33,13 +33,9 @@ class RpcHandlerService : AbstractRequestMapping() {
         return RequestTypeEnum.RPC_REQUEST
     }
 
-    private var invokeCount = 0
-
     override fun handleRequest(fromServer: String, msg: ByteBuffer, channel: Channel) {
         val rpcRequest = RpcRequest(msg)
         val requestMeta = rpcRequest.requestMeta
-        count++
-        println("收到了 $count")
         KanashiExecutors.execute(Runnable {
             val requestBean = requestMeta.requestBean
             if (requestBean == null) {
@@ -60,8 +56,6 @@ class RpcHandlerService : AbstractRequestMapping() {
                             msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta(e.message, requestMeta.msgSign, error = true)))
                         }
 
-                        invokeCount++
-                        println("invoke了 $invokeCount")
                         msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta(result, requestMeta.msgSign)))
                     }
                 }
