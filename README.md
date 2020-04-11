@@ -75,4 +75,4 @@ class IWantToRpcRequest {
  - 与 spring 融合
 
 ### 三、更新日志
- - 2020年4月11日22:38:36 增加了在与现有Provider的通信过程中，因原Provider不可用，而切换新的Provider的功能
+ - 2020年4月11日22:38:36 | 增加了在与现有Provider的通信过程中，因原Provider不可用，而切换新的Provider的功能
