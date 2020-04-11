@@ -1,9 +1,10 @@
-package ink.anur.test
+package ink.anur
 
 import ink.anur.common.KanashiExecutors
 import ink.anur.inject.KanashiRpcInject
 import ink.anur.inject.NigateAfterBootStrap
 import ink.anur.inject.NigateBean
+import ink.anur.test.WhatEverInterface
 
 /**
  * Created by Anur IjuoKaruKas on 2020/4/10
@@ -19,21 +20,11 @@ class IWantToRpcRequest {
 
     @NigateAfterBootStrap
     private fun afterBootstrap() {
-
-        KanashiExecutors.execute(Runnable {
-            var current = count
-            while (true) {
-                Thread.sleep(1000)
-                val now = count
-                println("每秒流速 ${now - current}")
-                current = now
-            }
-        })
-
         KanashiExecutors.execute(Runnable {
             while (true) {
-                val rpcResult = whatEverInterface.rpc("Anur", 996L)
                 count++
+                println("发送了 ${count}")
+                val rpcResult = whatEverInterface.rpc("Anur", 996L)
             }
         }
         )

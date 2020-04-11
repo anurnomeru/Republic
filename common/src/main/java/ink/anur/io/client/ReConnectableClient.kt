@@ -1,6 +1,7 @@
 package ink.anur.io.client
 
 import ink.anur.common.KanashiExecutors
+import ink.anur.common.KanashiIOExecutors
 import ink.anur.common.struct.KanashiNode
 import ink.anur.inject.Nigate
 import ink.anur.io.common.ShutDownHooker
@@ -48,7 +49,7 @@ class ReConnectableClient(private val node: KanashiNode, private val shutDownHoo
 
     private val reconnectLatch = CountDownLatch(1)
 
-    val registrySign: Long = Nigate.getBeanByClass(RegisterResponseHandleService::class.java).registerCallBack (doAfterConnectToServer)
+    val registrySign: Long = Nigate.getBeanByClass(RegisterResponseHandleService::class.java).registerCallBack(doAfterConnectToServer)
 
     fun start() {
 
@@ -69,7 +70,7 @@ class ReConnectableClient(private val node: KanashiNode, private val shutDownHoo
         KanashiExecutors.execute(restartMission)
         restartMission.name = "Client Restart $node"
 
-        val group = NioEventLoopGroup()
+        val group = NioEventLoopGroup(0, KanashiIOExecutors.Pool)
 
         try {
             val bootstrap = Bootstrap()

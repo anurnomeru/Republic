@@ -3,6 +3,8 @@ package ink.anur.service
 import ink.anur.common.KanashiExecutors
 import ink.anur.core.common.AbstractRequestMapping
 import ink.anur.core.request.MsgProcessCentreService
+import ink.anur.exception.KanashiException
+import ink.anur.exception.RpcUnderRequestException
 import ink.anur.inject.Nigate
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
@@ -31,17 +33,13 @@ class RpcHandlerService : AbstractRequestMapping() {
         return RequestTypeEnum.RPC_REQUEST
     }
 
+    private var invokeCount = 0
+
     override fun handleRequest(fromServer: String, msg: ByteBuffer, channel: Channel) {
         val rpcRequest = RpcRequest(msg)
-        invokeRequestMetaAsync(rpcRequest.requestMeta, fromServer)
-    }
-
-    /**
-     * 异步去实现 RPC_REQUEST 的调用
-     *
-     * todo 改为异步
-     */
-    private fun invokeRequestMetaAsync(requestMeta: RpcRequestMeta, fromServer: String) {
+        val requestMeta = rpcRequest.requestMeta
+        count++
+        println("收到了 $count")
         KanashiExecutors.execute(Runnable {
             val requestBean = requestMeta.requestBean
             if (requestBean == null) {
@@ -62,6 +60,8 @@ class RpcHandlerService : AbstractRequestMapping() {
                             msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta(e.message, requestMeta.msgSign, error = true)))
                         }
 
+                        invokeCount++
+                        println("invoke了 $invokeCount")
                         msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta(result, requestMeta.msgSign)))
                     }
                 }
@@ -83,4 +83,7 @@ class RpcHandlerService : AbstractRequestMapping() {
             }
         })
     }
+
+    var count = 0
+
 }

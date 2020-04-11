@@ -17,11 +17,15 @@ class RpcResponseHandlerService : AbstractRequestMapping() {
     @NigateInject
     private lateinit var rpcSenderService: RpcSenderService
 
+    private var count = 0
+
     override fun typeSupport(): RequestTypeEnum {
         return RequestTypeEnum.RPC_RESPONSE
     }
 
     override fun handleRequest(fromServer: String, msg: ByteBuffer, channel: Channel) {
+        count++
+        println("收到rpc回复 $count")
         rpcSenderService.notifyRpcResponse(RpcResponse(msg).responseMeta)
     }
 }

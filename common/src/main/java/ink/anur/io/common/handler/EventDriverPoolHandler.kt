@@ -1,7 +1,8 @@
 package ink.anur.io.common.handler
 
-import ink.anur.common.pool.EventDriverPool
 import ink.anur.common.struct.Request
+import ink.anur.core.request.MsgProcessCentreService
+import ink.anur.inject.Nigate
 import ink.anur.pojo.common.AbstractStruct
 import ink.anur.pojo.common.RequestTypeEnum
 import io.netty.channel.ChannelHandlerContext
@@ -30,9 +31,10 @@ class EventDriverPoolHandler : SimpleChannelInboundHandler<ByteBuffer>() {
             val typeEnum = RequestTypeEnum.parseByByteSign(sign)
 
             if (typeEnum != RequestTypeEnum.HEAT_BEAT) {
-                logger.info("<--- 收到了类型为 $typeEnum 的消息")
+                logger.trace("<--- 收到了类型为 $typeEnum 的消息")
             }
-            EventDriverPool.offer(Request(msg, typeEnum, ctx.channel()))
+
+            Nigate.getBeanByClass(MsgProcessCentreService::class.java).receive(msg, typeEnum, ctx.channel())
         } else {
             logger.error("Channel HandlerContext or its byte buffer in pipeline is null")
         }

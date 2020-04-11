@@ -1,14 +1,11 @@
 package ink.anur.core.request
 
-import ink.anur.common.Constant
 import ink.anur.common.KanashiExecutors
-import ink.anur.common.pool.EventDriverPool
-import ink.anur.common.struct.Request
+import ink.anur.common.KanashiIOExecutors
 import ink.anur.core.common.RequestMapping
 import ink.anur.core.response.ResponseProcessCentreService
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
-import ink.anur.inject.NigatePostConstruct
 import ink.anur.io.common.channel.ChannelService
 import ink.anur.mutex.ReentrantReadWriteLocker
 import ink.anur.pojo.common.AbstractStruct
@@ -19,7 +16,6 @@ import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
 import java.util.concurrent.Callable
 import java.util.concurrent.Future
-import java.util.concurrent.TimeUnit
 
 /**
  * Created by Anur IjuoKaruKas on 2020/2/24
@@ -49,17 +45,6 @@ class MsgProcessCentreService : ReentrantReadWriteLocker() {
      * 注册所有的请求应该采用什么处理的映射
      */
     private val requestMappingRegister = mutableMapOf<RequestTypeEnum, RequestMapping>()
-
-    @NigatePostConstruct
-    fun postConstruct() {
-        EventDriverPool.register(Request::class.java,
-            8,
-            200,
-            TimeUnit.MILLISECONDS
-        ) {
-            this.receive(it.msg, it.typeEnum, it.channel)
-        }
-    }
 
     /**
      * 注册 RequestMapping
@@ -103,7 +88,8 @@ class MsgProcessCentreService : ReentrantReadWriteLocker() {
                     val requestMapping = requestMappingRegister[requestTypeEnum]
 
                     if (requestMapping != null) {
-                        requestMapping.handleRequest(serverName, msg, channel)// 收到正常的请求
+                        // 收到正常的请求 提交到正常的线程池去
+                        KanashiExecutors.execute(Runnable { requestMapping.handleRequest(serverName, msg, channel) })
                     } else {
                         logger.error("类型 $requestTypeEnum 消息没有定制化 requestMapping ！！！")
                     }
@@ -133,7 +119,7 @@ class MsgProcessCentreService : ReentrantReadWriteLocker() {
     fun sendAsync(serverName: String?, msg: AbstractStruct, keepError: Boolean = false, channel: Channel? = null): Future<Boolean> {
         val typeEnum = msg.getRequestType()
 
-        return KanashiExecutors.submit(
+        return KanashiIOExecutors.submit(
             Callable {
                 val error = msgSendService.doSend(serverName, msg, channel)
                 if (error != null) {
@@ -141,8 +127,9 @@ class MsgProcessCentreService : ReentrantReadWriteLocker() {
                         logger.error("尝试发送到节点 $serverName 的 $typeEnum 任务失败", error)
                     }
                     return@Callable false
+                }else{
+                    return@Callable true
                 }
-                return@Callable true
             }
         )
     }

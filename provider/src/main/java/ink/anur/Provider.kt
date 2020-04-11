@@ -1,6 +1,7 @@
-package ink.anur.test
+package ink.anur
 
 import ink.anur.inject.KanashiRpc
+import ink.anur.test.WhatEverInterface
 
 /**
  * Created by Anur IjuoKaruKas on 2020/4/10

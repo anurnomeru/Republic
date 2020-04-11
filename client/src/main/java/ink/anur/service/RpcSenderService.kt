@@ -41,12 +41,13 @@ class RpcSenderService : RpcSender {
 
     private val responseMapping = ConcurrentHashMap<Long, RpcResponseMeta>()
 
-    private val random = Random(100)
+//    private val random = Random(100)
+    private var random = 0L
 
     private var index = 0
 
     override fun sendRpcRequest(method: Method, interfaceName: String, alias: String?, args: Array<out Any>?): Any? {
-        val msgSign = random.nextLong()
+        val msgSign = random++
         val cdl = CountDownLatch(1)
 
         return if (waitingMapping.putIfAbsent(msgSign, cdl) != null) {
@@ -61,7 +62,11 @@ class RpcSenderService : RpcSender {
                 throw KanashiNoneMatchRpcProviderException("无法找到相应的 RPC 提供者！")
             }
 
-            msgProcessCentreService.sendAsyncTo(getOrConnectToAChannel(searchValidProvider), rpcRequest)
+            val sendAsyncTo = msgProcessCentreService.sendAsyncTo(getOrConnectToAChannel(searchValidProvider), rpcRequest)
+
+            if(!sendAsyncTo.get()){
+                println("报错了！！！！ todo 额外的处理")
+            }
 
             if (cdl.await(5, TimeUnit.SECONDS)) {// 需要做成可以配置的
                 val remove = responseMapping.remove(msgSign)!!
@@ -77,7 +82,7 @@ class RpcSenderService : RpcSender {
 
                 return remove.result
             } else {
-                responseMapping.remove(msgSign)
+//                responseMapping.remove(msgSign)
                 throw RpcOverTimeException(" RPC 请求超时！")
             }
         }

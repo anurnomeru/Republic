@@ -26,6 +26,7 @@ class KanashiDecoder : ByteToMessageDecoder() {
         val maybeLength = buffer.readInt()
         val remain = buffer.readableBytes()
 
+        println("maybeLength ${maybeLength} remain ${remain}")
         return if (remain < maybeLength) {
             buffer.resetReaderIndex()
             null
@@ -34,9 +35,6 @@ class KanashiDecoder : ByteToMessageDecoder() {
             buffer.readBytes(resultOne)
             resultOne.rewind()
             resultOne
-//            val get = resultOne.getInt(AbstractStruct.TypeOffset)
-//            val parseByByteSign = RequestTypeEnum.parseByByteSign(get)
-//            resultOne
         }
     }
 }
