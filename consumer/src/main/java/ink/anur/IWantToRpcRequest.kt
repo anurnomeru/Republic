@@ -1,4 +1,4 @@
-package ink.test
+package ink.anur
 
 import ink.anur.common.KanashiExecutors
 import ink.anur.inject.RepublicInject
