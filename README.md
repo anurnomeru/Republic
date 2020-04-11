@@ -74,3 +74,5 @@ class IWantToRpcRequest {
  - 注册中心新增集群模式，以支持高可用
  - 与 spring 融合
 
+### 三、跟新日志
+ - 2020年4月11日22:38:36 增加了在与现有Provider的通信过程中，因原Provider不可用，而切换新的Provider的功能
