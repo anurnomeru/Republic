@@ -69,7 +69,7 @@ class IWantToRpcRequest {
 
 启动该模块下的 `Bootstrap` 即可。
 
-### 二. 即将要做的事
+### 二、即将要做的事
  - 支持批量操作以提高 QPS
  - 注册中心新增集群模式，以支持高可用
  - 与 spring 融合
