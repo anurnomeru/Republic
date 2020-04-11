@@ -22,6 +22,6 @@ class RpcResponseHandlerService : AbstractRequestMapping() {
     }
 
     override fun handleRequest(fromServer: String, msg: ByteBuffer, channel: Channel) {
-        rpcSenderService.notifyRpcResponse(RpcResponse(msg).responseMeta)
+        rpcSenderService.notifyRpcResponse(fromServer,RpcResponse(msg).responseMeta)
     }
 }

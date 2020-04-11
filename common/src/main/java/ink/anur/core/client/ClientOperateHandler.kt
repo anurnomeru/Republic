@@ -12,7 +12,7 @@ import io.netty.channel.Channel
  *
  * 连接某客户端的 client
  */
-class ClientOperateHandler(kanashiNode: KanashiNode,
+class ClientOperateHandler(private val kanashiNode: KanashiNode,
 
                            /**
                             * 当受到对方的注册回调后，触发此函数，注意 它可能会被多次调用
@@ -34,6 +34,8 @@ class ClientOperateHandler(kanashiNode: KanashiNode,
     private var ctx: Channel? = null
 
     private val coordinateClient = ReConnectableClient(kanashiNode, this.serverShutDownHooker, { synchronized(this) { ctx = it } }, doAfterConnectToServer, doAfterDisConnectToServer)
+
+    fun getNodeName() = kanashiNode.serverName
 
     fun getChannel(): Channel {
         synchronized(this) {

@@ -5,4 +5,4 @@ package ink.anur.exception
  *
  * 请求已经落到了 provider，但是超时了
  */
-class RpcOverTimeException(message: String) : KanashiException(message)
+class RPCOverTimeException(message: String) : KanashiException(message)

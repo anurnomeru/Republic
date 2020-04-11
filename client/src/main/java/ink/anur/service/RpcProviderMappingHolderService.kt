@@ -1,17 +1,14 @@
 package ink.anur.service
 
 import ink.anur.core.common.AbstractRequestMapping
-import ink.anur.exception.KanashiException
-import ink.anur.exception.RpcNonAvailableProviderException
+import ink.anur.exception.RPCNonAvailableProviderException
 import ink.anur.inject.NigateBean
-import ink.anur.inject.NigateInject
 import ink.anur.mutex.ReentrantReadWriteLocker
 import ink.anur.pojo.common.RequestTypeEnum
 import ink.anur.pojo.rpc.RpcInetSocketAddress
 import ink.anur.pojo.rpc.RpcProviderMapping
 import ink.anur.pojo.rpc.RpcRequest
 import io.netty.channel.Channel
-import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.util.concurrent.CountDownLatch
 
@@ -60,7 +57,7 @@ class RpcProviderMappingHolderService : AbstractRequestMapping() {
 
             val validProvider = providerMapping[bean]?.let { it[requestMeta.requestMethodSign] }
             if (validProvider == null || validProvider.isEmpty()) {
-                throw RpcNonAvailableProviderException("无法从注册中心找寻到相应的 Provider")// todo 待完善
+                throw RPCNonAvailableProviderException("无法从注册中心找寻到相应的 Provider")// todo 待完善
             } else {
                 return@readLockSupplier addressMapping.filter { validProvider.contains(it.key) }
             }

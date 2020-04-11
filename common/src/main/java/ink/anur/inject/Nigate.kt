@@ -540,7 +540,7 @@ object Nigate {
 
         override fun invoke(proxy: Any?, method: Method, args: Array<out Any>?): Any? {
             val rpcSenderService = getBeanByInterface(RpcSender::class.java)
-            return rpcSenderService.sendRpcRequest(method, interfaceName, alias, args)
+            return rpcSenderService.sendRpcRequest(method, interfaceName, alias, args, 3)
         }
     }
 }

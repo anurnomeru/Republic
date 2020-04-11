@@ -5,4 +5,4 @@ package ink.anur.exception
  *
  * 请求已经落到了 provider，但是还是抛出了异常
  */
-class RpcUnderRequestException(message: String) : KanashiException(message)
+class RPCUnderRequestException(message: String) : KanashiException(message)

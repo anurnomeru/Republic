@@ -5,4 +5,4 @@ package ink.anur.exception
  *
  * 无法从 broker 获取到想要请求的类
  */
-class RpcNonAvailableProviderException(message: String) : KanashiException(message)
+class RPCNonAvailableProviderException(message: String) : KanashiException(message)
