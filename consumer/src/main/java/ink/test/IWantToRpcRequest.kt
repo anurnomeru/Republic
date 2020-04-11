@@ -1,7 +1,7 @@
 package ink.test
 
 import ink.anur.common.KanashiExecutors
-import ink.anur.inject.KanashiRpcInject
+import ink.anur.inject.RepublicInject
 import ink.anur.inject.NigateAfterBootStrap
 import ink.anur.inject.NigateBean
 import ink.anur.test.WhatEverInterface
@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory
 @NigateBean
 class IWantToRpcRequest {
 
-    @KanashiRpcInject
+    @RepublicInject
     private lateinit var whatEverInterface: WhatEverInterface
 
     private val logger = LoggerFactory.getLogger(this.javaClass)

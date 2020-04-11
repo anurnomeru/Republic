@@ -1,12 +1,12 @@
 package ink.anur
 
-import ink.anur.inject.KanashiRpc
+import ink.anur.inject.Republic
 import ink.anur.test.WhatEverInterface
 
 /**
  * Created by Anur IjuoKaruKas on 2020/4/10
  */
-@KanashiRpc
+@Republic
 class Provider : WhatEverInterface {
 
     /**

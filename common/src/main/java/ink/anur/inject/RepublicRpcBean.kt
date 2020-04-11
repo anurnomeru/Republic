@@ -12,7 +12,7 @@ import java.util.HashSet
  *
  * 管理 RPC_REQUEST 模块 bean 的所有方法，负责做方法调用
  */
-class KanashiRpcBean(private val bean: Any) {
+class RepublicRpcBean(private val bean: Any) {
     private val interfacesMapping = HashSet<String>()
 
     /**

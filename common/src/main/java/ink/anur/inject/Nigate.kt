@@ -17,9 +17,6 @@ import java.lang.reflect.Method
 import java.lang.reflect.Proxy
 import java.net.JarURLConnection
 import java.net.URL
-import java.util.function.Function
-import java.util.stream.Collectors
-import java.util.stream.Stream
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.full.memberFunctions
 import kotlin.reflect.jvm.isAccessible
@@ -46,11 +43,13 @@ object Nigate {
     init {
         try {
             logger.info("\n" +
-                " ▄    ▄   ▄▄   ▄▄   ▄   ▄▄    ▄▄▄▄  ▄    ▄ ▄▄▄▄▄         ▄▄▄▄▄  ▄▄▄▄▄    ▄▄▄ \n" +
-                " █  ▄▀    ██   █▀▄  █   ██   █▀   ▀ █    █   █           █   ▀█ █   ▀█ ▄▀   ▀\n" +
-                " █▄█     █  █  █ █▄ █  █  █  ▀█▄▄▄  █▄▄▄▄█   █           █▄▄▄▄▀ █▄▄▄█▀ █     \n" +
-                " █  █▄   █▄▄█  █  █ █  █▄▄█      ▀█ █    █   █     ▀▀▀   █   ▀▄ █      █     \n" +
-                " █   ▀▄ █    █ █   ██ █    █ ▀▄▄▄█▀ █    █ ▄▄█▄▄         █    ▀ █       ▀▄▄▄▀\n" +
+                "______ ___________ _   _______ _     _____ _____ \n" +
+                "| ___ \\  ___| ___ \\ | | | ___ \\ |   |_   _/  __ \\\n" +
+                "| |_/ / |__ | |_/ / | | | |_/ / |     | | | /  \\/\n" +
+                "|    /|  __||  __/| | | | ___ \\ |     | | | |    \n" +
+                "| |\\ \\| |___| |   | |_| | |_/ / |_____| |_| \\__/\\\n" +
+                "\\_| \\_\\____/\\_|    \\___/\\____/\\_____/\\___/ \\____/\n" +
+                "                                                 \n" +
                 "                                          Ver: 0.0.1 Alpha\n")
 
             val start = System.currentTimeMillis()
@@ -101,11 +100,11 @@ object Nigate {
         return beanContainer.RPC_INTERFACE_BEAN.mapValues { it.value.map { bean -> HashSet(bean.methodSignMapping.keys) } }
     }
 
-    fun getRPCBeanByName(name: String): KanashiRpcBean? {
+    fun getRPCBeanByName(name: String): RepublicRpcBean? {
         return beanContainer.getRPCBeanByName(name)
     }
 
-    fun getRPCBeanByInterface(interfaceName: String): MutableList<KanashiRpcBean>? {
+    fun getRPCBeanByInterface(interfaceName: String): MutableList<RepublicRpcBean>? {
         return beanContainer.getRPCBeanByInterface(interfaceName)
     }
 
@@ -149,12 +148,12 @@ object Nigate {
         /**
          * 专门为远程调用准备的映射
          */
-        val RPC_BEAN = mutableMapOf<String, KanashiRpcBean>()
+        val RPC_BEAN = mutableMapOf<String, RepublicRpcBean>()
 
         /**
          * 远程调用下，接口下的实现
          */
-        val RPC_INTERFACE_BEAN = mutableMapOf<String, MutableList<KanashiRpcBean>>()
+        val RPC_INTERFACE_BEAN = mutableMapOf<String, MutableList<RepublicRpcBean>>()
 
         /**
          * bean 名字与 bean 的映射，只能一对一
@@ -221,7 +220,7 @@ object Nigate {
             BEAN_TO_NAME_MAPPING[bean] = actualName
 
             if (registerToRPC) {
-                val kanashiRpcBean = KanashiRpcBean(bean)
+                val kanashiRpcBean = RepublicRpcBean(bean)
                 RPC_BEAN[actualName] = kanashiRpcBean
                 for (anInterface in kanashiRpcBean.getInterfacesMapping()) {
                     RPC_INTERFACE_BEAN.compute(anInterface) { _, list ->
@@ -352,8 +351,8 @@ object Nigate {
 
                         javaField.isAccessible = true
                         javaField.set(injected, injection)
-                    } else if (annotation.annotationClass == KanashiRpcInject::class) {
-                        annotation as KanashiRpcInject
+                    } else if (annotation.annotationClass == RepublicInject::class) {
+                        annotation as RepublicInject
                         val javaField = kProperty.javaField!!
                         val fieldClass = kProperty.returnType.javaType as Class<*>
 
@@ -501,8 +500,8 @@ object Nigate {
                     if (annotation.annotationClass == NigateBean::class) {
                         annotation as NigateBean
                         beanContainer.autoRegister(classPath, aClass, annotation.alias, fromJar = true, registerToRPC = false)
-                    } else if (annotation.annotationClass == KanashiRpc::class) {
-                        annotation as KanashiRpc
+                    } else if (annotation.annotationClass == Republic::class) {
+                        annotation as Republic
                         beanContainer.autoRegister(classPath, aClass, annotation.alias, fromJar = true, registerToRPC = true)
                     }
                 }
@@ -515,11 +514,11 @@ object Nigate {
             getClasses("ink.anur")
         }
 
-        fun getRPCBeanByInterface(interfaceName: String): MutableList<KanashiRpcBean>? {
+        fun getRPCBeanByInterface(interfaceName: String): MutableList<RepublicRpcBean>? {
             return RPC_INTERFACE_BEAN[interfaceName]
         }
 
-        fun getRPCBeanByName(name: String): KanashiRpcBean? {
+        fun getRPCBeanByName(name: String): RepublicRpcBean? {
             return RPC_BEAN[name]
         }
     }
