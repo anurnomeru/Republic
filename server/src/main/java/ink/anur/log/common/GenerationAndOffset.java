@@ -1,4 +1,4 @@
-package ink.anur.core.raft;
+package ink.anur.log.common;
 
 import java.util.Optional;
 

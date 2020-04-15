@@ -3,7 +3,6 @@ package ink.anur.config.common
 import ink.anur.common.struct.KanashiNode
 import ink.anur.exception.ApplicationConfigException
 import ink.anur.exception.KanashiException
-import javafx.util.Pair
 import java.util.ResourceBundle
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.Lock
@@ -132,7 +131,5 @@ open class ConfigHelper {
                 }
             }
         }
-
-
     }
 }

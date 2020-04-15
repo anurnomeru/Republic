@@ -9,6 +9,7 @@ import ink.anur.mutex.ReentrantLocker
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
 import ink.anur.inject.NigatePostConstruct
+import ink.anur.log.common.GenerationAndOffset
 import ink.anur.pojo.coordinate.Canvass
 import ink.anur.pojo.HeartBeat
 import ink.anur.pojo.coordinate.Voting

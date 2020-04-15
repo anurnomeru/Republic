@@ -56,8 +56,8 @@ class InetSocketAddressConfiguration : ConfigHelper(), InetConfig {
 
     override fun getCluster(): List<KanashiNode> {
         return getConfigSimilar(ConfigurationEnum.CLIENT_ADDR) { pair ->
-            val serverName = pair.key
-            val split = pair.value
+            val serverName = pair.first
+            val split = pair.second
                 .split(":".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
             KanashiNode(serverName, split[0], Integer.valueOf(split[1]))
         } as List<KanashiNode>
