@@ -29,8 +29,11 @@ object Bootstrap {
 
         Thread.sleep(1000)
 
-        for (i in 0 until 1000000){
+        for (i in 0 until 1000000) {
             logService.appendForLeader(LogItem(TestingProposal()))
+            if (i % 100 == 0) {
+                println(i)
+            }
         }
 
         println("over")

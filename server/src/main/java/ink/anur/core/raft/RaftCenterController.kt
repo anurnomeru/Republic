@@ -57,7 +57,7 @@ class RaftCenterController : KanashiRunnable() {
      */
     private var taskMap = ConcurrentHashMap<TaskEnum, TimedTask>()
 
-    @NigatePostConstruct
+    @NigatePostConstruct(dependsOn = "electionMetaService")
     private fun init() {
         logger.info("初始化选举控制器 ElectOperator，本节点为 {}", inetSocketAddressConfiguration.getLocalServerName())
         this.name = "RaftCenterController"

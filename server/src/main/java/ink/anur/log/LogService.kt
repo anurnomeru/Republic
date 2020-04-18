@@ -122,23 +122,26 @@ class LogService {
         currentGAO = init
     }
 
-    @NigateAfterBootStrap
-    private fun onBootStrap() {
-        var nowRecovery = GenerationAndOffset(0, -1)
-        while (true) {
-            val after = getAfter(nowRecovery.next()) ?: break
-
-            val generation = after.fetchMeta.generation
-            val iterator = after.fos.iterator()
-            while (iterator.hasNext()) {
-                val next = iterator.next()
-                nowRecovery = GenerationAndOffset(generation, next.offset)// todo 这里写的不好
-            }
-            if (nowRecovery == initial) {
-                break
-            }
-        }
-    }
+//    /**
+//     * 恢复 aof
+//     */
+//    @NigatePostConstruct
+//    private fun onBootStrap() {
+//        var nowRecovery = GenerationAndOffset(0, -1)
+//        while (true) {
+//            val after = getAfter(nowRecovery.next()) ?: break
+//
+//            val generation = after.fetchMeta.generation
+//            val iterator = after.fos.iterator()
+//            while (iterator.hasNext()) {
+//                val next = iterator.next()
+//                nowRecovery = GenerationAndOffset(generation, next.offset)// todo 这里写的不好
+//            }
+//            if (nowRecovery == initial) {
+//                break
+//            }
+//        }
+//    }
 
     /**
      * 当集群可用
