@@ -6,6 +6,8 @@ import ink.anur.inject.Event
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
 import ink.anur.inject.NigateListenerService
+import ink.anur.inject.NigatePostConstruct
+import ink.anur.log.LogService
 import ink.anur.pojo.HeartBeat
 import ink.anur.util.TimeUtil
 import org.slf4j.Logger
@@ -23,9 +25,22 @@ class ElectionMetaService {
     private lateinit var inetSocketAddressConfiguration: InetConfig
 
     @NigateInject
-    private lateinit var kanashiListenerService: NigateListenerService
+    private lateinit var nigateListenerService: NigateListenerService
+
+    @NigateInject
+    private lateinit var logService: LogService
 
     private val logger: Logger = LoggerFactory.getLogger(this::class.java)
+
+    /**
+     * 启动后将之前保存的 GAO 进度重新加载回内存
+     */
+    @NigatePostConstruct(dependsOn = "logService")
+    private fun init() {
+        val initialGAO = logService.getInitialGAO()
+        this.generation = initialGAO.generation
+        this.offset = initialGAO.offset
+    }
 
     @Synchronized
     fun eden(newGen: Long) {
@@ -149,10 +164,10 @@ class ElectionMetaService {
         if (changed) {
             this.electionCompleted = electionCompleted
             clusterValid = if (electionCompleted) {
-                kanashiListenerService.onEvent(Event.CLUSTER_VALID)
+                nigateListenerService.onEvent(Event.CLUSTER_VALID)
                 true
             } else {
-                kanashiListenerService.onEvent(Event.CLUSTER_INVALID)
+                nigateListenerService.onEvent(Event.CLUSTER_INVALID)
                 false
             }
         }

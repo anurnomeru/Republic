@@ -19,6 +19,7 @@ package ink.anur.log
 
 import ink.anur.config.LogConfiguration
 import ink.anur.core.raft.ElectionMetaService
+import ink.anur.core.raft.RaftCenterController
 import ink.anur.debug.Debugger
 import ink.anur.exception.LogException
 import ink.anur.inject.Event
@@ -26,9 +27,7 @@ import ink.anur.inject.NigateAfterBootStrap
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
 import ink.anur.inject.NigateListener
-import ink.anur.inject.NigateListenerService
 import ink.anur.inject.NigatePostConstruct
-import ink.anur.log.common.EngineProcessEntry
 import ink.anur.log.common.FetchDataInfo
 import ink.anur.log.common.GenerationAndOffset
 import ink.anur.log.common.LogUtil
@@ -57,7 +56,7 @@ class LogService {
     private lateinit var electionMetaService: ElectionMetaService
 
     @NigateInject
-    private lateinit var nigateListenerService: NigateListenerService
+    private lateinit var raftCenterController: RaftCenterController
 
     /** 显式锁 */
     private val appendLock = ReentrantReadWriteLocker()
@@ -134,13 +133,11 @@ class LogService {
             while (iterator.hasNext()) {
                 val next = iterator.next()
                 nowRecovery = GenerationAndOffset(generation, next.offset)// todo 这里写的不好
-//                storeEngineFacadeService.append(EngineProcessEntry(next.logItem, nowRecovery))
             }
             if (nowRecovery == initial) {
                 break
             }
         }
-//        nigateListenerService.onEvent(Event.LOG_LOAD_COMPLETE)
     }
 
     /**
@@ -172,7 +169,7 @@ class LogService {
     /**
      * 当集群完成recovery，打开追加入口
      */
-//    @NigateListener(onEvent = Event.RECOVERY_COMPLETE)
+    @NigateListener(onEvent = Event.CLUSTER_VALID)
     private fun onRecoveryComplete() {
         appendLock.switchOn()
         logger.info("log-service 追加入口开启~")
@@ -181,12 +178,13 @@ class LogService {
     /**
      * 追加操作日志到磁盘，只有当集群可用时，才可以进行追加
      */
-    fun appendForLeader(gao: GenerationAndOffset, logItem: LogItem) {
-        return appendLock.writeLocker {
-            return@writeLocker explicitLock.writeLocker {
-                currentGAO = gao
-                val log = maybeRoll(gao.generation, true)
-                log.append(logItem, gao.offset)
+    fun appendForLeader(logItem: LogItem): GenerationAndOffset {
+        return appendLock.writeLockSupplierCompel {
+            return@writeLockSupplierCompel explicitLock.writeLockSupplierCompel {
+                currentGAO = raftCenterController.genGenerationAndOffset()
+                val log = maybeRoll(currentGAO.generation, true)
+                log.append(logItem, currentGAO.offset)
+                return@writeLockSupplierCompel currentGAO
             }
         }
     }
