@@ -7,6 +7,8 @@ import ink.anur.pojo.coordinate.Voting
 import ink.anur.exception.KanashiException
 import ink.anur.pojo.coordinate.Canvass
 import ink.anur.pojo.HeartBeat
+import ink.anur.pojo.log.Fetch
+import ink.anur.pojo.log.FetchResponse
 import ink.anur.pojo.rpc.RpcProviderMapping
 import ink.anur.pojo.rpc.RpcRegistration
 import ink.anur.pojo.rpc.RpcRegistrationResponse
@@ -48,6 +50,21 @@ enum class RequestTypeEnum(val byteSign: Int, val clazz: Class<out AbstractStruc
      * 进行投票
      */
     VOTING(10003, Voting::class.java),
+
+    /**
+     * 进行拉取日志
+     */
+    FETCH(10004, Fetch::class.java),
+
+    /**
+     * 拉取日志的回复
+     */
+    FETCH_RESPONSE(10004, FetchResponse::class.java),
+
+    /**
+     * 集群恢复 reporter
+     */
+    RECOVERY_REPORTER(10004, FetchResponse::class.java),
 
     /**
      * 进行rpc请求

@@ -1,4 +1,4 @@
-package ink.anur.pojo.rpc
+package ink.anur.pojo.rpc.meta
 
 import java.io.Serializable
 

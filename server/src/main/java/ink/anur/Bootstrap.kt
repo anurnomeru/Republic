@@ -3,7 +3,7 @@ package ink.anur
 import ink.anur.config.BootstrapConfiguration
 import ink.anur.core.raft.RaftCenterController
 import ink.anur.inject.Nigate
-import ink.anur.log.LogService
+import ink.anur.core.log.LogService
 import ink.anur.pojo.log.LogItem
 import ink.anur.pojo.log.TestingProposal
 

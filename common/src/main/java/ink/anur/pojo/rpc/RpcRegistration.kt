@@ -2,6 +2,7 @@ package ink.anur.pojo.rpc
 
 import ink.anur.pojo.common.AbstractStruct
 import ink.anur.pojo.common.RequestTypeEnum
+import ink.anur.pojo.rpc.meta.RpcRegistrationMeta
 import ink.anur.util.HessianUtil
 import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
@@ -19,14 +20,14 @@ class RpcRegistration : AbstractStruct {
     constructor(rpcRegistrationMeta: RpcRegistrationMeta) {
         this.rpcRegistrationMeta = rpcRegistrationMeta
         val ser = HessianUtil.ser(rpcRegistrationMeta)
-        init(AbstractStruct.OriginMessageOverhead + ser.size, RequestTypeEnum.RPC_REGISTRATION) {
+        init(OriginMessageOverhead + ser.size, RequestTypeEnum.RPC_REGISTRATION) {
             it.put(ser)
         }
     }
 
     constructor(byteBuffer: ByteBuffer) {
         val limit = byteBuffer.limit()
-        val position = AbstractStruct.OriginMessageOverhead
+        val position = OriginMessageOverhead
 
         this.buffer = byteBuffer
         val ba = ByteArray(limit - position)

@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package ink.anur.log
+package ink.anur.core.log
 
 import ink.anur.config.LogConfiguration
 import ink.anur.core.raft.ElectionMetaService
@@ -23,20 +23,22 @@ import ink.anur.core.raft.RaftCenterController
 import ink.anur.debug.Debugger
 import ink.anur.exception.LogException
 import ink.anur.inject.Event
-import ink.anur.inject.NigateAfterBootStrap
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
 import ink.anur.inject.NigateListener
 import ink.anur.inject.NigatePostConstruct
+import ink.anur.log.Log
 import ink.anur.log.common.FetchDataInfo
-import ink.anur.log.common.GenerationAndOffset
+import ink.anur.pojo.log.GenerationAndOffset
 import ink.anur.log.common.LogUtil
 import ink.anur.log.persistence.LogSegment
 import ink.anur.mutex.ReentrantReadWriteLocker
 import ink.anur.pojo.log.LogItem
 import java.io.File
 import java.io.IOException
+import java.util.SortedSet
 import java.util.concurrent.ConcurrentSkipListMap
+import java.util.concurrent.ConcurrentSkipListSet
 import kotlin.math.max
 
 /**
@@ -122,6 +124,23 @@ class LogService {
         currentGAO = init
     }
 
+    fun getCurrentGao(): GenerationAndOffset {
+        return currentGAO
+    }
+
+    fun getAllGensGao(): SortedSet<GenerationAndOffset> {
+        val result = ConcurrentSkipListSet<GenerationAndOffset>()
+        for (file in baseDir.listFiles()!!) {
+            if (!file.isFile) {
+                val gen = Integer.valueOf(file.name).toLong()
+                val latestOffset = Log(gen, createGenDirIfNEX(gen)).currentOffset
+                result.add(GenerationAndOffset(gen, latestOffset))
+            }
+        }
+        return result
+    }
+
+
 //    /**
 //     * 恢复 aof
 //     */
@@ -197,7 +216,7 @@ class LogService {
      *
      * 允许插入到以前的世代
      */
-    fun appendWhileRecovery(gen: Long, offset: Long, logItem: LogItem) {
+    fun append(gen: Long, offset: Long, logItem: LogItem) {
         explicitLock.writeLocker {
             val insertion = GenerationAndOffset(gen, offset)
             if (insertion > currentGAO) {

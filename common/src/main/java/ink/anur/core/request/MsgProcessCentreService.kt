@@ -79,14 +79,14 @@ class MsgProcessCentreService : ReentrantReadWriteLocker() {
     /**
      * 获取到集群信息之后，可以用这个来发送
      */
-    fun sendAsyncTo(channel: Channel, msg: AbstractStruct): Future<Boolean> {
-        return sendAsync(null, msg, true, channel)
+    fun sendAsyncByChannel(channel: Channel, msg: AbstractStruct): Future<Boolean> {
+        return sendAsyncByName(null, msg, true, channel)
     }
 
     /**
      * 此发送器保证【一个类型的消息】只能在收到回复前发送一次，类似于仅有 1 容量的Queue
      */
-    fun sendAsync(serverName: String?, msg: AbstractStruct, keepError: Boolean = true, channel: Channel? = null): Future<Boolean> {
+    fun sendAsyncByName(serverName: String?, msg: AbstractStruct, keepError: Boolean = true, channel: Channel? = null): Future<Boolean> {
         val typeEnum = msg.getRequestType()
 
         return KanashiIOExecutors.submit(

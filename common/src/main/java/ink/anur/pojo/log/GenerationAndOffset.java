@@ -1,11 +1,12 @@
-package ink.anur.log.common;
+package ink.anur.pojo.log;
 
+import java.io.Serializable;
 import java.util.Optional;
 
 /**
  * Created by Anur IjuoKaruKas on 2019/3/12
  */
-public class GenerationAndOffset implements Comparable<GenerationAndOffset> {
+public class GenerationAndOffset implements Comparable<GenerationAndOffset>, Serializable {
 
     public static final GenerationAndOffset INVALID = new GenerationAndOffset(-1, -1);
 

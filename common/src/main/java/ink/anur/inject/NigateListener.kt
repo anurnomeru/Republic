@@ -16,4 +16,9 @@ enum class Event {
      * 当节点没有 leader 时
      */
     CLUSTER_INVALID,
+
+    /**
+     * 当集群恢复完毕
+     */
+    RECOVERY_COMPLETE,
 }

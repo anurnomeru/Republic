@@ -1,23 +1,18 @@
 package ink.anur.connector
 
-import ch.qos.logback.core.pattern.FormatInfo
 import ink.anur.common.KanashiExecutors
 import ink.anur.config.ClientInetSocketAddressConfiguration
 import ink.anur.core.client.ClientOperateHandler
 import ink.anur.core.request.MsgProcessCentreService
 import ink.anur.debug.Debugger
 import ink.anur.inject.Nigate
-import ink.anur.inject.NigateAfterBootStrap
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
 import ink.anur.inject.NigatePostConstruct
 import ink.anur.io.ServerService
 import ink.anur.pojo.rpc.RpcRegistration
-import ink.anur.pojo.rpc.RpcRegistrationMeta
-import java.lang.StringBuilder
-import java.util.AbstractQueue
+import ink.anur.pojo.rpc.meta.RpcRegistrationMeta
 import java.util.concurrent.ArrayBlockingQueue
-import java.util.concurrent.BlockingQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
@@ -104,7 +99,7 @@ class KanashiClientConnector {
                             notifyMap[notifyNo] = countDownLatch
 
                             // 向服务器 发送本地 RPC 所有可用信息
-                            msgProcessCentreService.sendAsync(nowConnectNode.serverName, RpcRegistration(
+                            msgProcessCentreService.sendAsyncByName(nowConnectNode.serverName, RpcRegistration(
                                 RpcRegistrationMeta(
                                     notifyNo,
                                     serverService.getLocalServerPort(),

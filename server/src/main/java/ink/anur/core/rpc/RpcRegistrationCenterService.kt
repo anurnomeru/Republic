@@ -2,11 +2,10 @@ package ink.anur.core.rpc
 
 import ink.anur.inject.NigateBean
 import ink.anur.mutex.ReentrantReadWriteLocker
-import ink.anur.pojo.rpc.RpcInetSocketAddress
+import ink.anur.pojo.rpc.meta.RpcInetSocketAddress
 import ink.anur.pojo.rpc.RpcProviderMapping
-import ink.anur.pojo.rpc.RpcProviderMappingMeta
-import ink.anur.pojo.rpc.RpcRegistrationMeta
-import java.net.InetSocketAddress
+import ink.anur.pojo.rpc.meta.RpcProviderMappingMeta
+import ink.anur.pojo.rpc.meta.RpcRegistrationMeta
 
 /**
  * Created by Anur IjuoKaruKas on 2020/4/9

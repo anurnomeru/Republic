@@ -2,6 +2,7 @@ package ink.anur.pojo.log
 
 import ink.anur.pojo.common.AbstractStruct
 import ink.anur.pojo.common.RequestTypeEnum
+import ink.anur.pojo.log.meta.Proposal
 import ink.anur.util.HessianUtil
 import io.netty.buffer.Unpooled
 import io.netty.channel.Channel

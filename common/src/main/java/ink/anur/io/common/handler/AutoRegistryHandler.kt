@@ -44,7 +44,7 @@ class AutoRegistryHandler(private val node: KanashiNode, private val registrySig
 
         val register = Register(inetConfig.getLocalServerName(), registrySign)
         // TODO 这里可能有bug 如果server处理失败这里将无法连接
-        msgCenterService.sendAsync(node.serverName, register)
+        msgCenterService.sendAsyncByName(node.serverName, register)
     }
 
     override fun channelInactive(ctx: ChannelHandlerContext?) {

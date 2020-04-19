@@ -1,4 +1,4 @@
-package ink.anur.pojo.log
+package ink.anur.pojo.log.meta
 
 import java.io.Serializable
 

@@ -7,7 +7,7 @@ import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
 import ink.anur.inject.NigateListenerService
 import ink.anur.inject.NigatePostConstruct
-import ink.anur.log.LogService
+import ink.anur.core.log.LogService
 import ink.anur.pojo.HeartBeat
 import ink.anur.util.TimeUtil
 import org.slf4j.Logger

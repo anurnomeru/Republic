@@ -9,7 +9,7 @@ import ink.anur.mutex.ReentrantLocker
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
 import ink.anur.inject.NigatePostConstruct
-import ink.anur.log.common.GenerationAndOffset
+import ink.anur.pojo.log.GenerationAndOffset
 import ink.anur.pojo.coordinate.Canvass
 import ink.anur.pojo.HeartBeat
 import ink.anur.pojo.coordinate.Voting
@@ -245,7 +245,7 @@ class RaftCenterController : KanashiRunnable() {
                 logger.debug("投票记录更新成功：在世代 ${canvass.generation}，本节点投票给 => ${serverName} 节点")
             }
 
-            msgCenterService.sendAsync(serverName, Voting(agreed, electionMetaService.isLeader(), canvass.generation, electionMetaService.generation))
+            msgCenterService.sendAsyncByName(serverName, Voting(agreed, electionMetaService.isLeader(), canvass.generation, electionMetaService.generation))
         }
     }
 
@@ -342,7 +342,7 @@ class RaftCenterController : KanashiRunnable() {
         electionMetaService.clusters!!
             .forEach { kanashiNode ->
                 if (!kanashiNode.isLocalNode()) {
-                    msgCenterService.sendAsync(kanashiNode.serverName, HeartBeat(electionMetaService.generation))
+                    msgCenterService.sendAsyncByName(kanashiNode.serverName, HeartBeat(electionMetaService.generation))
                 }
             }
 
@@ -374,7 +374,7 @@ class RaftCenterController : KanashiRunnable() {
                                 logger.debug("正向节点 {} [{}:{}] 发送世代 {} 的拉票请求...", kanashiNode.serverName, kanashiNode.host, kanashiNode.port, electionMetaService.generation)
                             }
 
-                            msgCenterService.sendAsync(kanashiNode.serverName, Canvass(electionMetaService.generation))
+                            msgCenterService.sendAsyncByName(kanashiNode.serverName, Canvass(electionMetaService.generation))
                         }
 
                     val timedTask = TimedTask(VOTES_BACK_OFF_MS, Runnable {

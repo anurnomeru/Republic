@@ -5,7 +5,7 @@ import ink.anur.exception.RPCNonAvailableProviderException
 import ink.anur.inject.NigateBean
 import ink.anur.mutex.ReentrantReadWriteLocker
 import ink.anur.pojo.common.RequestTypeEnum
-import ink.anur.pojo.rpc.RpcInetSocketAddress
+import ink.anur.pojo.rpc.meta.RpcInetSocketAddress
 import ink.anur.pojo.rpc.RpcProviderMapping
 import ink.anur.pojo.rpc.RpcRequest
 import io.netty.channel.Channel

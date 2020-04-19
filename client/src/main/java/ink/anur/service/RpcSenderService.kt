@@ -11,10 +11,10 @@ import ink.anur.exception.RPCUnKnowException
 import ink.anur.exception.RPCUnderRequestException
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
-import ink.anur.pojo.rpc.RpcInetSocketAddress
+import ink.anur.pojo.rpc.meta.RpcInetSocketAddress
 import ink.anur.pojo.rpc.RpcRequest
-import ink.anur.pojo.rpc.RpcRequestMeta
-import ink.anur.pojo.rpc.RpcResponseMeta
+import ink.anur.pojo.rpc.meta.RpcRequestMeta
+import ink.anur.pojo.rpc.meta.RpcResponseMeta
 import ink.anur.rpc.RpcSender
 import ink.anur.util.ClassMetaUtil
 import java.lang.reflect.Method
@@ -78,7 +78,7 @@ class RpcSenderService : RpcSender {
             }
             try {
                 val channelOperateHandler: ClientOperateHandler = getOrConnectToAChannel(searchValidProvider)
-                val sendSuccess = msgProcessCentreService.sendAsyncTo(channelOperateHandler.getChannel(), rpcRequest)
+                val sendSuccess = msgProcessCentreService.sendAsyncByChannel(channelOperateHandler.getChannel(), rpcRequest)
 
                 if (!sendSuccess.get()) {
                     throw KanashiException("RPC 请求发送失败")

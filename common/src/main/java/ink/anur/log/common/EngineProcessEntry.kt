@@ -17,6 +17,7 @@
 
 package ink.anur.log.common
 
+import ink.anur.pojo.log.GenerationAndOffset
 import ink.anur.pojo.log.LogItem
 
 /**

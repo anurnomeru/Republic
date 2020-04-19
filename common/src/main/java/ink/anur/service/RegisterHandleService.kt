@@ -14,7 +14,6 @@ import ink.anur.util.CharUtil
 import io.netty.channel.Channel
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
-import kotlin.random.Random
 import java.net.InetSocketAddress
 
 /**
@@ -65,7 +64,7 @@ class RegisterHandleService : AbstractRequestMapping() {
 
         channelService
             .register(KanashiNode(serverName, inetSocket.address.hostAddress, inetSocket.port), channel)
-        msgCenterService.sendAsync(serverName, RegisterResponse(register.getRegistrySign()))
+        msgCenterService.sendAsyncByName(serverName, RegisterResponse(register.getRegistrySign()))
     }
 
 

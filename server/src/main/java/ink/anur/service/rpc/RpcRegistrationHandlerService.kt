@@ -1,7 +1,6 @@
 package ink.anur.service.rpc
 
 import ink.anur.common.KanashiExecutors
-import ink.anur.common.KanashiRunnable
 import ink.anur.core.common.AbstractRequestMapping
 import ink.anur.core.request.MsgProcessCentreService
 import ink.anur.core.rpc.RpcRegistrationCenterService
@@ -9,7 +8,7 @@ import ink.anur.inject.NigateAfterBootStrap
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
 import ink.anur.pojo.common.RequestTypeEnum
-import ink.anur.pojo.rpc.RpcInetSocketAddress
+import ink.anur.pojo.rpc.meta.RpcInetSocketAddress
 import ink.anur.pojo.rpc.RpcRegistration
 import ink.anur.pojo.rpc.RpcRegistrationResponse
 import io.netty.channel.Channel
@@ -17,7 +16,6 @@ import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
 import java.nio.ByteBuffer
 import java.net.InetSocketAddress
-import java.util.AbstractQueue
 import java.util.concurrent.LinkedBlockingDeque
 import java.util.concurrent.TimeUnit
 
@@ -46,7 +44,7 @@ class RpcRegistrationHandlerService : AbstractRequestMapping() {
                 if (sendCountingQueue.poll(30, TimeUnit.SECONDS) != null) {
                     for (server in rpcRegistrationCenterService.getEnableServerMapping()) {
                         try {
-                            msgProcessCentreService.sendAsync(server, rpcRegistrationCenterService.getProviderMapping())
+                            msgProcessCentreService.sendAsyncByName(server, rpcRegistrationCenterService.getProviderMapping())
                         } catch (e: Exception) {
                         }
                     }
@@ -82,7 +80,7 @@ class RpcRegistrationHandlerService : AbstractRequestMapping() {
             notifyAllClient()
         }
         notifyAllClient()
-        msgProcessCentreService.sendAsync(fromServer, RpcRegistrationResponse(rpcRegistrationMeta.SIGN))
+        msgProcessCentreService.sendAsyncByName(fromServer, RpcRegistrationResponse(rpcRegistrationMeta.SIGN))
     }
 
     class UnRegisterHandler(private val serverName: String, private val rpcRegistrationCenterService: RpcRegistrationCenterService, private val rpcRegistrationHandlerService: RpcRegistrationHandlerService) : ChannelInboundHandlerAdapter() {

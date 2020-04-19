@@ -9,7 +9,7 @@ import ink.anur.inject.NigateInject
 import ink.anur.pojo.common.RequestTypeEnum
 import ink.anur.pojo.rpc.RpcRequest
 import ink.anur.pojo.rpc.RpcResponse
-import ink.anur.pojo.rpc.RpcResponseMeta
+import ink.anur.pojo.rpc.meta.RpcResponseMeta
 import io.netty.channel.Channel
 import java.nio.ByteBuffer
 
@@ -39,10 +39,10 @@ class RpcHandlerService : AbstractRequestMapping() {
                 val rpcBeanByInterfaces = Nigate.getRPCBeanByInterface(requestMeta.requestInterface)
                 when {
                     rpcBeanByInterfaces == null -> {
-                        msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta("ERR1", requestMeta.msgSign, error = true)))
+                        msgProcessCentreService.sendAsyncByName(fromServer, RpcResponse(RpcResponseMeta("ERR1", requestMeta.msgSign, error = true)))
                     }
                     rpcBeanByInterfaces.size > 1 -> {
-                        msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta("ERR2", requestMeta.msgSign, error = true)))
+                        msgProcessCentreService.sendAsyncByName(fromServer, RpcResponse(RpcResponseMeta("ERR2", requestMeta.msgSign, error = true)))
                     }
                     else -> {
                         val result = try {
@@ -50,25 +50,25 @@ class RpcHandlerService : AbstractRequestMapping() {
                             requestMeta.requestParams?.let { kanashiRpcBean.invokeMethod(requestMeta.requestMethodSign, *it) }
                                 ?: kanashiRpcBean.invokeMethod(requestMeta.requestMethodSign)
                         } catch (e: Exception) {
-                            msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta(e.message, requestMeta.msgSign, error = true)))
+                            msgProcessCentreService.sendAsyncByName(fromServer, RpcResponse(RpcResponseMeta(e.message, requestMeta.msgSign, error = true)))
                         }
 
-                        msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta(result, requestMeta.msgSign)))
+                        msgProcessCentreService.sendAsyncByName(fromServer, RpcResponse(RpcResponseMeta(result, requestMeta.msgSign)))
                     }
                 }
             } else {
                 when (val kanashiRpcBean = Nigate.getRPCBeanByName(requestBean)) {
                     null -> {
-                        msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta("ERR3", requestMeta.msgSign, error = true)))
+                        msgProcessCentreService.sendAsyncByName(fromServer, RpcResponse(RpcResponseMeta("ERR3", requestMeta.msgSign, error = true)))
                     }
                     else -> {
                         val result = try {
                             requestMeta.requestParams?.let { kanashiRpcBean.invokeMethod(requestMeta.requestMethodSign, *it) }
                                 ?: kanashiRpcBean.invokeMethod(requestMeta.requestMethodSign)
                         } catch (e: Exception) {
-                            msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta(e.message, requestMeta.msgSign, error = true)))
+                            msgProcessCentreService.sendAsyncByName(fromServer, RpcResponse(RpcResponseMeta(e.message, requestMeta.msgSign, error = true)))
                         }
-                        msgProcessCentreService.sendAsync(fromServer, RpcResponse(RpcResponseMeta(result, requestMeta.msgSign)))
+                        msgProcessCentreService.sendAsyncByName(fromServer, RpcResponse(RpcResponseMeta(result, requestMeta.msgSign)))
                     }
                 }
             }
