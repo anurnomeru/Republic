@@ -1,93 +1,190 @@
-//package ink.anur.service.log.core
-//
-//import ink.anur.common.KanashiRunnable
-//import ink.anur.core.log.LogService
-//import ink.anur.core.raft.ElectionMetaService
-//import ink.anur.core.request.MsgProcessCentreService
-//import ink.anur.inject.Event
-//import ink.anur.inject.NigateBean
-//import ink.anur.inject.NigateInject
-//import ink.anur.inject.NigateListener
-//import ink.anur.pojo.log.Fetch
-//import ink.anur.pojo.log.GenerationAndOffset
-//import ink.anur.timewheel.TimedTask
-//import ink.anur.timewheel.Timer
-//import org.slf4j.LoggerFactory
-//import java.util.concurrent.ArrayBlockingQueue
-//
-///**
-// * Created by Anur IjuoKaruKas on 2020/4/20
-// *
-// * 专门用于管理 fetch 任务，发起 fetch 请求
-// */
-//@NigateBean
-//class FetchService : KanashiRunnable() {
-//    override fun run() {
-//        while (version == this.version) {
-//            val take = fetchControlQueue.take()
-//            msgProcessCentreService.sendAsyncByName(take.fetchFrom, Fetch(take.fetchFromGao))
-//        }
-//    }
-//
-//    private val logger = LoggerFactory.getLogger(this::class.java)
-//
-//    @NigateInject
-//    private lateinit var electionMetaService: ElectionMetaService
-//
-//    @NigateInject
-//    private lateinit var msgProcessCentreService: MsgProcessCentreService
-//
-//    @NigateInject
-//    private lateinit var logService: LogService
-//
-//    @Volatile
-//    private var version: Long = Long.MIN_VALUE
-//
-//    /**
-//     * 控制应该从哪个 gao 开始 fetch 的队列
-//     */
-//    private var fetchControlQueue = ArrayBlockingQueue<FetchMeta>(1)
-//
-//    /**
-//     * 控制应该 fetch 到哪里
-//     *
-//     * 如果为空，则会不断的进行 fetch（非集群恢复阶段）
-//     */
-//    private var fetchUntil: GenerationAndOffset? = null
-//
-//    private fun delayFetchTask(){
-//        Timer.getInstance().addTask(TimedTask(5000){
-//
-//        })
-//    }
-//
-//    /**
-//     * 当集群恢复完毕后，开始启动向 leader 的 fetch 任务
-//     */
-//    @NigateListener(onEvent = Event.RECOVERY_COMPLETE)
-//    private fun whileRecoveryComplete() {
-//        if (!electionMetaService.isLeader()) {
-//            startToFetchFrom(electionMetaService.getLeader()!!)
-//        }
-//    }
-//
-//    /**
-//     * 当集群不可用时，暂停所有任务
-//     */
-//    @NigateListener(onEvent = Event.CLUSTER_VALID)
-//    private fun whileClusterValid() {
-////        cancelFetchTask()
-//    }
-//
-//    /**
-//     * 新建一个 Fetcher 用于拉取消息，将其发送给 Leader，并在收到回调后，调用 CONSUME_FETCH_RESPONSE 消费回调，且重启拉取定时任务
-//     */
-//    private fun startToFetchFrom(fetchFrom: String, fetchFromGao: GenerationAndOffset?) {
-////        cancelFetchTask()
-//        logger.info("开始向 $fetchFrom fetch 消息 -->")
-//
-////        fetchFromTask(fetchFrom, version, fetchFromGao)
-//    }
-//
-//    class FetchMeta(val fetchFrom: String, val fetchFromGao: GenerationAndOffset)
-//}
+package ink.anur.service.log.core
+
+import ink.anur.core.log.LogService
+import ink.anur.core.raft.ElectionMetaService
+import ink.anur.core.request.MsgProcessCentreService
+import ink.anur.inject.Event
+import ink.anur.inject.NigateBean
+import ink.anur.inject.NigateInject
+import ink.anur.inject.NigateListener
+import ink.anur.pojo.log.Fetch
+import ink.anur.pojo.log.FetchResponse
+import ink.anur.pojo.log.GenerationAndOffset
+import ink.anur.timewheel.CycleTimedTask
+import ink.anur.timewheel.Timer
+import org.slf4j.LoggerFactory
+import java.util.concurrent.CountDownLatch
+
+/**
+ * Created by Anur IjuoKaruKas on 2020/4/20
+ *
+ * 专门用于管理 fetch 任务，发起 fetch 请求
+ */
+@NigateBean
+class FetchService {
+    private val logger = LoggerFactory.getLogger(this::class.java)
+
+    @NigateInject
+    private lateinit var electionMetaService: ElectionMetaService
+
+    @NigateInject
+    private lateinit var msgProcessCentreService: MsgProcessCentreService
+
+    @NigateInject
+    private lateinit var logService: LogService
+
+    /**
+     * fetch 任务
+     */
+    @Volatile
+    private var fetchMeta: FetchMeta? = null
+
+    /**
+     * 从某个节点开始进行 fetch，从日志 generationAndOffsetStart 拉取直到 generationAndOffsetUntil
+     */
+    @Synchronized
+    private fun startToFetchFrom(fromServer: String, start: GenerationAndOffset, end: GenerationAndOffset?, waitUntilComplete: Boolean): Boolean {
+        /*
+         * 取消之前的任务
+         */
+        this.fetchMeta?.cancel()
+        val fm = FetchMeta(fromServer, start, end, msgProcessCentreService)
+        this.fetchMeta = fm
+
+        return if (waitUntilComplete) {
+            fm.waitUntilFailOrFetchComplete()
+        } else {
+            true
+        }
+    }
+
+    /**
+     * 如何处理 fetch 到的消息
+     */
+    fun fetchHandler(fr: FetchResponse, fromServer: String) {
+        // 如果当前没有 fetch 任务直接返回
+        val fetchMeta = fetchMeta ?: return
+
+        if (fetchMeta.fromServer != fromServer) {
+            logger.error("收到了不符合当前 fetch 请求服务的 fetch response，可能在集群主节点切换后发生，但是如果频率很高，需要看看是不是哪里有 bug")
+            return
+        }
+
+        val read = fr.read()
+        val iterator = read.iterator()
+        val gen = fr.generation
+        var lastOffset: Long? = null
+        iterator.forEach {
+            logService.append(gen, it.offset, it.logItem)
+            lastOffset = it.offset
+        }
+
+        if (lastOffset != null) {
+            val fetchLast = GenerationAndOffset(gen, lastOffset!!)
+            /*
+             * 如果已经 fetch 到了想要的进度，触发complete，否则触发send，并重置过期时间
+             */
+            if (fetchLast == fetchMeta.fetchUntil) {
+                fetchMeta.complete()
+            } else {
+                fetchMeta.doSendAndResetTaskExp(fetchLast)
+            }
+        }
+    }
+
+    /**
+     * 当集群不可用时，暂停所有任务
+     */
+    @NigateListener(onEvent = Event.CLUSTER_VALID)
+    @Synchronized
+    private fun whileClusterValid() {
+        fetchMeta?.cancel()
+    }
+
+    /**
+     * 控制一个 fetch 任务的管理 bean
+     */
+    class FetchMeta(
+
+        /**
+         * 从哪个服务进行 fetch
+         */
+        val fromServer: String,
+
+        /**
+         * 控制应该从哪里开始 fetch
+         */
+        @Volatile
+        var fetchFrom: GenerationAndOffset,
+
+        /**
+         * 控制应该 fetch 到哪里
+         *
+         * 如果为空，则会不断的进行 fetch（非集群恢复阶段）
+         */
+        val fetchUntil: GenerationAndOffset?,
+
+        /**
+         * 一个不优雅的设计，但是 = = 就这么样
+         */
+        val msgProcessCentreService: MsgProcessCentreService) {
+
+        @Volatile
+        private var success: Boolean? = null
+
+        private val taskCompleteLatch = CountDownLatch(1)
+
+        private val doSend = { msgProcessCentreService.sendAsyncByName(fromServer, Fetch(fetchFrom)) }
+
+        private val task: CycleTimedTask = CycleTimedTask(0, 5000L,
+            Runnable { doSend.invoke() })
+
+        init {
+            Timer.getInstance().addTask(task)
+        }
+
+        /**
+         * 手动触发一次任务，并重置定时任务的过期时间
+         */
+        @Synchronized
+        fun doSendAndResetTaskExp(fetchFrom: GenerationAndOffset) {
+            if (success == null) {
+                task.resetExpire()
+                this.fetchFrom = fetchFrom
+                doSend.invoke()
+            }
+        }
+
+        /**
+         * 取消任务
+         */
+        @Synchronized
+        fun cancel() {
+            if (success == null) {
+                success = false
+                task.cancel()
+                taskCompleteLatch.countDown()
+            }
+        }
+
+        /**
+         * 触发任务完成
+         */
+        @Synchronized
+        fun complete() {
+            if (success == null) {
+                task.cancel()
+                success = true
+            }
+            taskCompleteLatch.countDown()
+        }
+
+        /**
+         * 阻塞等待任务完成或者被取消，如果是无止境任务（非恢复时 FetchUntil 为空，则会一直阻塞下去，直到集群失效，不要乱用！！！）
+         */
+        fun waitUntilFailOrFetchComplete(): Boolean {
+            taskCompleteLatch.await()
+            return success!!// 不可能为空
+        }
+    }
+}
