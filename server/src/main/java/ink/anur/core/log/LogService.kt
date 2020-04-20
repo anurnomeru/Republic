@@ -39,7 +39,6 @@ import java.io.IOException
 import java.util.SortedSet
 import java.util.concurrent.ConcurrentSkipListMap
 import java.util.concurrent.ConcurrentSkipListSet
-import kotlin.math.max
 
 /**
  * Created by Anur IjuoKaruKas on 2020/3/11
@@ -91,29 +90,36 @@ class LogService {
         var latestGeneration = 0L
         var init: GenerationAndOffset
 
-        while (true) {
-            for (file in baseDir.listFiles()!!) {
-                if (!file.isFile) {
-                    latestGeneration = max(latestGeneration, Integer.valueOf(file.name).toLong())
-                }
+        for (file in baseDir.listFiles()!!) {
+            if (!file.isFile) {
+                val nowGen = Integer.valueOf(file.name).toLong()
+                generationDirs[nowGen] = Log(nowGen, createGenDirIfNEX(nowGen))
+                latestGeneration = nowGen
             }
+        }
 
-            // 只要创建最新的那个 generation 即可
-            try {
-                val latest = Log(latestGeneration, createGenDirIfNEX(latestGeneration))
-                generationDirs[latestGeneration] = latest
+        // 只要创建最新的那个 generation 即可
+        try {
+            while (true) {
+                // 还没有任何日志的情况
+                if (generationDirs[latestGeneration] == null) {
+                    val latest = Log(latestGeneration, createGenDirIfNEX(latestGeneration))
+                    generationDirs[latestGeneration] = latest
+                }
 
+                val latest = generationDirs[latestGeneration]!!
                 init = GenerationAndOffset(latestGeneration, latest.currentOffset)
 
                 if (init.generation != 0L && init.offset == 0L) {
-                    deleteLog(init.generation, latest)
-                    latestGeneration = 0L
+                    // 如果当前世代一个日志都没有，做递归删除
+                    deleteLogWhileEmpty(init.generation, latest)
+                    latestGeneration = generationDirs.lastKey()
                 } else {
                     break
                 }
-            } catch (e: IOException) {
-                throw LogException("操作日志初始化失败，项目无法启动")
             }
+        } catch (e: IOException) {
+            throw LogException("操作日志初始化失败，项目无法启动")
         }
 
         logger.info("初始化日志管理器，当前最大进度为 {}", init.toString())
@@ -138,6 +144,10 @@ class LogService {
             }
         }
         return result
+    }
+
+    fun getLog(gen: Long): Log? {
+        return generationDirs[gen]
     }
 
 
@@ -232,6 +242,8 @@ class LogService {
 
     /**
      * 在 append 操作时，如果世代更新了，则创建新的 Log 管理
+     *
+     * active 代表是否获取最新的一个日志
      */
     private fun maybeRoll(generation: Long, active: Boolean): Log {
         val current = if (active) activeLog() else generationDirs[generation]
@@ -358,7 +370,6 @@ class LogService {
         }
     }
 
-
     /**
      * 真正丢弃执行者，注意运行中不要乱调用这个，因为没加锁
      */
@@ -429,7 +440,28 @@ class LogService {
         }
     }
 
-    private fun deleteLog(generation: Long, log: Log) {
+    /**
+     * 删除某个世代的所有日志，集群恢复时使用
+     */
+    fun deleteLogByGen(gen: Long) {
+        val log = generationDirs[gen]
+        if (log == null) {
+            logger.error("欲删去世代 $gen 的日志，但并不存在此世代日志")
+            return
+        }
+        val currentOffset = log.currentOffset
+        val logSegments = log.getLogSegments(0, Long.MAX_VALUE)
+        for (logSegment in logSegments) {
+            logSegment.fileLogItemSet.fileChannel.close()
+            logSegment.fileLogItemSet.file.delete()
+            logSegment.index.delete()
+        }
+        log.dir.delete()
+        generationDirs.remove(gen)
+        logger.info("因集群日志恢复，leader 并不持有世代 $gen 的日志，故删去所有此世代日志，此日志最大 offset 为 $currentOffset")
+    }
+
+    private fun deleteLogWhileEmpty(generation: Long, log: Log) {
         if (log.currentOffset == 0L) {
             val logSegments = log.getLogSegments(0, Long.MAX_VALUE)
             for (logSegment in logSegments) {

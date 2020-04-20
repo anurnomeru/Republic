@@ -40,17 +40,50 @@ class FetchService {
 
     /**
      * 处理来自 leader 的 recoveryComplete 指令
+     *
+     * 讲道理不会有并发，但是如果集群很不稳定，可能会导致这里阻塞，但是没有办法必须这样，这个方法不同步会出问题
      */
+    @Synchronized
     fun recoveryHandler(recoveryCompleteMeta: RecoveryCompleteMeta) {
         if (recoveryCompleteMeta.nowGen == electionMetaService.generation) {
-            val thisNodeLogsGao = logService.getAllGensGao()
-            val leaderLogsGao = recoveryCompleteMeta.allGensGao
+            val thisNodeLogGaos = logService.getAllGensGao()
+            val leaderLogGaos = recoveryCompleteMeta.allGensGao
 
-            // 先求出交集
-            val retainAll = thisNodeLogsGao.retainAll(leaderLogsGao)
+            val leaderLogGens = leaderLogGaos.map { it.generation }.toSet()
+            val thisNodeLogGaosMapping = thisNodeLogGaos.associateBy { it.generation }
 
-//            thisNodeLogsGao.removeAll(retainAll)
+            /*
+             * 先将 leader 没有的那些 log 删去
+             */
+            for (generationAndOffset in thisNodeLogGaos) {
+                val gen = generationAndOffset.generation
+                if (!leaderLogGens.contains(gen)) {
+                    logService.deleteLogByGen(gen)
+                }
+            }
 
+            /*
+             * 再对集群日志进行多退少补
+             */
+            for (leaderLogGao in leaderLogGaos) {
+                val gen = leaderLogGao.generation
+                if (thisNodeLogGaosMapping.containsKey(gen)) {
+                    val log = logService.getLog(gen)
+                    if (log == null) {
+                        logger.error("喵喵喵喵喵？？？讲道理不会有这个问题 注意是不是哪里有bug")
+                        return
+                    } else {
+
+                        if (log.currentOffset > leaderLogGao.offset) {
+                            // 多退
+                        }else{
+                            // 少补
+                            startToFetchFrom()
+                        }
+
+                    }
+                }
+            }
 
         } else {
             logger.error("收到了来自世代 ${recoveryCompleteMeta.nowGen} 的无效 RECOVERY_COMPLETE，因为当前世代已经是 ${electionMetaService.generation}")
