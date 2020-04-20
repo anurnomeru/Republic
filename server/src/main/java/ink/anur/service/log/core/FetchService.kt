@@ -10,6 +10,8 @@ import ink.anur.inject.NigateListener
 import ink.anur.pojo.log.Fetch
 import ink.anur.pojo.log.FetchResponse
 import ink.anur.pojo.log.GenerationAndOffset
+import ink.anur.pojo.log.RecoveryComplete
+import ink.anur.pojo.log.meta.RecoveryCompleteMeta
 import ink.anur.timewheel.CycleTimedTask
 import ink.anur.timewheel.Timer
 import org.slf4j.LoggerFactory
@@ -33,28 +35,25 @@ class FetchService {
     @NigateInject
     private lateinit var logService: LogService
 
-    /**
-     * fetch 任务
-     */
     @Volatile
     private var fetchMeta: FetchMeta? = null
 
     /**
-     * 从某个节点开始进行 fetch，从日志 generationAndOffsetStart 拉取直到 generationAndOffsetUntil
+     * 处理来自 leader 的 recoveryComplete 指令
      */
-    @Synchronized
-    private fun startToFetchFrom(fromServer: String, start: GenerationAndOffset, end: GenerationAndOffset?, waitUntilComplete: Boolean): Boolean {
-        /*
-         * 取消之前的任务
-         */
-        this.fetchMeta?.cancel()
-        val fm = FetchMeta(fromServer, start, end, msgProcessCentreService)
-        this.fetchMeta = fm
+    fun recoveryHandler(recoveryCompleteMeta: RecoveryCompleteMeta) {
+        if (recoveryCompleteMeta.nowGen == electionMetaService.generation) {
+            val thisNodeLogsGao = logService.getAllGensGao()
+            val leaderLogsGao = recoveryCompleteMeta.allGensGao
 
-        return if (waitUntilComplete) {
-            fm.waitUntilFailOrFetchComplete()
+            // 先求出交集
+            val retainAll = thisNodeLogsGao.retainAll(leaderLogsGao)
+
+//            thisNodeLogsGao.removeAll(retainAll)
+
+
         } else {
-            true
+            logger.error("收到了来自世代 ${recoveryCompleteMeta.nowGen} 的无效 RECOVERY_COMPLETE，因为当前世代已经是 ${electionMetaService.generation}")
         }
     }
 
@@ -93,12 +92,33 @@ class FetchService {
     }
 
     /**
+     * 从某个节点开始进行 fetch，从日志 generationAndOffsetStart 拉取直到 generationAndOffsetUntil
+     */
+    @Synchronized
+    private fun startToFetchFrom(fromServer: String, start: GenerationAndOffset, end: GenerationAndOffset?, waitUntilComplete: Boolean): Boolean {
+        /*
+         * 取消之前的任务
+         */
+        this.fetchMeta?.cancel()
+        val fm = FetchMeta(fromServer, start, end, msgProcessCentreService)
+        this.fetchMeta = fm
+
+        return if (waitUntilComplete) {
+            fm.waitUntilFailOrFetchComplete().also { fetchMeta = null }
+        } else {
+            true
+        }
+    }
+
+    /**
      * 当集群不可用时，暂停所有任务
      */
     @NigateListener(onEvent = Event.CLUSTER_VALID)
     @Synchronized
     private fun whileClusterValid() {
-        fetchMeta?.cancel()
+        val f = fetchMeta
+        fetchMeta = null
+        f?.cancel()
     }
 
     /**
