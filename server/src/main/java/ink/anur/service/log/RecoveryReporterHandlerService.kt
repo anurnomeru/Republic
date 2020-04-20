@@ -1,6 +1,5 @@
 package ink.anur.service.log
 
-import ink.anur.common.KanashiExecutors
 import ink.anur.core.common.AbstractRequestMapping
 import ink.anur.core.log.LogService
 import ink.anur.core.raft.ElectionMetaService
@@ -12,10 +11,8 @@ import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
 import ink.anur.inject.NigateListener
 import ink.anur.inject.NigateListenerService
-import ink.anur.mutex.ReentrantLocker
 import ink.anur.mutex.ReentrantReadWriteLocker
 import ink.anur.pojo.common.RequestTypeEnum
-import ink.anur.pojo.log.Fetch
 import ink.anur.pojo.log.GenerationAndOffset
 import ink.anur.pojo.log.RecoveryComplete
 import ink.anur.pojo.log.RecoveryReporter
@@ -89,21 +86,12 @@ class RecoveryReporterHandlerService : AbstractRequestMapping() {
         }
     }
 
-    /**
-     * 当集群恢复完毕后，开始启动向 leader 的 fetch 任务
-     */
-    @NigateListener(onEvent = Event.RECOVERY_COMPLETE)
-    private fun whileRecoveryComplete() {
-        if (!electionMetaService.isLeader()) {
-            startToFetchFrom(electionMetaService.getLeader()!!)
-        }
-    }
+
 
     @NigateListener(onEvent = Event.CLUSTER_INVALID)
     fun reset() {
         logger.debug("RecoveryReportHandlerService RESET is triggered")
         locker.writeLocker {
-            cancelFetchTask()
             recoveryMap.clear()
             recoveryComplete = false
             recoveryTimer = TimeUtil.getTime()
@@ -167,7 +155,7 @@ class RecoveryReporterHandlerService : AbstractRequestMapping() {
                     logger.info("已有过半节点提交了最大进度，集群最大进度于节点 $serverName ，进度为 $latestGAO ，Leader 将从其同步最新数据")
 
                     // 开始进行 fetch
-                    startToFetchFrom(latestNode)
+//                    startToFetchFrom(latestNode)
                 }
             }
         }
@@ -175,46 +163,14 @@ class RecoveryReporterHandlerService : AbstractRequestMapping() {
         sendRecoveryComplete(serverName, latestGao)
     }
 
-    @Volatile
-    private var version: Long = Long.MIN_VALUE
 
-    private var fetchLock = ReentrantLocker()
-
-    /**
-     * 新建一个 Fetcher 用于拉取消息，将其发送给 Leader，并在收到回调后，调用 CONSUME_FETCH_RESPONSE 消费回调，且重启拉取定时任务
-     */
-    private fun startToFetchFrom(fetchFrom: String) {
-        cancelFetchTask()
-        logger.info("开始向 $fetchFrom fetch 消息 -->")
-
-        fetchFromTask(fetchFrom, version)
-    }
-
-    private fun fetchFromTask(fetchFrom: String, version: Long) {
-        KanashiExecutors.execute(Runnable {
-            while (version == this.version) {
-                fetchMutex {
-                    msgProcessCentreService.sendAsyncByName(fetchFrom, Fetch(logService.getCurrentGao()))
-                }
-                Thread.sleep(75)
-            }
-        })
-    }
-
-    private fun fetchMutex(whatEver: () -> Unit) {
-        fetchLock.lockSupplier(whatEver)
-    }
-
-    private fun cancelFetchTask() {
-        version++
-    }
 
     /**
      * 触发向各个节点发送 RecoveryComplete，发送完毕后 触发 RECOVERY_COMPLETE
      * // TODO 避免 client 重复触发！！
      */
     fun shuttingWhileRecoveryComplete() {
-        cancelFetchTask()
+//        cancelFetchTask()
         raftCenterController.setGenerationAndOffset(logService.getCurrentGao())
         recoveryComplete = true
         waitShutting.entries.forEach(Consumer { sendRecoveryComplete(it.key, it.value) })

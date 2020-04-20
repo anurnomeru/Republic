@@ -56,6 +56,9 @@ public class Timer {
 
     private static ThreadLocal<ShutDownHooker> sdh = new ThreadLocal<>();
 
+    /**
+     * todo 这部分设计的不是很合理，后期需要把它改一下 2020年4月20日22:32:45
+     */
     public static boolean isShutDown() {
         return sdh.get() != null
             && sdh.get()
@@ -74,6 +77,11 @@ public class Timer {
                              .run();
                     sdh.remove();
                 });
+                // 如果是周期性任务，再次入队
+                if (timedTask instanceof CycleTimedTask) {
+                    ((CycleTimedTask) timedTask).resetExpire();
+                    addTask(timedTask);
+                }
             }
         }
     }

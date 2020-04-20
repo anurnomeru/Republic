@@ -27,7 +27,7 @@ public class TimedTask {
     /**
      * 是否被取消
      */
-    private volatile boolean cancel;
+    protected volatile boolean cancel;
 
     protected Bucket bucket;
 
@@ -52,6 +52,10 @@ public class TimedTask {
     public void cancel() {
         sdh.shutdown();
         cancel = true;
+    }
+
+    protected void setExpireTimestamp(long t) {
+        this.expireTimestamp = t;
     }
 
     public boolean isCancel() {
