@@ -19,13 +19,11 @@ import java.nio.ByteBuffer
 @NigateBean
 class FetchResponseHandlerService : AbstractRequestMapping() {
 
-    private val logger = Debugger(this.javaClass)
-
-    @NigateInject
-    private lateinit var electionMetaService: ElectionMetaService
-
     @NigateInject
     private lateinit var logService: LogService
+
+    @NigateInject
+    private lateinit var recoveryReporterHandlerService: RecoveryReporterHandlerService
 
     override fun typeSupport(): RequestTypeEnum {
         return RequestTypeEnum.FETCH_RESPONSE
@@ -44,12 +42,9 @@ class FetchResponseHandlerService : AbstractRequestMapping() {
             logService.append(gen, it.offset, it.logItem)
 
             val offset = it.offset
-            if (offset == fetchToOffset) {// 如果已经同步完毕，则通知集群同步完成
-                fetchHandleService.shuttingWhileRecoveryComplete(fetchTo)
-                fetchHandleService.fetchTo = null
-
-                byteBufPreLogService.cover(GenerationAndOffset(gen, end!!))
-                return@fetchMutex
+            if (offset == recoveryReporterHandlerService.fetchTo!!.offset) {// 如果已经同步完毕，则通知集群同步完成
+                recoveryReporterHandlerService.shuttingWhileRecoveryComplete()
+                recoveryReporterHandlerService.fetchTo = null
             }
         }
     }

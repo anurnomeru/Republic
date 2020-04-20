@@ -28,7 +28,7 @@ import ink.anur.inject.NigateInject
 import ink.anur.inject.NigateListener
 import ink.anur.inject.NigatePostConstruct
 import ink.anur.log.Log
-import ink.anur.log.common.FetchDataInfo
+import ink.anur.pojo.log.meta.FetchDataInfo
 import ink.anur.pojo.log.GenerationAndOffset
 import ink.anur.log.common.LogUtil
 import ink.anur.log.persistence.LogSegment
@@ -191,7 +191,7 @@ class LogService {
     /**
      * 当集群完成recovery，打开追加入口
      */
-    @NigateListener(onEvent = Event.CLUSTER_VALID)
+    @NigateListener(onEvent = Event.RECOVERY_COMPLETE)
     private fun onRecoveryComplete() {
         appendLock.switchOn()
         logger.info("log-service 追加入口开启~")

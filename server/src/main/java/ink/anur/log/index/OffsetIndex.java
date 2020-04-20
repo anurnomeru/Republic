@@ -26,7 +26,7 @@ import java.nio.channels.FileChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ink.anur.exception.LogException;
-import ink.anur.log.common.OffsetAndPosition;
+import ink.anur.pojo.log.meta.OffsetAndPosition;
 import ink.anur.mutex.ReentrantLocker;
 import ink.anur.util.Os;
 

@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package ink.anur.log.common;
+package ink.anur.pojo.log.meta;
 
 /**
  * Created by Anur IjuoKaruKas on 2019/2/28

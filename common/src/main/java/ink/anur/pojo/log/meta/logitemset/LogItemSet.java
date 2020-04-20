@@ -15,14 +15,14 @@
  * limitations under the License.
  */
 
-package ink.anur.log.logitemset;
+package ink.anur.pojo.log.meta.logitemset;
 
 import java.io.IOException;
 import java.nio.channels.GatheringByteChannel;
 import java.util.Collection;
 import java.util.Iterator;
 import ink.anur.pojo.log.LogItem;
-import ink.anur.log.common.LogItemAndOffset;
+import ink.anur.pojo.log.meta.LogItemAndOffset;
 
 /**
  * Created by Anur IjuoKaruKas on 2/25/2019

@@ -416,6 +416,16 @@ class RaftCenterController : KanashiRunnable() {
         }
     }
 
+    /**
+     * 集群 recovery 完毕后，leader 拿取最新的gao作为当前gao
+     */
+    fun setGenerationAndOffset(gen: GenerationAndOffset) {
+        reentrantLocker.lockSupplier {
+            electionMetaService.generation = gen.generation
+            electionMetaService.offset = gen.offset
+        }
+    }
+
     private fun addTask(taskEnum: TaskEnum, task: TimedTask) {
         taskMap[taskEnum]?.cancel()
         taskMap[taskEnum] = task

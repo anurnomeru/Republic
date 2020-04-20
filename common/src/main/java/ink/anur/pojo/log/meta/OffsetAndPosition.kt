@@ -1,4 +1,4 @@
-package ink.anur.log.common
+package ink.anur.pojo.log.meta
 
 /**
  * Created by Anur IjuoKaruKas on 2019/7/12

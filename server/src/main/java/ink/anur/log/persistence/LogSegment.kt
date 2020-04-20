@@ -17,14 +17,14 @@
 
 package ink.anur.log.persistence
 
-import ink.anur.log.common.FetchDataInfo
-import ink.anur.log.common.LogOffsetMetadata
+import ink.anur.pojo.log.meta.FetchDataInfo
+import ink.anur.pojo.log.meta.LogOffsetMetadata
 import ink.anur.log.common.LogUtil
-import ink.anur.log.common.OffsetAndPosition
+import ink.anur.pojo.log.meta.OffsetAndPosition
 import ink.anur.log.index.OffsetIndex
-import ink.anur.log.logitemset.ByteBufferLogItemSet
-import ink.anur.log.logitemset.FileLogItemSet
-import ink.anur.log.logitemset.LogItemSet
+import ink.anur.pojo.log.meta.logitemset.ByteBufferLogItemSet
+import ink.anur.pojo.log.meta.logitemset.FileLogItemSet
+import ink.anur.pojo.log.meta.logitemset.LogItemSet
 import ink.anur.util.CoreUtils
 import java.io.File
 import java.io.IOException

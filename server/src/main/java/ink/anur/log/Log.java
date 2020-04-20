@@ -29,7 +29,7 @@ import ink.anur.exception.LogException;
 import ink.anur.inject.Nigate;
 import ink.anur.inject.NigateInject;
 import ink.anur.log.common.LogUtil;
-import ink.anur.log.logitemset.ByteBufferLogItemSet;
+import ink.anur.pojo.log.meta.logitemset.ByteBufferLogItemSet;
 import ink.anur.log.persistence.LogSegment;
 import ink.anur.mutex.ReentrantLocker;
 import ink.anur.pojo.log.LogItem;

@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package ink.anur.log.common
+package ink.anur.pojo.log.meta
 
 import ink.anur.pojo.log.LogItem
 

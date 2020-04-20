@@ -4,6 +4,7 @@ import ink.anur.common.KanashiExecutors
 import ink.anur.core.common.AbstractRequestMapping
 import ink.anur.core.log.LogService
 import ink.anur.core.raft.ElectionMetaService
+import ink.anur.core.raft.RaftCenterController
 import ink.anur.core.request.MsgProcessCentreService
 import ink.anur.debug.Debugger
 import ink.anur.inject.Event
@@ -32,6 +33,7 @@ import java.util.function.Consumer
  */
 @NigateBean
 class RecoveryReporterHandlerService : AbstractRequestMapping() {
+
     private val logger = Debugger(this::class.java)
 
     @NigateInject
@@ -45,6 +47,9 @@ class RecoveryReporterHandlerService : AbstractRequestMapping() {
 
     @NigateInject
     private lateinit var logService: LogService
+
+    @NigateInject
+    private lateinit var raftCenterController: RaftCenterController
 
     private val locker = ReentrantReadWriteLocker()
 
@@ -208,8 +213,9 @@ class RecoveryReporterHandlerService : AbstractRequestMapping() {
      * 触发向各个节点发送 RecoveryComplete，发送完毕后 触发 RECOVERY_COMPLETE
      * // TODO 避免 client 重复触发！！
      */
-    private fun shuttingWhileRecoveryComplete() {
+    fun shuttingWhileRecoveryComplete() {
         cancelFetchTask()
+        raftCenterController.setGenerationAndOffset(logService.getCurrentGao())
         recoveryComplete = true
         waitShutting.entries.forEach(Consumer { sendRecoveryComplete(it.key, it.value) })
         nigateListenerService.onEvent(Event.RECOVERY_COMPLETE)

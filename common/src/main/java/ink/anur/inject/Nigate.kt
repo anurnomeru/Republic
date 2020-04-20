@@ -543,4 +543,5 @@ object Nigate {
             return rpcSenderService.sendRpcRequest(method, interfaceName, alias, args, 3)
         }
     }
+
 }

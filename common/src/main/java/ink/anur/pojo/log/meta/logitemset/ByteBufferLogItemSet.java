@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package ink.anur.log.logitemset;
+package ink.anur.pojo.log.meta.logitemset;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -24,8 +24,8 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.stream.Stream;
 import ink.anur.exception.LogException;
-import ink.anur.log.common.LogItemAndOffset;
 import ink.anur.pojo.log.LogItem;
+import ink.anur.pojo.log.meta.LogItemAndOffset;
 import ink.anur.util.IteratorTemplate;
 
 /**
