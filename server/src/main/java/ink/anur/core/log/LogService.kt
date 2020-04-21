@@ -226,10 +226,13 @@ class LogService {
      *
      * 允许插入到以前的世代
      */
-    fun append(gen: Long, offset: Long, logItem: LogItem) {
+    fun appendForRecovery(gen: Long, offset: Long, logItem: LogItem) {
         explicitLock.writeLocker {
             val insertion = GenerationAndOffset(gen, offset)
             if (insertion > currentGAO) {
+                if (currentGAO.next() != insertion) {
+                    throw LogException("日志追加时出现问题，日志没有按顺序进行追加！")
+                }
                 currentGAO = insertion
             }
 
@@ -356,45 +359,63 @@ class LogService {
     /**
      * 丢弃某个 GAO 往后的所有消息
      */
-    fun discardAfter(GAO: GenerationAndOffset) {
+    fun discardAfterAll(GAO: GenerationAndOffset) {
         explicitLock.writeLocker {
             for (i in GAO.generation..currentGAO.generation) {
                 loadGenLog(i)
             }
 
-            var result = doDiscardAfter(GAO)
+            var result = doDiscardAfter(GAO, false)
             while (result) {
-                result = doDiscardAfter(GAO)
+                result = doDiscardAfter(GAO, false)
             }
             currentGAO = GAO
         }
     }
 
     /**
-     * 真正丢弃执行者，注意运行中不要乱调用这个，因为没加锁
+     * 仅仅删除当前 log 下的，大于某 GAO 的日志
      */
-    private fun doDiscardAfter(GAO: GenerationAndOffset): Boolean {
+    fun discardAfterInThisLog(GAO: GenerationAndOffset) {
+        doDiscardAfter(GAO, true)
+    }
+
+    /**
+     * 真正丢弃执行者，注意运行中不要乱调用这个，因为没加锁
+     *
+     * @param deleteCurrentLogOnly 是否只删除当前世代下的
+     */
+    private fun doDiscardAfter(GAO: GenerationAndOffset, deleteCurrentLogOnly: Boolean): Boolean {
         val gen = GAO.generation
         val offset = GAO.offset
 
-        val tailMap = generationDirs.tailMap(gen, true)
-        if (tailMap == null || tailMap.size == 0) {
-            // 世代过大或者此世代还未有预日志
-            return false
+
+        val needDeleteGen: Long
+        val needDeleteLog: Log
+
+        if (deleteCurrentLogOnly) {
+            needDeleteGen = gen
+            needDeleteLog = generationDirs[gen]!!
+        } else {
+            val tailMap = generationDirs.tailMap(gen, true)
+            if (tailMap == null || tailMap.size == 0) {
+                // 世代过大或者此世代还未有日志
+                return false
+            }
+
+            // 取其最大者
+            val lastEntry = tailMap.lastEntry()
+
+            needDeleteGen = lastEntry.key
+            needDeleteLog = lastEntry.value
         }
-
-        // 取其最大者
-        val lastEntry = tailMap.lastEntry()
-
-        val needDeleteGen = lastEntry.key
-        val needDeleteLog = lastEntry.value
 
         // 判断是否需要删除整个世代日志
         // 若存在比当前更大的世代的日志，将其全部删除
         // 不会出现删除比当前世代还大的情况
         // 例如当前最大世代 9，但是要删除世代 10 的日志
         val deleteAll = when {
-            needDeleteGen == gen -> false
+            needDeleteGen == gen || deleteCurrentLogOnly -> false
             needDeleteGen > gen -> true
             else -> throw LogException("注意一下这种情况，比较奇怪！")
         }
@@ -419,6 +440,7 @@ class LogService {
                 generationDirs.remove(needDeleteGen)
                 "成功"
             } else "失败")
+
             true
         } else {
             logger.info("当前需删除 $GAO 往后的日志，故世代 $needDeleteGen 日志将部分删去")

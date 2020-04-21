@@ -1,8 +1,6 @@
 package ink.anur.service.log
 
 import ink.anur.core.common.AbstractRequestMapping
-import ink.anur.core.raft.ElectionMetaService
-import ink.anur.debug.Debugger
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
 import ink.anur.core.log.LogService
@@ -39,7 +37,7 @@ class FetchResponseHandlerService : AbstractRequestMapping() {
         iterator.forEach {
 
             // 集群恢复
-            logService.append(gen, it.offset, it.logItem)
+            logService.appendForRecovery(gen, it.offset, it.logItem)
 
             val offset = it.offset
             if (offset == recoveryReporterHandlerService.fetchTo!!.offset) {// 如果已经同步完毕，则通知集群同步完成

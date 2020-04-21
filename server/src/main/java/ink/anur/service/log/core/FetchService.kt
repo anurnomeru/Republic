@@ -3,14 +3,15 @@ package ink.anur.service.log.core
 import ink.anur.core.log.LogService
 import ink.anur.core.raft.ElectionMetaService
 import ink.anur.core.request.MsgProcessCentreService
+import ink.anur.exception.RecoveryException
 import ink.anur.inject.Event
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
 import ink.anur.inject.NigateListener
+import ink.anur.inject.NigateListenerService
 import ink.anur.pojo.log.Fetch
 import ink.anur.pojo.log.FetchResponse
 import ink.anur.pojo.log.GenerationAndOffset
-import ink.anur.pojo.log.RecoveryComplete
 import ink.anur.pojo.log.meta.RecoveryCompleteMeta
 import ink.anur.timewheel.CycleTimedTask
 import ink.anur.timewheel.Timer
@@ -35,6 +36,9 @@ class FetchService {
     @NigateInject
     private lateinit var logService: LogService
 
+    @NigateInject
+    private lateinit var nigateListenerService: NigateListenerService
+
     @Volatile
     private var fetchMeta: FetchMeta? = null
 
@@ -45,12 +49,18 @@ class FetchService {
      */
     @Synchronized
     fun recoveryHandler(recoveryCompleteMeta: RecoveryCompleteMeta) {
+        val leader = electionMetaService.getLeader()
         if (recoveryCompleteMeta.nowGen == electionMetaService.generation) {
             val thisNodeLogGaos = logService.getAllGensGao()
             val leaderLogGaos = recoveryCompleteMeta.allGensGao
 
             val leaderLogGens = leaderLogGaos.map { it.generation }.toSet()
             val thisNodeLogGaosMapping = thisNodeLogGaos.associateBy { it.generation }
+
+            /*
+             * 删去最大日志往后的日志
+             */
+            logService.discardAfterAll(leaderLogGaos.last())
 
             /*
              * 先将 leader 没有的那些 log 删去
@@ -76,15 +86,23 @@ class FetchService {
 
                         if (log.currentOffset > leaderLogGao.offset) {
                             // 多退
-                        }else{
+                            logService.discardAfterInThisLog(leaderLogGao)
+                        } else {
                             // 少补
-                            startToFetchFrom()
+                            if (startToFetchFrom(leader!!, GenerationAndOffset(gen, log.currentOffset), leaderLogGao, true)) {
+                                logger.debug("世代 $gen 已与 leader 一致")
+                            } else {
+                                throw RecoveryException("Recovery 过程中，由于各种原因触发了 fetch 任务失效，很大可能是因为集群失效。")
+                            }
                         }
-
                     }
                 }
             }
 
+            nigateListenerService.onEvent(Event.RECOVERY_COMPLETE)
+
+            // 开始进行真正的同步
+            startToFetchFrom(leader!!, logService.getCurrentGao(), null, false)
         } else {
             logger.error("收到了来自世代 ${recoveryCompleteMeta.nowGen} 的无效 RECOVERY_COMPLETE，因为当前世代已经是 ${electionMetaService.generation}")
         }
@@ -107,7 +125,7 @@ class FetchService {
         val gen = fr.generation
         var lastOffset: Long? = null
         iterator.forEach {
-            logService.append(gen, it.offset, it.logItem)
+            logService.appendForRecovery(gen, it.offset, it.logItem)
             lastOffset = it.offset
         }
 
@@ -127,8 +145,7 @@ class FetchService {
     /**
      * 从某个节点开始进行 fetch，从日志 generationAndOffsetStart 拉取直到 generationAndOffsetUntil
      */
-    @Synchronized
-    private fun startToFetchFrom(fromServer: String, start: GenerationAndOffset, end: GenerationAndOffset?, waitUntilComplete: Boolean): Boolean {
+    fun startToFetchFrom(fromServer: String, start: GenerationAndOffset, end: GenerationAndOffset?, waitUntilComplete: Boolean): Boolean {
         /*
          * 取消之前的任务
          */
@@ -146,7 +163,7 @@ class FetchService {
     /**
      * 当集群不可用时，暂停所有任务
      */
-    @NigateListener(onEvent = Event.CLUSTER_VALID)
+    @NigateListener(onEvent = Event.CLUSTER_INVALID)
     @Synchronized
     private fun whileClusterValid() {
         val f = fetchMeta

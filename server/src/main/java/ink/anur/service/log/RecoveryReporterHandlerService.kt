@@ -6,6 +6,7 @@ import ink.anur.core.raft.ElectionMetaService
 import ink.anur.core.raft.RaftCenterController
 import ink.anur.core.request.MsgProcessCentreService
 import ink.anur.debug.Debugger
+import ink.anur.exception.RecoveryException
 import ink.anur.inject.Event
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
@@ -17,6 +18,7 @@ import ink.anur.pojo.log.GenerationAndOffset
 import ink.anur.pojo.log.RecoveryComplete
 import ink.anur.pojo.log.RecoveryReporter
 import ink.anur.pojo.log.meta.RecoveryCompleteMeta
+import ink.anur.service.log.core.FetchService
 import ink.anur.util.TimeUtil
 import io.netty.channel.Channel
 import java.nio.ByteBuffer
@@ -47,6 +49,9 @@ class RecoveryReporterHandlerService : AbstractRequestMapping() {
 
     @NigateInject
     private lateinit var raftCenterController: RaftCenterController
+
+    @NigateInject
+    private lateinit var fetchService: FetchService
 
     private val locker = ReentrantReadWriteLocker()
 
@@ -85,7 +90,6 @@ class RecoveryReporterHandlerService : AbstractRequestMapping() {
             msgProcessCentreService.sendAsyncByName(electionMetaService.getLeader()!!, RecoveryReporter(logService.getCurrentGao(), electionMetaService.generation))
         }
     }
-
 
 
     @NigateListener(onEvent = Event.CLUSTER_INVALID)
@@ -155,7 +159,12 @@ class RecoveryReporterHandlerService : AbstractRequestMapping() {
                     logger.info("已有过半节点提交了最大进度，集群最大进度于节点 $serverName ，进度为 $latestGAO ，Leader 将从其同步最新数据")
 
                     // 开始进行 fetch
-//                    startToFetchFrom(latestNode)
+                    if (fetchService.startToFetchFrom(latestNode, logService.getCurrentGao(), fetchTo, true)) {
+                        logger.info("leader 向 follower 同步最新日志完成！")
+                        shuttingWhileRecoveryComplete()
+                    } else {
+                        throw RecoveryException("leader 在集群同步时，向 follower 节点拉取最新消息时出现异常！")
+                    }
                 }
             }
         }
@@ -164,13 +173,11 @@ class RecoveryReporterHandlerService : AbstractRequestMapping() {
     }
 
 
-
     /**
      * 触发向各个节点发送 RecoveryComplete，发送完毕后 触发 RECOVERY_COMPLETE
      * // TODO 避免 client 重复触发！！
      */
     fun shuttingWhileRecoveryComplete() {
-//        cancelFetchTask()
         raftCenterController.setGenerationAndOffset(logService.getCurrentGao())
         recoveryComplete = true
         waitShutting.entries.forEach(Consumer { sendRecoveryComplete(it.key, it.value) })
