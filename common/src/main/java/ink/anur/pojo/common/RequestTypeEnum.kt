@@ -9,6 +9,7 @@ import ink.anur.pojo.coordinate.Canvass
 import ink.anur.pojo.HeartBeat
 import ink.anur.pojo.log.Fetch
 import ink.anur.pojo.log.FetchResponse
+import ink.anur.pojo.log.RecoveryComplete
 import ink.anur.pojo.log.RecoveryReporter
 import ink.anur.pojo.rpc.RpcProviderMapping
 import ink.anur.pojo.rpc.RpcRegistration
@@ -66,6 +67,11 @@ enum class RequestTypeEnum(val byteSign: Int, val clazz: Class<out AbstractStruc
      * 集群恢复 reporter
      */
     RECOVERY_REPORTER(10006, RecoveryReporter::class.java),
+
+    /**
+     * 集群恢复完成 reporter
+     */
+    RECOVERY_COMPLETE(10007, RecoveryComplete::class.java),
 
     /**
      * 进行rpc请求

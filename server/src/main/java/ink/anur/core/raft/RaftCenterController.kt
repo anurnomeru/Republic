@@ -372,9 +372,8 @@ class RaftCenterController : KanashiRunnable() {
                             // 如果还没收到这个节点的选票，就继续发
                             if (electionMetaService.box[kanashiNode.serverName] == null) {
                                 logger.debug("正向节点 {} [{}:{}] 发送世代 {} 的拉票请求...", kanashiNode.serverName, kanashiNode.host, kanashiNode.port, electionMetaService.generation)
+                                msgCenterService.sendAsyncByName(kanashiNode.serverName, Canvass(electionMetaService.generation))
                             }
-
-                            msgCenterService.sendAsyncByName(kanashiNode.serverName, Canvass(electionMetaService.generation))
                         }
 
                     val timedTask = TimedTask(VOTES_BACK_OFF_MS, Runnable {

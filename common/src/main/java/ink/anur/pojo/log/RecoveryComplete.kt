@@ -19,7 +19,7 @@ class RecoveryComplete : AbstractStruct {
     constructor(recoveryCompleteMeta: RecoveryCompleteMeta) {
         this.recoveryCompleteMeta = recoveryCompleteMeta
         val ser = HessianUtil.ser(recoveryCompleteMeta)
-        init(AbstractStruct.OriginMessageOverhead + ser.size, RequestTypeEnum.RPC_REGISTRATION) {
+        init(AbstractStruct.OriginMessageOverhead + ser.size, RequestTypeEnum.RECOVERY_COMPLETE) {
             it.put(ser)
         }
     }

@@ -15,6 +15,7 @@ import ink.anur.pojo.log.GenerationAndOffset
 import ink.anur.pojo.log.meta.RecoveryCompleteMeta
 import ink.anur.timewheel.CycleTimedTask
 import ink.anur.timewheel.Timer
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CountDownLatch
 
@@ -124,20 +125,23 @@ class FetchService {
         val iterator = read.iterator()
         val gen = fr.generation
         var lastOffset: Long? = null
-        iterator.forEach {
-            logService.appendForRecovery(gen, it.offset, it.logItem)
-            lastOffset = it.offset
-        }
 
-        if (lastOffset != null) {
-            val fetchLast = GenerationAndOffset(gen, lastOffset!!)
-            /*
-             * 如果已经 fetch 到了想要的进度，触发complete，否则触发send，并重置过期时间
-             */
-            if (fetchLast == fetchMeta.fetchUntil) {
-                fetchMeta.complete()
-            } else {
-                fetchMeta.doSendAndResetTaskExp(fetchLast)
+        try {
+            iterator.forEach {
+                logService.appendForRecovery(gen, it.offset, it.logItem)
+                lastOffset = it.offset
+            }
+        } finally {
+            if (lastOffset != null) {
+                val fetchLast = GenerationAndOffset(gen, lastOffset!!)
+                /*
+                 * 如果已经 fetch 到了想要的进度，触发complete，否则触发send，并重置过期时间
+                 */
+                if (fetchLast == fetchMeta.fetchUntil) {
+                    fetchMeta.complete()
+                } else {
+                    fetchMeta.doSendAndResetTaskExp(fetchLast)
+                }
             }
         }
     }
@@ -150,7 +154,7 @@ class FetchService {
          * 取消之前的任务
          */
         this.fetchMeta?.cancel()
-        val fm = FetchMeta(fromServer, start, end, msgProcessCentreService)
+        val fm = FetchMeta(fromServer, start, end, msgProcessCentreService, logger)
         this.fetchMeta = fm
 
         return if (waitUntilComplete) {
@@ -197,14 +201,22 @@ class FetchService {
         /**
          * 一个不优雅的设计，但是 = = 就这么样
          */
-        val msgProcessCentreService: MsgProcessCentreService) {
+        val msgProcessCentreService: MsgProcessCentreService,
+
+        /**
+         * 注入的日志，避免重复创建这个对象
+         */
+        val logger: Logger) {
 
         @Volatile
         private var success: Boolean? = null
 
         private val taskCompleteLatch = CountDownLatch(1)
 
-        private val doSend = { msgProcessCentreService.sendAsyncByName(fromServer, Fetch(fetchFrom)) }
+        private val doSend = {
+            logger.debug("Fetch from $fromServer that start at $fetchFrom")
+            msgProcessCentreService.sendAsyncByName(fromServer, Fetch(fetchFrom))
+        }
 
         private val task: CycleTimedTask = CycleTimedTask(0, 5000L,
             Runnable { doSend.invoke() })

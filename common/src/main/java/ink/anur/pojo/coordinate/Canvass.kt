@@ -26,12 +26,9 @@ class Canvass : AbstractStruct {
 
     constructor(generation: Long) {
         this.generation = generation
-
-        val byteBuffer = ByteBuffer.allocate(Capacity)
-        init(byteBuffer, RequestTypeEnum.CANVASS)
-
-        byteBuffer.putLong(generation)
-        byteBuffer.flip()
+        init(Capacity, RequestTypeEnum.CANVASS){
+            it.putLong(generation)
+        }
     }
 
     constructor(byteBuffer: ByteBuffer) {

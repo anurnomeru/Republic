@@ -27,16 +27,14 @@ object Bootstrap {
         val logService = Nigate.getBeanByClass(LogService::class.java)
         val raftCenterController = Nigate.getBeanByClass(RaftCenterController::class.java)
 
-        Thread.sleep(1000)
-
-        for (i in 0 until 1000000) {
-            logService.appendForLeader(LogItem(TestingProposal()))
-            if (i % 100 == 0) {
-                println(i)
-            }
-        }
-
-        println("over")
+//        Thread.sleep(1000)
+//
+//        for (i in 0 until 1000000) {
+//            logService.appendForLeader(LogItem(TestingProposal()))
+//            if (i % 100 == 0) {
+//                println(i)
+//            }
+//        }
 
         while (RUNNING) {
             Thread.sleep(1000)

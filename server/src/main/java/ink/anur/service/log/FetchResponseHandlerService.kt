@@ -6,6 +6,7 @@ import ink.anur.inject.NigateInject
 import ink.anur.core.log.LogService
 import ink.anur.pojo.common.RequestTypeEnum
 import ink.anur.pojo.log.FetchResponse
+import ink.anur.service.log.core.FetchService
 import io.netty.channel.Channel
 import java.nio.ByteBuffer
 
@@ -18,7 +19,7 @@ import java.nio.ByteBuffer
 class FetchResponseHandlerService : AbstractRequestMapping() {
 
     @NigateInject
-    private lateinit var logService: LogService
+    private lateinit var fetchService: FetchService
 
     @NigateInject
     private lateinit var recoveryReporterHandlerService: RecoveryReporterHandlerService
@@ -29,21 +30,6 @@ class FetchResponseHandlerService : AbstractRequestMapping() {
 
     override fun handleRequest(fromServer: String, msg: ByteBuffer, channel: Channel) {
         val fr = FetchResponse(msg)
-
-        val read = fr.read()
-        val iterator = read.iterator()
-        val gen = fr.generation
-
-        iterator.forEach {
-
-            // 集群恢复
-            logService.appendForRecovery(gen, it.offset, it.logItem)
-
-            val offset = it.offset
-            if (offset == recoveryReporterHandlerService.fetchTo!!.offset) {// 如果已经同步完毕，则通知集群同步完成
-                recoveryReporterHandlerService.shuttingWhileRecoveryComplete()
-                recoveryReporterHandlerService.fetchTo = null
-            }
-        }
+        fetchService.fetchHandler(fr, fromServer)
     }
 }

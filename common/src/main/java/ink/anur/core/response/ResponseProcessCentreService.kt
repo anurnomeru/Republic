@@ -60,7 +60,7 @@ class ResponseProcessCentreService {
 
         val lock = getLock((serverName ?: c?.toString()) ?: throw NetWorkException("发送时必须指定哪个管道或哪个服务"))
         try {
-            lock.lock()
+//            lock.lock()
             val channel = (if (c != null) {
                 c
             } else {
@@ -72,7 +72,7 @@ class ResponseProcessCentreService {
                     }
                     val connectLatch = CountDownLatch(1)
                     clientService.connect(node) { connectLatch.countDown() }
-                    connectLatch.await(5, TimeUnit.SECONDS)
+                    connectLatch.await()
                     channelFromCS = channelService.getChannel(serverName)
                 }
                 channelFromCS
@@ -89,7 +89,7 @@ class ResponseProcessCentreService {
             t.printStackTrace()
             return t
         } finally {
-            lock.unlock()
+//            lock.unlock()
         }
         return null
     }

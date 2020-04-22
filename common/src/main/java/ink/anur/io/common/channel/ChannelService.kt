@@ -48,6 +48,8 @@ class ChannelService : ReentrantReadWriteLocker() {
      */
     fun register(kanashiNode: KanashiNode, channel: Channel) {
         this.writeLockSupplier {
+
+            println("可能有bug -> $kanashiNode")
             kanashiNodeMap[kanashiNode.serverName] = kanashiNode
             serverChannelMap[kanashiNode.serverName] = channel
             channelServerMap[channel] = kanashiNode.serverName

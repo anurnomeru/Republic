@@ -136,12 +136,10 @@ class LogService {
 
     fun getAllGensGao(): SortedSet<GenerationAndOffset> {
         val result = ConcurrentSkipListSet<GenerationAndOffset>()
-        for (file in baseDir.listFiles()!!) {
-            if (!file.isFile) {
-                val gen = Integer.valueOf(file.name).toLong()
-                val latestOffset = Log(gen, createGenDirIfNEX(gen)).currentOffset
-                result.add(GenerationAndOffset(gen, latestOffset))
-            }
+        for (generationDir in generationDirs) {
+
+            val currentOffset = generationDir.value.currentOffset
+            result.add(GenerationAndOffset(generationDir.key, currentOffset))
         }
         return result
     }
@@ -230,7 +228,7 @@ class LogService {
         explicitLock.writeLocker {
             val insertion = GenerationAndOffset(gen, offset)
             if (insertion > currentGAO) {
-                if (currentGAO.next() != insertion) {
+                if (offset != 1L && currentGAO.next() != insertion) {
                     throw LogException("日志追加时出现问题，日志没有按顺序进行追加！")
                 }
                 currentGAO = insertion

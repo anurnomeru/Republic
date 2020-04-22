@@ -30,9 +30,9 @@ class EventDriverPoolHandler : SimpleChannelInboundHandler<ByteBuffer>() {
 
             val typeEnum = RequestTypeEnum.parseByByteSign(sign)
 
-            if (typeEnum != RequestTypeEnum.HEAT_BEAT) {
+//            if (typeEnum != RequestTypeEnum.HEAT_BEAT) {
                 logger.trace("<--- 收到了类型为 $typeEnum 的消息")
-            }
+//            }
 
             Nigate.getBeanByClass(MsgProcessCentreService::class.java).receive(msg, typeEnum, ctx.channel())
         } else {

@@ -34,7 +34,7 @@ import ink.anur.util.IteratorTemplate;
 
 /**
  * Created by Anur IjuoKaruKas on 2/25/2019
- *
+ * <p>
  * 高仿kafka FileMessageSet 写的，是操作日志在磁盘的映射类。
  */
 public class FileLogItemSet extends LogItemSet {
@@ -143,15 +143,15 @@ public class FileLogItemSet extends LogItemSet {
 
     /**
      * Return a message set which is a view into this set starting from the given position and with the given size limit.
-     *
+     * <p>
      * If the size is beyond the end of the file, the end will be based on the size of the file at the time of the read.
-     *
+     * <p>
      * If this message set is already sliced, the position will be taken relative to that slicing.
-     *
+     * <p>
      * 返回当前FileMessageSet中的一部分FileMessageSet，不会真正将内容读到内存中
      *
      * @param position The start position to begin the read from
-     * @param size The number of bytes after the start position to include
+     * @param size     The number of bytes after the start position to include
      *
      * @return A sliced wrapper on this message set limited based on the given position and size
      */
@@ -170,7 +170,7 @@ public class FileLogItemSet extends LogItemSet {
 
     /**
      * 从startingPosition开始，找到第一个大于等于目标offset的物理地址
-     *
+     * <p>
      * 如果找不到，则返回null
      */
     public OffsetAndPosition searchFor(long targetOffset, int startingPosition) throws IOException {
@@ -214,8 +214,7 @@ public class FileLogItemSet extends LogItemSet {
     public int truncateTo(int targetSize) {
         int originalSize = this.sizeInBytes();
         if (targetSize > originalSize || targetSize < 0) {
-            throw new LogException("尝试将日志文件截短成 " + targetSize + " bytes 但是失败了, " +
-                " 原文件大小为 " + originalSize + " bytes。");
+            throw new LogException("日志裁剪长度不合法，原长度 " + originalSize + " 而欲截至 " + targetSize);
         }
 
         try {
@@ -240,12 +239,12 @@ public class FileLogItemSet extends LogItemSet {
 
     /**
      * Write some of this set to the given channel.
-     *
+     * <p>
      * 将FileMessageSet的部分数据写到指定的channel上
      *
-     * @param destChannel The channel to write to.
+     * @param destChannel   The channel to write to.
      * @param writePosition The position in the message set to begin writing from.
-     * @param size The maximum number of bytes to write
+     * @param size          The maximum number of bytes to write
      *
      * @return The number of bytes actually written.
      */
