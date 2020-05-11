@@ -1,5 +1,6 @@
 package ink.anur.service.log.core
 
+import ink.anur.common.KanashiIOExecutors
 import ink.anur.core.log.LogService
 import ink.anur.core.raft.ElectionMetaService
 import ink.anur.core.request.MsgProcessCentreService
@@ -123,26 +124,35 @@ class FetchService {
 
         val read = fr.read()
         val iterator = read.iterator()
-        val gen = fr.generation
-        var lastOffset: Long? = null
+        val fetchUntil = fetchMeta.fetchUntil
 
-        try {
-            iterator.forEach {
-                logService.appendForRecovery(gen, it.offset, it.logItem)
-                lastOffset = it.offset
-            }
-        } finally {
-            if (lastOffset != null) {
-                val fetchLast = GenerationAndOffset(gen, lastOffset!!)
+        /*
+         * 标记下一次 fetch
+         */
+        var lastAppendOffset: Long = fetchMeta.fetchFrom.offset
+        var continueFetch = true
+
+        while (iterator.hasNext()) {
+            val logItemAndOffset = iterator.next()
+            logService.appendForRecovery(fr.generation, logItemAndOffset.offset, logItemAndOffset.logItem)
+
+            if (fr.generation == fetchUntil?.generation && logItemAndOffset.offset == fetchUntil.offset) {
                 /*
                  * 如果已经 fetch 到了想要的进度，触发complete，否则触发send，并重置过期时间
                  */
-                if (fetchLast == fetchMeta.fetchUntil) {
-                    fetchMeta.complete()
-                } else {
-                    fetchMeta.doSendAndResetTaskExp(fetchLast)
-                }
+                fetchMeta.complete()
+                continueFetch = false
+                break
             }
+
+            lastAppendOffset = logItemAndOffset.offset
+        }
+
+        /*
+         * 如果任务没有完成，则继续 fetch
+         */
+        if (continueFetch) {
+            fetchMeta.doSendAndResetTaskExp(GenerationAndOffset(fr.generation, lastAppendOffset))
         }
     }
 
@@ -180,33 +190,38 @@ class FetchService {
      */
     class FetchMeta(
 
-        /**
-         * 从哪个服务进行 fetch
-         */
-        val fromServer: String,
+            /**
+             * 从哪个服务进行 fetch
+             */
+            val fromServer: String,
+
+            /**
+             * 控制应该从哪里开始 fetch
+             */
+            @Volatile
+            var fetchFrom: GenerationAndOffset,
+
+            /**
+             * 控制应该 fetch 到哪里
+             *
+             * 如果为空，则会不断的进行 fetch（非集群恢复阶段）
+             */
+            val fetchUntil: GenerationAndOffset?,
+
+            /**
+             * 一个不优雅的设计，但是 = = 就这么样
+             */
+            val msgProcessCentreService: MsgProcessCentreService,
+
+            /**
+             * 注入的日志，避免重复创建这个对象
+             */
+            val logger: Logger) {
 
         /**
-         * 控制应该从哪里开始 fetch
+         * 记录一下初始任务
          */
-        @Volatile
-        var fetchFrom: GenerationAndOffset,
-
-        /**
-         * 控制应该 fetch 到哪里
-         *
-         * 如果为空，则会不断的进行 fetch（非集群恢复阶段）
-         */
-        val fetchUntil: GenerationAndOffset?,
-
-        /**
-         * 一个不优雅的设计，但是 = = 就这么样
-         */
-        val msgProcessCentreService: MsgProcessCentreService,
-
-        /**
-         * 注入的日志，避免重复创建这个对象
-         */
-        val logger: Logger) {
+        private val fetchFromStart = fetchFrom
 
         @Volatile
         private var success: Boolean? = null
@@ -219,7 +234,7 @@ class FetchService {
         }
 
         private val task: CycleTimedTask = CycleTimedTask(0, 5000L,
-            Runnable { doSend.invoke() })
+                Runnable { doSend.invoke() })
 
         init {
             Timer.getInstance().addTask(task)
@@ -233,7 +248,10 @@ class FetchService {
             if (success == null) {
                 task.resetExpire()
                 this.fetchFrom = fetchFrom
-                doSend.invoke()
+                KanashiIOExecutors.execute(Runnable {
+                    Thread.sleep(20)// todo 测试
+                    doSend.invoke()
+                })
             }
         }
 
@@ -246,6 +264,8 @@ class FetchService {
                 success = false
                 task.cancel()
                 taskCompleteLatch.countDown()
+
+                logger.info("Fetch Task From $fromServer start [$fetchFromStart] until [$fetchUntil] is canceled! ")
             }
         }
 
@@ -257,6 +277,8 @@ class FetchService {
             if (success == null) {
                 task.cancel()
                 success = true
+
+                logger.info("Fetch Task From $fromServer start [$fetchFromStart] until [$fetchUntil] complete! ")
             }
             taskCompleteLatch.countDown()
         }
