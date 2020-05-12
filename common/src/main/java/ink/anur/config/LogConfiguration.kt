@@ -16,7 +16,9 @@ class LogConfiguration : ConfigHelper() {
     @NigateInject(useLocalFirst = true)
     private lateinit var inetSocketAddressConfiguration: InetConfig
 
-    fun relativelyPath(): String = getConfig(ConfigurationEnum.LOG_BASE_PATH) { it } as String
+    val projectDir = System.getProperty("user.dir");
+
+    fun relativelyPath(): String = projectDir+getConfig(ConfigurationEnum.LOG_BASE_PATH) { it } as String
 
     fun getBaseDir(): String = relativelyPath() + "/" + inetSocketAddressConfiguration.getLocalServerName()
 

@@ -82,7 +82,7 @@ class LogService {
     @Volatile
     private var isLeaderCurrent: Boolean = false
 
-    @NigatePostConstruct
+    @NigatePostConstruct(dependsOn = "logConfiguration")
     private fun init() {
         baseDir = File(logConfiguration.getBaseDir() + "/log/aof/")
         baseDir.mkdirs()

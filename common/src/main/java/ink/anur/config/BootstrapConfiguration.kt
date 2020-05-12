@@ -13,7 +13,7 @@ object BootstrapConfiguration {
 
         var paramCount = 0
         for (arg in args) {
-            val split = arg.split(":")
+            val split = arg.split("=")
             ARGS[split[paramCount]] = split[paramCount + 1]
             paramCount += 2
         }

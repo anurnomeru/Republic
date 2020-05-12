@@ -36,8 +36,6 @@ object Nigate {
      */
     private val beanContainer = NigateBeanContainer()
 
-    private val hasBeanPostConstruct: MutableSet<String> = mutableSetOf()
-
     private val logger = LoggerFactory.getLogger(this::class.java)
 
     init {
@@ -183,12 +181,12 @@ object Nigate {
         /**
          * 延迟加载的 BEAN
          */
-        private val LAZY_POSTCONTROL_BEAN = mutableMapOf<Any, Any>()
+        private val LAZY_POST_CONSTRUCT_BEAN = mutableMapOf<Any, Any>()
 
         /**
          * 已经进行了 postControl
          */
-        private val HAS_BEEN_POSTCONTROL = mutableSetOf<Any>()
+        private val HAS_BEEN_POST_CONSTRUCT = mutableSetOf<Any>()
 
         /**
          * 避免因为路径问题导致初始化重复扫描
@@ -373,24 +371,23 @@ object Nigate {
             val removes = mutableListOf<Any>()
 
             for (bean in beans) {
+                // #修复一个由于 post construct 引起的问题
+                var withoutAnyPostConstructMethod = true
                 for (memberFunction in bean::class.memberFunctions) {
                     for (annotation in memberFunction.annotations) {
                         if (annotation.annotationClass == NigatePostConstruct::class) {
+                            withoutAnyPostConstructMethod = false
                             annotation as NigatePostConstruct
                             val dependsOn = NAME_TO_BEAN_MAPPING[annotation.dependsOn]
-                            if (annotation.dependsOn != "-NONE-" && !HAS_BEEN_POSTCONTROL.contains(dependsOn)) {
+                            if (annotation.dependsOn != "-NONE-" && !HAS_BEEN_POST_CONSTRUCT.contains(dependsOn)) {
                                 dependsOn
                                     ?: throw NoSuchBeanException("$bean 依赖的 bean ${annotation.dependsOn} 不存在")
-                                LAZY_POSTCONTROL_BEAN[bean] = dependsOn
-                                if (LAZY_POSTCONTROL_BEAN[dependsOn] != null && LAZY_POSTCONTROL_BEAN[dependsOn] == bean) {
+                                logger.debug("bean ${BEAN_TO_NAME_MAPPING[bean]} depends on ${annotation.dependsOn}")
+                                LAZY_POST_CONSTRUCT_BEAN[bean] = dependsOn
+                                if (LAZY_POST_CONSTRUCT_BEAN[dependsOn] != null && LAZY_POST_CONSTRUCT_BEAN[dependsOn] == bean) {
                                     throw NigateException("bean ${BEAN_TO_NAME_MAPPING[dependsOn]} 与 ${BEAN_TO_NAME_MAPPING[bean]} 的 @NigatePostConstruct 构成了循环依赖！")
                                 }
                             } else {
-
-                                HAS_BEEN_POSTCONTROL.add(bean)
-                                removes.add(
-                                    bean
-                                )
 
                                 try {
                                     memberFunction.isAccessible = true
@@ -403,18 +400,28 @@ object Nigate {
                                     }
                                 }
                                 val name = BEAN_TO_NAME_MAPPING[bean] ?: throw NoSuchBeanException("无法根据类 ${bean.javaClass.simpleName} 找到唯一的 Bean 找到指定的 BeanName")
-                                hasBeanPostConstruct.add(name)
+
+                                HAS_BEEN_POST_CONSTRUCT.add(bean)
+                                removes.add(
+                                        bean
+                                )
+
                             }
                         }
                     }
                 }
+
+                if (withoutAnyPostConstructMethod){
+                    HAS_BEEN_POST_CONSTRUCT.add(bean)
+                }
+
             }
             for (remove in removes) {
-                LAZY_POSTCONTROL_BEAN.remove(remove)
+                LAZY_POST_CONSTRUCT_BEAN.remove(remove)
             }
 
-            if (LAZY_POSTCONTROL_BEAN.keys.size > 0) {
-                postConstruct(LAZY_POSTCONTROL_BEAN.keys, onStartUp)
+            if (LAZY_POST_CONSTRUCT_BEAN.keys.size > 0) {
+                postConstruct(LAZY_POST_CONSTRUCT_BEAN.keys, onStartUp)
             }
         }
 
@@ -435,7 +442,6 @@ object Nigate {
 
                             })
                             val name = BEAN_TO_NAME_MAPPING[bean] ?: throw NoSuchBeanException("无法根据类 ${bean.javaClass.simpleName} 找到唯一的 Bean 找到指定的 BeanName")
-                            hasBeanPostConstruct.add(name)
                         }
                     }
                 }
