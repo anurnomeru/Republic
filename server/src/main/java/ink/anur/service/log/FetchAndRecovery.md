@@ -18,4 +18,4 @@ Fetch 请求的处理由 FetchHandlerService 处理，这里不过多赘述。
 
 FetchResponse 由 FetchResponseHandlerService 处理，实际上交回 **FetchService** 进行处理。
 
-处理会将结果进行入库，如果 fetch 到了预计进度，则会触发 complete。
+处理会将结果进行入库，如果 fetch 到了预计进度，则会触发 complete 。
