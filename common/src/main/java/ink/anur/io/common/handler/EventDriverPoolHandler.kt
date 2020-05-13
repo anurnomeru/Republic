@@ -1,6 +1,5 @@
 package ink.anur.io.common.handler
 
-import ink.anur.common.struct.Request
 import ink.anur.core.request.MsgProcessCentreService
 import ink.anur.inject.Nigate
 import ink.anur.pojo.common.AbstractStruct
