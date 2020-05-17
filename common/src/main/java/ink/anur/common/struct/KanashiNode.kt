@@ -7,10 +7,6 @@ import ink.anur.inject.NigateInject
 
 class KanashiNode(val serverName: String, val host: String, val port: Int) {
 
-    companion object {
-        val NOT_EXIST = KanashiNode("", "", 0)
-    }
-
     @NigateInject(useLocalFirst = true)
     private var inetClass: InetConfig? = null
 

@@ -27,7 +27,7 @@ interface InetConfig {
     /**
      * 根据名字获取节点
      */
-    fun getNode(serverName: String?): KanashiNode
+    fun getNode(serverName: String): List<KanashiNode>
 
     /**
      * 获取集群信息
