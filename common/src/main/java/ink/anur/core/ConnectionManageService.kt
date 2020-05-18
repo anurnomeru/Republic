@@ -1,12 +1,17 @@
 package ink.anur.core
 
+import ink.anur.common.KanashiRunnable
 import ink.anur.common.struct.KanashiNode
 import ink.anur.config.InetConfig
 import ink.anur.core.client.ClientOperateHandler
 import ink.anur.debug.Debugger
 import ink.anur.exception.NetWorkException
+import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
 import ink.anur.pojo.common.AbstractStruct
+import ink.anur.pojo.common.RequestTypeEnum
+import io.netty.buffer.Unpooled
+import io.netty.channel.Channel
 import java.util.*
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentHashMap
@@ -27,7 +32,8 @@ import java.util.concurrent.locks.ReentrantLock
  *
  *  适用于客户端与服务端共用，不再将客户端服务端的连接代码分离
  */
-class ConnectionManageService {
+@NigateBean
+class ConnectionManageService : KanashiRunnable() {
 
     @NigateInject(useLocalFirst = true)
     private lateinit var inetConfig: InetConfig
@@ -41,6 +47,33 @@ class ConnectionManageService {
      * 服务锁暂存
      */
     private val lockerMapping = HashMap<String, ReentrantLock>()
+
+    /**
+     * 专门用于发送的线程
+     */
+    override fun run() {
+        for (channelHolder in connectionMapping.values) {
+            if (channelHolder.channelStatus == ChannelHolder.ChannelStatus.ESTABLISHED) {
+                val channel = channelHolder.getChannel()
+                val waitToSendIter = channelHolder.sendBuffer.values.iterator()
+
+                // todo 需要处理断线逻辑
+                while (waitToSendIter.hasNext()) {
+                    val waitToSend = waitToSendIter.next()
+                    if (channel?.let {
+                                channel.write(Unpooled.copyInt(waitToSend.totalSize()))
+                                waitToSend.writeIntoChannel(channel)
+                                channel.flush()
+                                true
+                            } == true) {
+                        waitToSendIter.remove()
+                    } else {
+                        break
+                    }
+                }
+            }
+        }
+    }
 
     /**
      * 对某个服务进行的操作需要加锁
@@ -112,6 +145,15 @@ class ConnectionManageService {
         private val needReConnect = ArrayBlockingQueue<Any>(1)
 
         /**
+         * 发送暂存的缓冲区
+         */
+        val sendBuffer = ConcurrentHashMap<RequestTypeEnum, AbstractStruct>()
+
+        fun getChannel(): Channel? {
+            return connection?.getChannel()
+        }
+
+        /**
          * 连接管理代码
          */
         override fun run() {
@@ -135,6 +177,7 @@ class ConnectionManageService {
                                 {
                                     connection = null
                                     needReConnect.offer(whatEver) //触发一次重连
+                                    channelStatus == ChannelStatus.CONNECTING
                                     false
                                 })
 
@@ -158,11 +201,13 @@ class ConnectionManageService {
                     }
                 }
             }
-
         }
 
+        /**
+         * 放进去自然有线程去负责发送它
+         */
         fun sendAsync(body: AbstractStruct) {
-
+            sendBuffer[body.getRequestType()] = body
         }
 
         enum class ChannelStatus {
@@ -182,4 +227,5 @@ class ConnectionManageService {
             ESTABLISHED
         }
     }
+
 }
