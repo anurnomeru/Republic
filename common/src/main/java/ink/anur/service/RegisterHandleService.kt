@@ -5,7 +5,6 @@ import ink.anur.core.common.AbstractRequestMapping
 import ink.anur.core.request.MsgProcessCentreService
 import ink.anur.inject.NigateBean
 import ink.anur.inject.NigateInject
-import ink.anur.io.common.channel.ChannelService
 import ink.anur.pojo.Register
 import ink.anur.pojo.RegisterResponse
 import ink.anur.pojo.common.AbstractStruct
@@ -27,9 +26,6 @@ class RegisterHandleService : AbstractRequestMapping() {
     val CLIENT_SIGN = "CLIENT";
 
     private val logger = LoggerFactory.getLogger(this::class.java)
-
-    @NigateInject
-    private lateinit var channelService: ChannelService
 
     @NigateInject
     private lateinit var msgCenterService: MsgProcessCentreService

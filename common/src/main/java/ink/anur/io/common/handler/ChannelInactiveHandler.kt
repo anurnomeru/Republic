@@ -9,13 +9,13 @@ import io.netty.channel.ChannelInboundHandlerAdapter
  *
  * reconnect，判断是否需要在断开后重连
  */
-class ChannelInactiveHandler(private val shutDownHooker: ShutDownHooker, private val reconnectWhileChannelInactive: (() -> Boolean)?) : ChannelInboundHandlerAdapter() {
+class ChannelInactiveHandler(private val shutDownHooker: ShutDownHooker, private val doAfterDisConnectToServer: (() -> Boolean)?) : ChannelInboundHandlerAdapter() {
 
     override fun channelInactive(ctx: ChannelHandlerContext?) {
-        if (reconnectWhileChannelInactive?.invoke() != false) {
+        if (shutDownHooker.executeInactiveCallback.takeIf { it }?.let { doAfterDisConnectToServer?.invoke() } != false) {
 
         } else {
-            shutDownHooker.shutdown()
+            shutDownHooker.shutdown(true)
         }
         super.channelInactive(ctx)
     }

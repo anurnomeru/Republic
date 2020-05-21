@@ -5,6 +5,7 @@ import ink.anur.common.Shutdownable
 import ink.anur.common.struct.KanashiNode
 import ink.anur.io.client.ReConnectableClient
 import ink.anur.io.common.ShutDownHooker
+import ink.anur.pojo.Register
 import io.netty.channel.Channel
 
 /**
@@ -15,9 +16,9 @@ import io.netty.channel.Channel
 class ClientOperateHandler(private val kanashiNode: KanashiNode,
 
                            /**
-                            * 当受到对方的注册回调后，触发此函数，注意 它可能会被多次调用
+                            * 当收到对方的注册回调后，触发此函数，注意 它可能会被多次调用
                             */
-                           private val doAfterConnectToServer: (() -> Unit)? = null,
+                           doAfterConnectToServer: (() -> Unit)? = null,
 
                            /**
                             * 当连接上对方后，如果断开了连接，做什么处理
@@ -25,9 +26,9 @@ class ClientOperateHandler(private val kanashiNode: KanashiNode,
                             * 返回 true 代表继续重连
                             * 返回 false 则不再重连
                             */
-                           private val doAfterDisConnectToServer: (() -> Boolean)? = null)
+                           doAfterDisConnectToServer: (() -> Boolean)? = null)
 
-    : KanashiRunnable(), Shutdownable {
+    : KanashiRunnable() {
 
     private val serverShutDownHooker = ShutDownHooker("终止与协调节点 $kanashiNode 的连接")
 
@@ -43,6 +44,10 @@ class ClientOperateHandler(private val kanashiNode: KanashiNode,
         }
     }
 
+    fun getRegister(): Register {
+        return coordinateClient.register
+    }
+
     override fun run() {
         if (serverShutDownHooker.isShutDown()) {
             println("zzzzzzzz??????????????zzzzzzzzzzzzzzzzzzzzzzzz")
@@ -51,7 +56,7 @@ class ClientOperateHandler(private val kanashiNode: KanashiNode,
         }
     }
 
-    override fun shutDown() {
-        serverShutDownHooker.shutdown()
+    fun shutDown(executeInactiveCallback: Boolean = true) {
+        serverShutDownHooker.shutdown(executeInactiveCallback)
     }
 }

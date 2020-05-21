@@ -13,6 +13,29 @@ open class ReentrantLocker {
         return reentrantLock.newCondition()
     }
 
+    private val switch = reentrantLock.newCondition()
+
+    @Volatile
+    private var switcher = 0
+
+    fun switchOff() {
+        switcher = 1
+    }
+
+    fun switchOn() {
+        try {
+            reentrantLock.lock()
+            switcher = 0
+            switch.signalAll()
+        } finally {
+            reentrantLock.unlock()
+        }
+    }
+
+    fun isSwitchOff(): Boolean {
+        return switcher > 0
+    }
+
     /**
      * 提供一个统一的锁入口
      */
@@ -22,6 +45,9 @@ open class ReentrantLocker {
         val t: T?
         try {
             reentrantLock.lock()
+            if (switcher > 0) {
+                switch.await()
+            }
             t = supplier.invoke()
         } finally {
             reentrantLock.unlock()
@@ -36,6 +62,9 @@ open class ReentrantLocker {
         val t: T
         try {
             reentrantLock.lock()
+            if (switcher > 0) {
+                switch.await()
+            }
             t = supplier.invoke()
         } finally {
             reentrantLock.unlock()
@@ -49,6 +78,9 @@ open class ReentrantLocker {
     fun lockSupplier(doSomething: () -> Unit) {
         try {
             reentrantLock.lock()
+            if (switcher > 0) {
+                switch.await()
+            }
             doSomething.invoke()
         } finally {
             reentrantLock.unlock()

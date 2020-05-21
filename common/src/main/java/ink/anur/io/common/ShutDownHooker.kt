@@ -19,22 +19,29 @@ class ShutDownHooker(val shutDownMsg: String? = null) {
     private var shutDownConsumer: () -> Unit = {}
 
     /**
-     * 重置到初始状态
+     * 这是一个不太好的设计，这是为了在shutdown后，控制是否执行注册在 {@link ChannelInactiveHandler} 的管道失效逻辑
      */
-    @Synchronized
-    fun reset() {
-        this.shutDown = false
-        this.shutDownConsumer = { }
-    }
+    @Volatile
+    var executeInactiveCallback: Boolean = true
+
+//    /**
+//     * 重置到初始状态
+//     */
+//    @Synchronized
+//    fun reset() {
+//        this.shutDown = false
+//        this.shutDownConsumer = { }
+//    }
 
     /**
      * 触发结束与结束事件
      */
     @Synchronized
-    fun shutdown() {
-        shutDownMsg?.let { logger.info(it) }
-        shutDown = true
-        shutDownConsumer.invoke()
+    fun shutdown(executeInactiveCallback: Boolean = true) {
+        this.executeInactiveCallback = executeInactiveCallback;
+        this.shutDownMsg?.let { logger.info(it) }
+        this.shutDown = true
+        this.shutDownConsumer.invoke()
     }
 
     /**
@@ -53,6 +60,6 @@ class ShutDownHooker(val shutDownMsg: String? = null) {
      * 判断是否结束
      */
     fun isShutDown(): Boolean {
-        return shutDown
+        return this.shutDown
     }
 }

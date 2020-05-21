@@ -11,10 +11,10 @@ import ink.anur.io.common.handler.EventDriverPoolHandler
 import ink.anur.io.common.handler.ErrorHandler
 import ink.anur.io.common.handler.KanashiDecoder
 import ink.anur.io.common.handler.ReconnectHandler
+import ink.anur.pojo.Register
 import ink.anur.service.RegisterResponseHandleService
 import io.netty.bootstrap.Bootstrap
 import io.netty.channel.Channel
-import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
 import io.netty.channel.ChannelInitializer
 import io.netty.channel.nio.NioEventLoopGroup
@@ -49,7 +49,7 @@ class ReConnectableClient(private val node: KanashiNode, private val shutDownHoo
 
     private val reconnectLatch = CountDownLatch(1)
 
-    val registrySign: Long = Nigate.getBeanByClass(RegisterResponseHandleService::class.java).registerCallBack(doAfterConnectToServer)
+    val register: Register = Nigate.getBeanByClass(RegisterResponseHandleService::class.java).genRegister(doAfterConnectToServer)
 
     fun start() {
 
@@ -75,21 +75,21 @@ class ReConnectableClient(private val node: KanashiNode, private val shutDownHoo
         try {
             val bootstrap = Bootstrap()
             bootstrap.group(group)
-                .channel(NioSocketChannel::class.java)
-                .handler(object : ChannelInitializer<SocketChannel>() {
+                    .channel(NioSocketChannel::class.java)
+                    .handler(object : ChannelInitializer<SocketChannel>() {
 
-                    @Throws(Exception::class)
-                    override fun initChannel(socketChannel: SocketChannel) {
-                        socketChannel.pipeline()
-                            .addFirst(AutoRegistryHandler(node, registrySign, injectChannel)) // 自动注册到管道管理服务
-                            .addLast(KanashiDecoder())// 解码处理器
-                            .addLast(EventDriverPoolHandler())// 消息事件驱动
-                            .addFirst(ChannelInboundHandlerAdapter())
-                            .addLast(ChannelInactiveHandler(shutDownHooker, doAfterDisConnectToServer))
-                            .addLast(ReconnectHandler(reconnectLatch))// 重连控制器
-                            .addLast(ErrorHandler())// 错误处理
-                    }
-                })
+                        @Throws(Exception::class)
+                        override fun initChannel(socketChannel: SocketChannel) {
+                            socketChannel.pipeline()
+                                    .addFirst(AutoRegistryHandler(register, injectChannel)) // 自动注册到管道管理服务
+                                    .addLast(KanashiDecoder())// 解码处理器
+                                    .addLast(EventDriverPoolHandler())// 消息事件驱动
+                                    .addFirst(ChannelInboundHandlerAdapter())
+                                    .addLast(ChannelInactiveHandler(shutDownHooker, doAfterDisConnectToServer))
+                                    .addLast(ReconnectHandler(reconnectLatch))// 重连控制器
+                                    .addLast(ErrorHandler())// 错误处理
+                        }
+                    })
 
             val channelFuture = bootstrap.connect(node.host, node.port)
             channelFuture.addListener { future ->
@@ -104,14 +104,14 @@ class ReConnectableClient(private val node: KanashiNode, private val shutDownHoo
             shutDownHooker.shutDownRegister { group.shutdownGracefully() }
 
             channelFuture.channel()
-                .closeFuture()
-                .sync()
+                    .closeFuture()
+                    .sync()
         } catch (e: InterruptedException) {
             e.printStackTrace()
         } finally {
             try {
                 group.shutdownGracefully()
-                    .sync()
+                        .sync()
             } catch (e: InterruptedException) {
                 e.printStackTrace()
             }
