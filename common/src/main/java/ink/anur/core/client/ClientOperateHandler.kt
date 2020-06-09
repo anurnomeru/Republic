@@ -16,6 +16,11 @@ import io.netty.channel.Channel
 class ClientOperateHandler(private val kanashiNode: KanashiNode,
 
                            /**
+                            * 管道可用后触发此函数，注意可能被调用多次
+                            */
+                           doAfterChannelActive: ((Channel) -> Unit)? = null,
+
+                           /**
                             * 当收到对方的注册回调后，触发此函数，注意 它可能会被多次调用
                             */
                            doAfterConnectToServer: (() -> Unit)? = null,
@@ -32,21 +37,9 @@ class ClientOperateHandler(private val kanashiNode: KanashiNode,
 
     private val serverShutDownHooker = ShutDownHooker("终止与协调节点 $kanashiNode 的连接")
 
-    private var ctx: Channel? = null
-
-    private val coordinateClient = ReConnectableClient(kanashiNode, this.serverShutDownHooker, { synchronized(this) { ctx = it } }, doAfterConnectToServer, doAfterDisConnectToServer)
+    private val coordinateClient = ReConnectableClient(kanashiNode, this.serverShutDownHooker, doAfterChannelActive, doAfterConnectToServer, doAfterDisConnectToServer)
 
     fun getNodeName() = kanashiNode.serverName
-
-    fun getChannel(): Channel {
-        synchronized(this) {
-            return ctx!!
-        }
-    }
-
-    fun getRegister(): Register {
-        return coordinateClient.register
-    }
 
     override fun run() {
         if (serverShutDownHooker.isShutDown()) {

@@ -5,12 +5,7 @@ import ink.anur.common.KanashiIOExecutors
 import ink.anur.common.struct.KanashiNode
 import ink.anur.inject.Nigate
 import ink.anur.io.common.ShutDownHooker
-import ink.anur.io.common.handler.AutoRegistryHandler
-import ink.anur.io.common.handler.ChannelInactiveHandler
-import ink.anur.io.common.handler.EventDriverPoolHandler
-import ink.anur.io.common.handler.ErrorHandler
-import ink.anur.io.common.handler.KanashiDecoder
-import ink.anur.io.common.handler.ReconnectHandler
+import ink.anur.io.common.handler.*
 import ink.anur.pojo.Register
 import ink.anur.service.RegisterResponseHandleService
 import io.netty.bootstrap.Bootstrap
@@ -30,12 +25,15 @@ import java.util.concurrent.CountDownLatch
  */
 class ReConnectableClient(private val node: KanashiNode, private val shutDownHooker: ShutDownHooker,
 
-                          private val injectChannel: (Channel) -> Unit,
+                          /**
+                           * 管道可用后触发此函数，注意可能被调用多次
+                           */
+                          private val doAfterChannelActive: ((Channel) -> Unit)? = null,
 
                           /**
                            * 当受到对方的注册回调后，触发此函数，注意 它可能会被多次调用
                            */
-                          private val doAfterConnectToServer: (() -> Unit)? = null,
+                          private val doAfterReceiveRegisterResponse: (() -> Unit)? = null,
 
                           /**
                            * 当连接上对方后，如果断开了连接，做什么处理
@@ -49,7 +47,7 @@ class ReConnectableClient(private val node: KanashiNode, private val shutDownHoo
 
     private val reconnectLatch = CountDownLatch(1)
 
-    val register: Register = Nigate.getBeanByClass(RegisterResponseHandleService::class.java).genRegister(doAfterConnectToServer)
+    val register: Register = Nigate.getBeanByClass(RegisterResponseHandleService::class.java).genRegister(doAfterReceiveRegisterResponse)
 
     fun start() {
 
@@ -64,7 +62,7 @@ class ReConnectableClient(private val node: KanashiNode, private val shutDownHoo
                 logger.debug("与节点 $node 的连接已被终止，无需再进行重连")
             } else {
                 logger.trace("正在重新连接节点 $node ...")
-                ReConnectableClient(node, shutDownHooker, injectChannel, doAfterConnectToServer, doAfterDisConnectToServer).start()
+                ReConnectableClient(node, shutDownHooker, doAfterChannelActive, doAfterReceiveRegisterResponse, doAfterDisConnectToServer).start()
             }
         }
         KanashiExecutors.execute(restartMission)
@@ -81,11 +79,10 @@ class ReConnectableClient(private val node: KanashiNode, private val shutDownHoo
                         @Throws(Exception::class)
                         override fun initChannel(socketChannel: SocketChannel) {
                             socketChannel.pipeline()
-                                    .addFirst(AutoRegistryHandler(register, injectChannel)) // 自动注册到管道管理服务
+                                    .addFirst(ChannelActiveHandler(doAfterChannelActive)) // 自动注册到管道管理服务
+                                    .addLast(ChannelInactiveHandler(shutDownHooker, doAfterDisConnectToServer))
                                     .addLast(KanashiDecoder())// 解码处理器
                                     .addLast(EventDriverPoolHandler())// 消息事件驱动
-                                    .addFirst(ChannelInboundHandlerAdapter())
-                                    .addLast(ChannelInactiveHandler(shutDownHooker, doAfterDisConnectToServer))
                                     .addLast(ReconnectHandler(reconnectLatch))// 重连控制器
                                     .addLast(ErrorHandler())// 错误处理
                         }
