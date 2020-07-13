@@ -110,8 +110,7 @@ class RaftCenterController : KanashiRunnable() {
             // The election timeout is randomized to be between 150ms and 300ms.
             val electionTimeout = ELECTION_TIMEOUT_MS + (ELECTION_TIMEOUT_MS * RANDOM.nextFloat()).toLong()
             val timedTask = TimedTask(electionTimeout, Runnable { this.beginElect(generation) })
-            Timer.getInstance()
-                .addTask(timedTask)
+            Timer.addTask(timedTask)
 
             addTask(TaskEnum.BECOME_CANDIDATE, timedTask)
         }
@@ -176,10 +175,6 @@ class RaftCenterController : KanashiRunnable() {
     private fun beginElect(generation: Long) {
         reentrantLocker.lockSupplier {
 
-            if (Timer.isShutDown()) {
-                return@lockSupplier
-            }
-
             if (electionMetaService.generation != generation) {// 存在这么一种情况，虽然取消了选举任务，但是选举任务还是被执行了，所以这里要多做一重处理，避免上个周期的任务被执行
                 return@lockSupplier
             }
@@ -210,8 +205,7 @@ class RaftCenterController : KanashiRunnable() {
                 this.canvassingTask(Canvass(electionMetaService.generation))
             })
 
-            Timer.getInstance()
-                .addTask(timedTask)
+            Timer.addTask(timedTask)
             addTask(TaskEnum.ASK_FOR_VOTES, timedTask)
         }
     }
@@ -296,7 +290,7 @@ class RaftCenterController : KanashiRunnable() {
                 }
             } else {
                 logger.debug("节点 {} 在世代 {} 的投票应答为：拒绝给本节点在世代 {} 的选举投票（当前世代 {}）", serverName, voting.generation, voting.askVoteGeneration,
-                    electionMetaService.generation)
+                        electionMetaService.generation)
             }
         }
     }
@@ -339,17 +333,16 @@ class RaftCenterController : KanashiRunnable() {
      */
     private fun initHeartBeatTask() {
         electionMetaService.clusters!!
-            .forEach { kanashiNode ->
-                if (!kanashiNode.isLocalNode()) {
-                    msgCenterService.sendAsync(kanashiNode.serverName, HeartBeat(electionMetaService.generation))
+                .forEach { kanashiNode ->
+                    if (!kanashiNode.isLocalNode()) {
+                        msgCenterService.sendAsync(kanashiNode.serverName, HeartBeat(electionMetaService.generation))
+                    }
                 }
-            }
 
         reentrantLocker.lockSupplier {
-            if (!Timer.isShutDown() && electionMetaService.isLeader()) {
+            if (electionMetaService.isLeader()) {
                 val timedTask = TimedTask(HEART_BEAT_MS, Runnable { initHeartBeatTask() })
-                Timer.getInstance()
-                    .addTask(timedTask)
+                Timer.addTask(timedTask)
                 addTask(TaskEnum.HEART_BEAT, timedTask)
             }
         }
@@ -365,24 +358,23 @@ class RaftCenterController : KanashiRunnable() {
             }
 
             reentrantLocker.lockSupplier {
-                if (!Timer.isShutDown() && electionMetaService.isCandidate()) {// 只有节点为候选者才可以拉票
+                if (electionMetaService.isCandidate()) {// 只有节点为候选者才可以拉票
                     electionMetaService.clusters!!
-                        .forEach { kanashiNode ->
-                            // 如果还没收到这个节点的选票，就继续发
-                            if (electionMetaService.box[kanashiNode.serverName] == null) {
-                                logger.debug("正向节点 {} [{}:{}] 发送世代 {} 的拉票请求...", kanashiNode.serverName, kanashiNode.host, kanashiNode.port, electionMetaService.generation)
-                            }
+                            .forEach { kanashiNode ->
+                                // 如果还没收到这个节点的选票，就继续发
+                                if (electionMetaService.box[kanashiNode.serverName] == null) {
+                                    logger.debug("正向节点 {} [{}:{}] 发送世代 {} 的拉票请求...", kanashiNode.serverName, kanashiNode.host, kanashiNode.port, electionMetaService.generation)
+                                }
 
-                            msgCenterService.sendAsync(kanashiNode.serverName, Canvass(electionMetaService.generation))
-                        }
+                                msgCenterService.sendAsync(kanashiNode.serverName, Canvass(electionMetaService.generation))
+                            }
 
                     val timedTask = TimedTask(VOTES_BACK_OFF_MS, Runnable {
                         // 拉票续约（如果没有得到其他节点的回应，就继续发 voteTask）
                         this.canvassingTask(canvass)
                     })
 
-                    Timer.getInstance()
-                        .addTask(timedTask)
+                    Timer.addTask(timedTask)
                     addTask(TaskEnum.ASK_FOR_VOTES, timedTask)
                 } else {
                     // do nothing

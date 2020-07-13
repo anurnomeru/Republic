@@ -8,6 +8,7 @@ import ink.anur.exception.NoSuchBeanException
 import ink.anur.exception.RPCInjectUnSupportException
 import ink.anur.rpc.RpcSenderService
 import ink.anur.util.ClassMetaUtil
+import ink.anur.util.TimeUtil
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
@@ -50,7 +51,7 @@ object Nigate {
                 "|__|\\_||__|__||__|__||__|__| \\___||__|__||____|\n\n" +
                 "                                          Ver: 0.0.1 Alpha\n")
 
-            val start = System.currentTimeMillis()
+            val start = TimeUtil.getTime()
             logger.info("Nigate ==> Registering..")
             beanContainer.doScan()
             beanContainer.over_registry = true
@@ -74,7 +75,7 @@ object Nigate {
             }
             logger.info("Nigate ==> Register complete")
 
-            logger.info("Nigate Started in ${(System.currentTimeMillis() - start) / 1000f} seconds")
+            logger.info("Nigate Started in ${(TimeUtil.getTime() - start) / 1000f} seconds")
 
             logger.info("Nigate ==> Notify after bootstrap")
             beanContainer.afterBootStrap(allBeans)

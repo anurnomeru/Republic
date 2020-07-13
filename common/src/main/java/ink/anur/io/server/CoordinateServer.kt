@@ -1,7 +1,6 @@
 package ink.anur.io.server
 
 import ink.anur.io.common.ShutDownHooker
-import ink.anur.io.common.handler.EventDriverPoolHandler
 import ink.anur.io.common.handler.ErrorHandler
 import ink.anur.io.common.handler.KanashiDecoder
 import ink.anur.io.common.handler.AutoUnRegistryHandler
@@ -18,10 +17,9 @@ class CoordinateServer(port: Int,
     : Server(port, shutDownHooker) {
     override fun channelPipelineConsumer(channelPipeline: ChannelPipeline): ChannelPipeline {
         channelPipeline
-            .addFirst(AutoUnRegistryHandler())
-            .addLast(KanashiDecoder())
-            .addLast(EventDriverPoolHandler())
-            .addLast(ErrorHandler())
+                .addFirst(AutoUnRegistryHandler())
+                .addLast(KanashiDecoder())
+                .addLast(ErrorHandler())
         return channelPipeline
     }
 }

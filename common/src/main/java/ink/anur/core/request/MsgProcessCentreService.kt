@@ -1,8 +1,6 @@
 package ink.anur.core.request
 
 import ink.anur.common.Constant
-import ink.anur.common.pool.EventDriverPool
-import ink.anur.common.struct.Request
 import ink.anur.core.common.RequestMapping
 import ink.anur.core.response.ResponseProcessCentreService
 import ink.anur.inject.NigateBean
@@ -46,17 +44,6 @@ class MsgProcessCentreService : ReentrantReadWriteLocker() {
      * 注册所有的请求应该采用什么处理的映射
      */
     private val requestMappingRegister = mutableMapOf<RequestTypeEnum, RequestMapping>()
-
-    @NigatePostConstruct
-    private fun init() {
-        EventDriverPool.register(Request::class.java,
-            8,
-            200,
-            TimeUnit.MILLISECONDS
-        ) {
-            this.receive(it.msg, it.typeEnum, it.channel)
-        }
-    }
 
     /**
      * 注册 RequestMapping

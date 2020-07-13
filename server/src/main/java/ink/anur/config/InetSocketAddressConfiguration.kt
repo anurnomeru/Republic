@@ -50,15 +50,16 @@ class InetSocketAddressConfiguration : ConfigHelper(), InetConfig {
     }
 
     override fun getNode(serverName: String?): KanashiNode {
-        return getCluster().associateBy { kanashiLegal: KanashiNode -> kanashiLegal.serverName }[serverName] ?: KanashiNode.NOT_EXIST
+        return getCluster().associateBy { kanashiLegal: KanashiNode -> kanashiLegal.serverName }[serverName]
+                ?: KanashiNode.NOT_EXIST
     }
 
 
     override fun getCluster(): List<KanashiNode> {
         return getConfigSimilar(ConfigurationEnum.CLIENT_ADDR) { pair ->
-            val serverName = pair.key
-            val split = pair.value
-                .split(":".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+            val serverName = pair.first
+            val split = pair.second
+                    .split(":".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
             KanashiNode(serverName, split[0], Integer.valueOf(split[1]))
         } as List<KanashiNode>
     }

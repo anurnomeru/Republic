@@ -2,6 +2,7 @@ package ink.anur.pojo.common
 
 import ink.anur.exception.ByteBufferValidationException
 import ink.anur.util.ByteBufferUtil
+import ink.anur.util.TimeUtil
 import io.netty.channel.Channel
 import java.nio.ByteBuffer
 
@@ -86,7 +87,7 @@ abstract class AbstractStruct {
         buffer = byteBuffer
         byteBuffer.position(TypeOffset)
         byteBuffer.putInt(requestTypeEnum.byteSign)
-        byteBuffer.putLong(System.currentTimeMillis())
+        byteBuffer.putLong(TimeUtil.getTime())
     }
 
     fun init(capacity: Int, requestTypeEnum: RequestTypeEnum, then: (ByteBuffer) -> Unit) {
@@ -94,7 +95,7 @@ abstract class AbstractStruct {
         buffer!!.mark()
         buffer!!.position(TypeOffset)
         buffer!!.putInt(requestTypeEnum.byteSign)
-        buffer!!.putLong(System.currentTimeMillis())
+        buffer!!.putLong(TimeUtil.getTime())
         then.invoke(buffer!!)
         buffer!!.reset()
     }
@@ -110,7 +111,7 @@ abstract class AbstractStruct {
      * 重设时间戳，用于防止两个请求的时间戳相同
      */
     fun resetTimeMillis(): Long {
-        val neo = System.currentTimeMillis()
+        val neo = TimeUtil.getTime()
         val bf = buffer!!
         bf.putLong(TimestampOffset, neo)
         reComputeCheckSum()
