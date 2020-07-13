@@ -9,6 +9,11 @@ import io.netty.channel.Channel
  * Created by Anur IjuoKaruKas on 2020/2/23
  *
  * 管理所有连接
+ *
+ *
+ * a - Syn > b
+ * a < Syn + Know - b
+ * a - Know > b
  */
 @NigateBean
 class ChannelService : ReentrantReadWriteLocker() {
