@@ -5,6 +5,8 @@ import ink.anur.util.ByteBufferUtil
 import ink.anur.util.TimeUtil
 import io.netty.channel.Channel
 import java.nio.ByteBuffer
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Created by Anur IjuoKaruKas on 2020/2/22
@@ -26,11 +28,12 @@ abstract class AbstractStruct {
         val CrcLength = 4
         val TypeOffset = CrcOffset + CrcLength
         val TypeLength = 4
-        val TimestampOffset = TypeOffset + TypeLength
-        val TimestampLength = 8
-        val OriginMessageOverhead = TimestampOffset + TimestampLength
+        val RequestSignOffset = TypeOffset + TypeLength
+        val RequestSignLength = 4
+        val OriginMessageOverhead = RequestSignOffset + RequestSignLength
 
         const val truely: Byte = 1
+        val requestSignBoxer = AtomicInteger(0)
     }
 
     fun translateToByte(boolean: Boolean): Byte {
@@ -48,10 +51,6 @@ abstract class AbstractStruct {
     // =================================================================
 
     protected var buffer: ByteBuffer? = null
-
-    fun getByteBuffer(): ByteBuffer? {
-        return buffer
-    }
 
     fun size(): Int {
         return buffer!!.limit()
@@ -73,49 +72,24 @@ abstract class AbstractStruct {
         return ByteBufferUtil.crc32(buffer!!.array(), buffer!!.arrayOffset() + TypeOffset, buffer!!.limit() - TypeOffset)
     }
 
-    fun reComputeCheckSum() {
-        val crc = computeChecksum()
-        buffer!!.putInt(CrcOffset, crc.toInt())
+    fun getRequestSign(): Int {
+        return buffer!!.getInt(RequestSignOffset)
     }
-
 
     fun getRequestType(): RequestTypeEnum {
         return RequestTypeEnum.parseByByteSign(buffer!!.getInt(TypeOffset))
     }
 
-    fun init(byteBuffer: ByteBuffer, requestTypeEnum: RequestTypeEnum) {
-        buffer = byteBuffer
-        byteBuffer.position(TypeOffset)
-        byteBuffer.putInt(requestTypeEnum.byteSign)
-        byteBuffer.putLong(TimeUtil.getTime())
-    }
-
     fun init(capacity: Int, requestTypeEnum: RequestTypeEnum, then: (ByteBuffer) -> Unit) {
-        buffer = ByteBuffer.allocate(capacity)
-        buffer!!.mark()
-        buffer!!.position(TypeOffset)
-        buffer!!.putInt(requestTypeEnum.byteSign)
-        buffer!!.putLong(TimeUtil.getTime())
-        then.invoke(buffer!!)
-        buffer!!.reset()
-    }
+        val bf = ByteBuffer.allocate(capacity)
+        bf.mark()
+        bf.position(TypeOffset)
+        bf.putInt(requestTypeEnum.byteSign)
+        bf.putLong(TimeUtil.getTime())
+        then.invoke(bf)
+        bf.reset()
 
-    /**
-     * 时间戳用于防止同一次请求的 “多次请求”，保证幂等性
-     */
-    fun getTimeMillis(): Long {
-        return buffer!!.getLong(TimestampOffset)
-    }
-
-    /**
-     * 重设时间戳，用于防止两个请求的时间戳相同
-     */
-    fun resetTimeMillis(): Long {
-        val neo = TimeUtil.getTime()
-        val bf = buffer!!
-        bf.putLong(TimestampOffset, neo)
-        reComputeCheckSum()
-        return neo
+        buffer = bf
     }
 
     /**

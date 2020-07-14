@@ -63,14 +63,12 @@ class Voting : AbstractStruct {
         this.askVoteGeneration = canvassGeneration
         this.generation = voteGeneration
 
-        val byteBuffer = ByteBuffer.allocate(Capacity)
-        init(byteBuffer, RequestTypeEnum.VOTING)
-
-        byteBuffer.put(translateToByte(agreed))
-        byteBuffer.put(translateToByte(fromLeaderNode))
-        byteBuffer.putLong(canvassGeneration)
-        byteBuffer.putLong(voteGeneration)
-        byteBuffer.flip()
+        init(Capacity, RequestTypeEnum.VOTING) {
+            it.put(translateToByte(agreed))
+            it.put(translateToByte(fromLeaderNode))
+            it.putLong(canvassGeneration)
+            it.putLong(voteGeneration)
+        }
     }
 
     override fun writeIntoChannel(channel: Channel) {

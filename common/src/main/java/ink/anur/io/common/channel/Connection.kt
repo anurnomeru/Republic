@@ -1,5 +1,6 @@
 package ink.anur.io.common.channel
 
+import ink.anur.pojo.Register
 import ink.anur.util.TimeUtil
 import io.netty.channel.Channel
 
@@ -10,4 +11,5 @@ import io.netty.channel.Channel
  */
 class Connection(val remoteNodeName: String, var connectionStatus: ConnectionStatus, var channel: Channel) {
     private val createTime = TimeUtil.getTime()
+    val register = Register(remoteNodeName, createTime)
 }

@@ -60,7 +60,7 @@ class MsgProcessCentreService : ReentrantReadWriteLocker() {
         if (channel == null) {
             logger.error("????????????????????????????????????")
         } else {
-            val requestTimestampCurrent = msg.getLong(AbstractStruct.TimestampOffset)
+            val requestTimestampCurrent = 1L
             val serverName = channelService.getChannelName(channel)
 
             // serverName 是不会为空的，但是有一种情况例外，便是服务还未注册时 这里做特殊处理
@@ -133,4 +133,5 @@ class MsgProcessCentreService : ReentrantReadWriteLocker() {
         }
         return true
     }
+
 }
