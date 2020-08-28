@@ -33,7 +33,7 @@ abstract class AbstractStruct {
         val OriginMessageOverhead = RequestSignOffset + RequestSignLength
 
         const val truely: Byte = 1
-        val requestSignBoxer = AtomicInteger(0)
+        val requestSignBoxer = AtomicLong(Long.MIN_VALUE)
     }
 
     fun translateToByte(boolean: Boolean): Byte {
@@ -85,7 +85,7 @@ abstract class AbstractStruct {
         bf.mark()
         bf.position(TypeOffset)
         bf.putInt(requestTypeEnum.byteSign)
-        bf.putLong(TimeUtil.getTime())
+        bf.putLong(requestSignBoxer.incrementAndGet()) // RequestSign
         then.invoke(bf)
         bf.reset()
 
