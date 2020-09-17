@@ -1,7 +1,6 @@
 package ink.anur
 
-import ink.anur.config.BootstrapConfiguration
-import ink.anur.inject.Nigate
+import ink.anur.inject.bean.Nigate
 
 
 /**
@@ -15,8 +14,6 @@ object Bootstrap {
     @JvmStatic
     fun main(args: Array<String>) {
 
-        // 保存jvm参数
-        BootstrapConfiguration.init(args)
         // 初始化 bean管理
         Nigate
 

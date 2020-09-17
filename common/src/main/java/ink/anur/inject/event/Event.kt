@@ -1,4 +1,4 @@
-package ink.anur.inject
+package ink.anur.inject.event
 
 /**
  * Created by Anur on 2020/7/11

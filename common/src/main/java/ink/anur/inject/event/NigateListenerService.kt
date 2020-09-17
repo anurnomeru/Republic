@@ -1,7 +1,8 @@
-package ink.anur.inject
+package ink.anur.inject.event
 
 import ink.anur.common.KanashiExecutors
 import ink.anur.exception.NigateListenerException
+import ink.anur.inject.bean.NigateBean
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Method
 

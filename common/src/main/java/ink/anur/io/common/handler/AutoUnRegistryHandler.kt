@@ -1,6 +1,6 @@
 package ink.anur.io.common.handler
 
-import ink.anur.inject.Nigate
+import ink.anur.inject.bean.Nigate
 import ink.anur.io.common.channel.ChannelService
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter

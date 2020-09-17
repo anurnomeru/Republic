@@ -1,7 +1,7 @@
 package ink.anur.io.common.channel
 
 import ink.anur.common.struct.KanashiNode
-import ink.anur.inject.NigateBean
+import ink.anur.inject.bean.NigateBean
 import ink.anur.mutex.ReentrantReadWriteLocker
 import io.netty.channel.Channel
 

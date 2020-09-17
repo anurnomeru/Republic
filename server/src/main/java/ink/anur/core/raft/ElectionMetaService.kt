@@ -1,11 +1,11 @@
 package ink.anur.core.raft
 
 import ink.anur.common.struct.KanashiNode
-import ink.anur.config.InetConfig
-import ink.anur.inject.Event
-import ink.anur.inject.NigateBean
-import ink.anur.inject.NigateInject
-import ink.anur.inject.NigateListenerService
+import ink.anur.config.InetConfiguration
+import ink.anur.inject.event.Event
+import ink.anur.inject.bean.NigateBean
+import ink.anur.inject.bean.NigateInject
+import ink.anur.inject.event.NigateListenerService
 import ink.anur.pojo.HeartBeat
 import ink.anur.util.TimeUtil
 import org.slf4j.Logger
@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory
 class ElectionMetaService {
 
     @NigateInject
-    private lateinit var inetSocketAddressConfiguration: InetConfig
+    private lateinit var inetConfiguration: InetConfiguration
 
     @NigateInject
     private lateinit var kanashiListenerService: NigateListenerService
@@ -30,7 +30,7 @@ class ElectionMetaService {
     @Synchronized
     fun eden(newGen: Long) {
         // 0、更新集群信息
-        this.clusters = inetSocketAddressConfiguration.getCluster()
+        this.clusters = inetConfiguration.cluster
         this.quorum = clusters!!.size / 2 + 1
         logger.debug("更新集群节点信息")
 
@@ -192,13 +192,13 @@ class ElectionMetaService {
      */
     @Synchronized
     fun becomeLeader() {
-        val becomeLeaderCostTime = TimeUtil.getTime() - beginElectTime;
+        val becomeLeaderCostTime = TimeUtil.getTime() - beginElectTime
         beginElectTime = 0L
 
         logger.info("本节点 {} 在世代 {} 角色由 {} 变更为 {} 选举耗时 {} ms，并开始向其他节点发送心跳包 ......",
-            inetSocketAddressConfiguration.getLocalServerName(), generation, raftRole, RaftRole.LEADER, becomeLeaderCostTime)
+                inetConfiguration.localServerName, generation, raftRole, RaftRole.LEADER, becomeLeaderCostTime)
 
-        leader = inetSocketAddressConfiguration.getLocalServerName()
+        leader = inetConfiguration.localServerName
         raftRole = RaftRole.LEADER
         heartBeat = HeartBeat(generation)
         this.electionStateChanged(true)

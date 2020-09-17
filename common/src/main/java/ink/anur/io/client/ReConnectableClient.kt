@@ -2,7 +2,7 @@ package ink.anur.io.client
 
 import ink.anur.common.KanashiExecutors
 import ink.anur.common.struct.KanashiNode
-import ink.anur.inject.Nigate
+import ink.anur.inject.bean.Nigate
 import ink.anur.io.common.ShutDownHooker
 import ink.anur.io.common.handler.AutoRegistryHandler
 import ink.anur.io.common.handler.ChannelInactiveHandler

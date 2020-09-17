@@ -1,4 +1,4 @@
-package ink.anur.inject
+package ink.anur.inject.rpc
 
 import ink.anur.exception.RPCNotSuchMethodException
 import ink.anur.util.ClassMetaUtil

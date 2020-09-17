@@ -1,13 +1,13 @@
 package ink.anur.core.response
 
 import ink.anur.common.struct.KanashiNode
-import ink.anur.config.InetConfig
+import ink.anur.config.InetConfiguration
 import ink.anur.pojo.common.AbstractStruct
 import ink.anur.core.client.ClientService
 import ink.anur.exception.NetWorkException
 import ink.anur.exception.UnKnownNodeException
-import ink.anur.inject.NigateBean
-import ink.anur.inject.NigateInject
+import ink.anur.inject.bean.NigateBean
+import ink.anur.inject.bean.NigateInject
 import ink.anur.io.common.channel.ChannelService
 import ink.anur.pojo.common.RequestTypeEnum
 import io.netty.buffer.Unpooled
@@ -24,8 +24,8 @@ import java.util.concurrent.locks.ReentrantLock
 @NigateBean
 class ResponseProcessCentreService {
 
-    @NigateInject(useLocalFirst = true)
-    private lateinit var inetConfig: InetConfig
+    @NigateInject
+    private lateinit var inetConfiguration: InetConfiguration
 
     @NigateInject
     private lateinit var channelService: ChannelService
@@ -54,11 +54,12 @@ class ResponseProcessCentreService {
      * 向某个服务发送东西~
      */
     fun doSend(serverName: String?, body: AbstractStruct, c: Channel? = null): Throwable? {
-        if (inetConfig.getLocalServerName() == serverName) {
+        if (inetConfiguration.localServerName == serverName) {
             return null
         }
 
-        val lock = getLock((serverName ?: c?.toString()) ?: throw NetWorkException("发送时必须指定哪个管道或哪个服务"))
+        val lock = getLock((serverName ?: c?.toString())
+                ?: throw NetWorkException("发送时必须指定哪个管道或哪个服务"))
         try {
             lock.lock()
             val channel = (if (c != null) {
@@ -66,7 +67,8 @@ class ResponseProcessCentreService {
             } else {
                 var channelFromCS = channelService.getChannel(serverName!!)
                 if (channelFromCS == null) {
-                    val node = inetConfig.getNode(serverName)
+//                    inetConfiguration.getNode(serverName) TTTTOOOOOO
+                    val node = KanashiNode("1", "1", 1)
                     if (node == KanashiNode.NOT_EXIST) {
                         return UnKnownNodeException("无法在配置文件中找到节点 $serverName，故无法主动连接该节点")
                     }

@@ -1,4 +1,4 @@
-package ink.anur.inject
+package ink.anur.inject.bean
 
 import com.google.common.collect.Lists
 import ink.anur.exception.DuplicateBeanException
@@ -6,6 +6,10 @@ import ink.anur.exception.KanashiException
 import ink.anur.exception.NigateException
 import ink.anur.exception.NoSuchBeanException
 import ink.anur.exception.RPCInjectUnSupportException
+import ink.anur.inject.event.NigateListenerService
+import ink.anur.inject.rpc.KanashiRpc
+import ink.anur.inject.rpc.KanashiRpcBean
+import ink.anur.inject.rpc.KanashiRpcInject
 import ink.anur.rpc.RpcSenderService
 import ink.anur.util.ClassMetaUtil
 import ink.anur.util.TimeUtil
@@ -483,7 +487,7 @@ object Nigate {
         val path: String
     )
 
-    class RpcRequestInvocation(interfaces: Class<out Any>, val alias: String?) : InvocationHandler {
+    class RpcRequestInvocation(interfaces: Class<out Any>, private val alias: String?) : InvocationHandler {
 
         private val interfaceName = interfaces.simpleName
 

@@ -9,7 +9,7 @@ import io.netty.channel.Channel
  *
  * manage a connection's status by channel
  */
-class Connection(val remoteNodeName: String, var connectionStatus: ConnectionStatus, var channel: Channel) {
+class Connection(private val remoteNodeName: String, var connectionStatus: ConnectionStatus, var channel: Channel) {
     private val createTime = TimeUtil.getTime()
     val register = Register(remoteNodeName, createTime)
 }

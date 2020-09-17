@@ -3,8 +3,8 @@ package ink.anur.service.coordinate
 import ink.anur.pojo.common.RequestTypeEnum
 import ink.anur.core.common.AbstractRequestMapping
 import ink.anur.core.raft.RaftCenterController
-import ink.anur.inject.NigateBean
-import ink.anur.inject.NigateInject
+import ink.anur.inject.bean.NigateBean
+import ink.anur.inject.bean.NigateInject
 import ink.anur.pojo.coordinate.Voting
 import io.netty.channel.Channel
 import java.nio.ByteBuffer

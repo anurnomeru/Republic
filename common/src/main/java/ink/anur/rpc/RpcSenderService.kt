@@ -1,8 +1,8 @@
 package ink.anur.rpc
 
 import ink.anur.core.request.MsgProcessCentreService
-import ink.anur.inject.NigateBean
-import ink.anur.inject.NigateInject
+import ink.anur.inject.bean.NigateBean
+import ink.anur.inject.bean.NigateInject
 import ink.anur.pojo.rpc.RpcRequest
 import ink.anur.pojo.rpc.RpcRequestMeta
 import ink.anur.pojo.rpc.RpcResponse

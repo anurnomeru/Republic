@@ -2,9 +2,9 @@ package ink.anur.service
 
 import ink.anur.core.common.AbstractRequestMapping
 import ink.anur.debug.Debugger
-import ink.anur.inject.NigateBean
-import ink.anur.inject.NigateInject
-import ink.anur.inject.NigateListenerService
+import ink.anur.inject.bean.NigateBean
+import ink.anur.inject.bean.NigateInject
+import ink.anur.inject.event.NigateListenerService
 import ink.anur.pojo.RegisterResponse
 import ink.anur.pojo.common.RequestTypeEnum
 import io.netty.channel.Channel

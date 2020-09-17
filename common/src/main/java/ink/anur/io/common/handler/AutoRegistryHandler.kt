@@ -1,10 +1,10 @@
 package ink.anur.io.common.handler
 
 import ink.anur.common.struct.KanashiNode
-import ink.anur.config.InetConfig
+import ink.anur.config.InetConfiguration
 import ink.anur.core.request.MsgProcessCentreService
-import ink.anur.inject.Nigate
-import ink.anur.inject.NigateInject
+import ink.anur.inject.bean.Nigate
+import ink.anur.inject.bean.NigateInject
 import ink.anur.io.common.channel.ChannelService
 import ink.anur.pojo.Register
 import io.netty.channel.Channel
@@ -23,8 +23,8 @@ class AutoRegistryHandler(private val node: KanashiNode, private val registrySig
 
     private val logger = LoggerFactory.getLogger(this::class.java)
 
-    @NigateInject(useLocalFirst = true)
-    private lateinit var inetConfig: InetConfig
+    @NigateInject
+    private lateinit var inetConfiguration: InetConfiguration
 
     @NigateInject
     private lateinit var channelService: ChannelService
@@ -42,7 +42,7 @@ class AutoRegistryHandler(private val node: KanashiNode, private val registrySig
         logger.info("正在向节点 $node 发送注册请求")
         channelService.register(node, ctx.channel())
 
-        val register = Register(inetConfig.getLocalServerName(), registrySign)
+        val register = Register(inetConfiguration.localServerName, registrySign)
         // TODO 这里可能有bug 如果server处理失败这里将无法连接
         msgCenterService.sendAsync(node.serverName, register)
     }

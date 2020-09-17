@@ -3,9 +3,8 @@ package ink.anur.core.request
 import ink.anur.common.Constant
 import ink.anur.core.common.RequestMapping
 import ink.anur.core.response.ResponseProcessCentreService
-import ink.anur.inject.NigateBean
-import ink.anur.inject.NigateInject
-import ink.anur.inject.NigatePostConstruct
+import ink.anur.inject.bean.NigateBean
+import ink.anur.inject.bean.NigateInject
 import ink.anur.io.common.channel.ChannelService
 import ink.anur.mutex.ReentrantReadWriteLocker
 import ink.anur.pojo.common.AbstractStruct
@@ -14,7 +13,6 @@ import ink.anur.service.RegisterHandleService
 import io.netty.channel.Channel
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
-import java.util.concurrent.TimeUnit
 
 /**
  * Created by Anur IjuoKaruKas on 2020/2/24

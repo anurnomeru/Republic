@@ -2,21 +2,21 @@ package ink.anur.core.raft
 
 import ink.anur.common.KanashiRunnable
 import ink.anur.config.ElectConfiguration
-import ink.anur.config.InetConfig
+import ink.anur.config.InetConfiguration
 import ink.anur.core.request.MsgProcessCentreService
 import ink.anur.exception.NotLeaderException
+import ink.anur.inject.bean.NigateBean
+import ink.anur.inject.bean.NigateInject
+import ink.anur.inject.bean.NigatePostConstruct
 import ink.anur.mutex.ReentrantLocker
-import ink.anur.inject.NigateBean
-import ink.anur.inject.NigateInject
-import ink.anur.inject.NigatePostConstruct
-import ink.anur.pojo.coordinate.Canvass
 import ink.anur.pojo.HeartBeat
+import ink.anur.pojo.coordinate.Canvass
 import ink.anur.pojo.coordinate.Voting
 import ink.anur.timewheel.TimedTask
 import ink.anur.timewheel.Timer
 import ink.anur.util.TimeUtil
 import org.slf4j.LoggerFactory
-import java.util.Random
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -30,8 +30,8 @@ class RaftCenterController : KanashiRunnable() {
     @NigateInject
     private lateinit var electConfiguration: ElectConfiguration
 
-    @NigateInject(useLocalFirst = true)
-    private lateinit var inetSocketAddressConfiguration: InetConfig
+    @NigateInject
+    private lateinit var inetConfiguration: InetConfiguration
 
     @NigateInject
     private lateinit var electionMetaService: ElectionMetaService
@@ -39,13 +39,13 @@ class RaftCenterController : KanashiRunnable() {
     @NigateInject
     private lateinit var msgCenterService: MsgProcessCentreService
 
-    private var ELECTION_TIMEOUT_MS: Long = -1L
+    private var electionTimeoutMs: Long = -1L
 
-    private var VOTES_BACK_OFF_MS: Long = -1L
+    private var votesBackOffMs: Long = -1L
 
-    private var HEART_BEAT_MS: Long = -1L
+    private var heartBeatMs: Long = -1L
 
-    private val RANDOM = Random()
+    private val random = Random()
 
     private val reentrantLocker = ReentrantLocker()
 
@@ -58,13 +58,13 @@ class RaftCenterController : KanashiRunnable() {
 
     @NigatePostConstruct
     private fun init() {
-        logger.info("初始化选举控制器 ElectOperator，本节点为 {}", inetSocketAddressConfiguration.getLocalServerName())
+        logger.info("初始化选举控制器 ElectOperator，本节点为 {}", inetConfiguration.localServerName)
         this.name = "RaftCenterController"
         this.start()
 
-        ELECTION_TIMEOUT_MS = electConfiguration.getElectionTimeoutMs()
-        VOTES_BACK_OFF_MS = electConfiguration.getVotesBackOffMs()
-        HEART_BEAT_MS = electConfiguration.getHeartBeatMs()
+        electionTimeoutMs = electConfiguration.electionTimeoutMs
+        votesBackOffMs = electConfiguration.votesBackOffMs
+        heartBeatMs = electConfiguration.heartBeatMs
     }
 
     override fun run() {
@@ -108,7 +108,7 @@ class RaftCenterController : KanashiRunnable() {
     private fun becomeCandidateAndBeginElectTask(generation: Long) {
         reentrantLocker.lockSupplier {
             // The election timeout is randomized to be between 150ms and 300ms.
-            val electionTimeout = ELECTION_TIMEOUT_MS + (ELECTION_TIMEOUT_MS * RANDOM.nextFloat()).toLong()
+            val electionTimeout = electionTimeoutMs + (electionTimeoutMs * random.nextFloat()).toLong()
             val timedTask = TimedTask(electionTimeout, Runnable { this.beginElect(generation) })
             Timer.addTask(timedTask)
 
@@ -189,13 +189,13 @@ class RaftCenterController : KanashiRunnable() {
             // 成为候选者
             logger.debug("本节点正式开始世代 {} 的选举", electionMetaService.generation)
             this.becomeCandidate()
-            val votes = Voting(true, false, electionMetaService.generation, electionMetaService.generation)
+            val votes = Voting(agreed = true, fromLeaderNode = false, canvassGeneration = electionMetaService.generation, voteGeneration = electionMetaService.generation)
 
             // 给自己投票箱投票
-            this.receiveVote(inetSocketAddressConfiguration.getLocalServerName(), votes)
+            this.receiveVote(inetConfiguration.localServerName, votes)
 
             // 记录一下，自己给自己投了票
-            electionMetaService.voteRecord = inetSocketAddressConfiguration.getLocalServerName()
+            electionMetaService.voteRecord = inetConfiguration.localServerName
 
             // 开启拉票任务
 
@@ -235,7 +235,7 @@ class RaftCenterController : KanashiRunnable() {
             val agreed = electionMetaService.voteRecord == serverName
 
             if (agreed) {
-                logger.debug("投票记录更新成功：在世代 ${canvass.generation}，本节点投票给 => ${serverName} 节点")
+                logger.debug("投票记录更新成功：在世代 ${canvass.generation}，本节点投票给 => $serverName 节点")
             }
 
             msgCenterService.sendAsync(serverName, Voting(agreed, electionMetaService.isLeader(), canvass.generation, electionMetaService.generation))
@@ -253,7 +253,7 @@ class RaftCenterController : KanashiRunnable() {
             if (electionMetaService.box[serverName] != null) {
                 return@lockSupplier
             }
-            val voteSelf = serverName == inetSocketAddressConfiguration.getLocalServerName()
+            val voteSelf = serverName == inetConfiguration.localServerName
             if (voteSelf) {
                 logger.debug("本节点在世代 {} 转变为候选者，给自己先投一票", electionMetaService.generation)
             } else {
@@ -341,7 +341,7 @@ class RaftCenterController : KanashiRunnable() {
 
         reentrantLocker.lockSupplier {
             if (electionMetaService.isLeader()) {
-                val timedTask = TimedTask(HEART_BEAT_MS, Runnable { initHeartBeatTask() })
+                val timedTask = TimedTask(heartBeatMs, Runnable { initHeartBeatTask() })
                 Timer.addTask(timedTask)
                 addTask(TaskEnum.HEART_BEAT, timedTask)
             }
@@ -369,7 +369,7 @@ class RaftCenterController : KanashiRunnable() {
                                 msgCenterService.sendAsync(kanashiNode.serverName, Canvass(electionMetaService.generation))
                             }
 
-                    val timedTask = TimedTask(VOTES_BACK_OFF_MS, Runnable {
+                    val timedTask = TimedTask(votesBackOffMs, Runnable {
                         // 拉票续约（如果没有得到其他节点的回应，就继续发 voteTask）
                         this.canvassingTask(canvass)
                     })

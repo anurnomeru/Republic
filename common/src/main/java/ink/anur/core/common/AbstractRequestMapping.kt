@@ -1,8 +1,8 @@
 package ink.anur.core.common
 
 import ink.anur.core.request.MsgProcessCentreService
-import ink.anur.inject.Nigate
-import ink.anur.inject.NigatePostConstruct
+import ink.anur.inject.bean.Nigate
+import ink.anur.inject.bean.NigatePostConstruct
 
 /**
  * Created by Anur IjuoKaruKas on 2020/2/25

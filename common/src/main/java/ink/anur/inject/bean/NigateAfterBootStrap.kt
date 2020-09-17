@@ -1,4 +1,4 @@
-package ink.anur.inject
+package ink.anur.inject.bean
 
 /**
  * Created by Anur IjuoKaruKas on 2020/2/24

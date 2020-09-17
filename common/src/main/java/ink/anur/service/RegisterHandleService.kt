@@ -3,8 +3,8 @@ package ink.anur.service
 import ink.anur.common.struct.KanashiNode
 import ink.anur.core.common.AbstractRequestMapping
 import ink.anur.core.request.MsgProcessCentreService
-import ink.anur.inject.NigateBean
-import ink.anur.inject.NigateInject
+import ink.anur.inject.bean.NigateBean
+import ink.anur.inject.bean.NigateInject
 import ink.anur.io.common.channel.ChannelService
 import ink.anur.pojo.Register
 import ink.anur.pojo.RegisterResponse
