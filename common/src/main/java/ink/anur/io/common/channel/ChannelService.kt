@@ -19,7 +19,7 @@ import io.netty.channel.Channel
 class ChannelService : ReentrantReadWriteLocker() {
 
     companion object {
-        val COORDINATE_LEADE_SIGN = "LEADER"
+        const val COORDINATE_LEADER_SIGN = "LEADER"
     }
 
     private val kanashiNodeMap: MutableMap<String/* serverName */, KanashiNode> = mutableMapOf()

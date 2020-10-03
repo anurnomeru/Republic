@@ -67,7 +67,7 @@ class ResponseProcessCentreService {
             } else {
                 var channelFromCS = channelService.getChannel(serverName!!)
                 if (channelFromCS == null) {
-//                    inetConfiguration.getNode(serverName) TTTTOOOOOO
+//                    inetConfiguration.getNode(serverName) TODO OOOO
                     val node = KanashiNode("1", "1", 1)
                     if (node == KanashiNode.NOT_EXIST) {
                         return UnKnownNodeException("无法在配置文件中找到节点 $serverName，故无法主动连接该节点")

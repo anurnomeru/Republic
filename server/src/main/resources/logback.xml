@@ -7,10 +7,8 @@
     <!-- Stop output INFO at start -->
     <statusListener class="ch.qos.logback.core.status.NopStatusListener"/>
 
-    <appender name="STDOUT"
-              class="ch.qos.logback.core.ConsoleAppender">
-        <encoder
-                class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
             <layout class="ink.anur.logger.EasyPatternLayout">
                 <pattern>
                     ${logging.console.pattern:-${STDOUT_PATTERN}}
@@ -19,10 +17,10 @@
         </encoder>
     </appender>
 
-    <logger name="io.netty" level="INFO"/>
-
     <root level="DEBUG">
         <appender-ref ref="STDOUT"/>
     </root>
+
+    <logger name="io.netty" level="INFO"/>
 
 </configuration>

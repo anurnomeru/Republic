@@ -27,8 +27,7 @@ class ServerService : Shutdownable {
     @NigatePostConstruct
     private fun init() {
         val sdh = ShutDownHooker("终止协调服务器的套接字接口 ${inetConfiguration.localServerPort} 的监听！")
-        this.coordinateServer = CoordinateServer(inetConfiguration.localServerPort,
-                sdh)
+        this.coordinateServer = CoordinateServer(inetConfiguration.localServerPort, sdh)
         coordinateServer.start()
     }
 

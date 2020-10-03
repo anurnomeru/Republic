@@ -25,7 +25,7 @@ object KanashiExecutors {
     /**
      * 统一管理的线程池
      */
-    val Pool: ExecutorService
+    private val Pool: ExecutorService
 
     init {
         val coreCount = Runtime.getRuntime()
@@ -39,6 +39,10 @@ object KanashiExecutors {
 
     fun execute(runnable: Runnable) {
         Pool.execute(runnable)
+    }
+
+    fun getPool(): ExecutorService {
+        return Pool
     }
 
     fun <T> submit(task: Callable<T>): Future<T> {

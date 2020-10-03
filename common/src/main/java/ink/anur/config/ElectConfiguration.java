@@ -1,6 +1,6 @@
 package ink.anur.config;
 
-import org.jetbrains.annotations.NotNull;
+import javax.annotation.Nonnull;
 
 import ink.anur.inject.config.Configuration;
 
@@ -13,17 +13,17 @@ public class ElectConfiguration {
     private Long votesBackOffMs;
     private Long heartBeatMs;
 
-    @NotNull
+    @Nonnull
     public Long getElectionTimeoutMs() {
         return electionTimeoutMs;
     }
 
-    @NotNull
+    @Nonnull
     public Long getVotesBackOffMs() {
         return votesBackOffMs;
     }
 
-    @NotNull
+    @Nonnull
     public Long getHeartBeatMs() {
         return heartBeatMs;
     }

@@ -39,7 +39,8 @@ class RegisterHandleService : AbstractRequestMapping() {
     override fun handleRequest(fromServer: String, msg: ByteBuffer, channel: Channel) {
         var sign = 0
         try {
-            sign = msg.getInt(AbstractStruct.TypeOffset)
+            // todo delete
+            sign = msg.getInt(1)
         } catch (e: Exception) {
             e.printStackTrace()
         }

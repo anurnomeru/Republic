@@ -30,11 +30,11 @@ class ClientOperateHandler(kanashiNode: KanashiNode,
 
     : KanashiRunnable(), Shutdownable {
 
-    private val serverShutDownHooker = ShutDownHooker("终止与协调节点 $kanashiNode 的连接")
+    private val serverShutDownHooker = ShutDownHooker()
 
     private var ctx: Channel? = null
 
-    private val coordinateClient = ReConnectableClient(kanashiNode, this.serverShutDownHooker, { synchronized(this) { ctx = it } }, doAfterConnectToServer, doAfterDisConnectToServer)
+//    private val coordinateClient = ReConnectableClient(kanashiNode, this.serverShutDownHooker, { synchronized(this) { ctx = it } }, doAfterConnectToServer, doAfterDisConnectToServer)
 
     private fun getChannel(): Channel {
         synchronized(this) {
@@ -46,7 +46,7 @@ class ClientOperateHandler(kanashiNode: KanashiNode,
         if (serverShutDownHooker.isShutDown()) {
             println("zzzzzzzz??????????????zzzzzzzzzzzzzzzzzzzzzzzz")
         } else {
-            coordinateClient.start()
+//            coordinateClient.start()
         }
     }
 

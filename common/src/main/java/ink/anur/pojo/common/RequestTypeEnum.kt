@@ -1,54 +1,42 @@
 package ink.anur.pojo.common
 
-import ink.anur.pojo.EmptyStruct
-import ink.anur.pojo.Register
-import ink.anur.pojo.RegisterResponse
-import ink.anur.pojo.coordinate.Voting
 import ink.anur.exception.KanashiException
-import ink.anur.pojo.coordinate.Canvass
-import ink.anur.pojo.HeartBeat
-import ink.anur.pojo.rpc.RpcRequest
-import java.util.HashMap
+import java.util.*
 
 /**
  * Created by Anur IjuoKaruKas on 2020/2/22
  */
-enum class RequestTypeEnum(val byteSign: Int, val clazz: Class<out AbstractStruct>) {
-
-    /**
-     * 无类型
-     */
-    EMPTY_STRUCT(-1, EmptyStruct::class.java),
+enum class RequestTypeEnum(val byteSign: Int) {
 
     /**
      * 心跳
      */
-    HEAT_BEAT(9999, HeartBeat::class.java),
+    HEAT_BEAT(9999),
 
     /**
      * 协调从节点向主节点注册
      */
-    REGISTER(10000, Register::class.java),
+    REGISTER(10000),
 
     /**
      * 协调从节点向主节点注册 的回复
      */
-    REGISTER_RESPONSE(10001, RegisterResponse::class.java),
+    REGISTER_RESPONSE(10001),
 
     /**
      * 进行拉票
      */
-    CANVASS(10002, Canvass::class.java),
+    CANVASS(10002),
 
     /**
      * 进行投票
      */
-    VOTING(10003, Voting::class.java),
+    VOTING(10003),
 
     /**
      * 进行rpc请求
      */
-    RPC(99999, RpcRequest::class.java)
+    RPC(99999)
     ;
 
     companion object {
@@ -64,6 +52,7 @@ enum class RequestTypeEnum(val byteSign: Int, val clazz: Class<out AbstractStruc
             }
         }
 
-        fun parseByByteSign(byteSign: Int): RequestTypeEnum = byteSignMap[byteSign] ?: throw UnsupportedOperationException()
+        fun parseByByteSign(byteSign: Int): RequestTypeEnum = byteSignMap[byteSign]
+                ?: throw UnsupportedOperationException()
     }
 }

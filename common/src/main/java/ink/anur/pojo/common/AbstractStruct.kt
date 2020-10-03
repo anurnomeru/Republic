@@ -2,10 +2,9 @@ package ink.anur.pojo.common
 
 import ink.anur.exception.ByteBufferValidationException
 import ink.anur.util.ByteBufferUtil
-import ink.anur.util.TimeUtil
+import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
 import java.nio.ByteBuffer
-import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -21,39 +20,66 @@ import java.util.concurrent.atomic.AtomicLong
 abstract class AbstractStruct {
 
     /**
-     *  4字节 crc + 4字节类型 + 内容
+     * 4字节 crc + 4字节类型 + 内容
      */
     companion object {
-        val CrcOffset = 0
-        val CrcLength = 4
-        val TypeOffset = CrcOffset + CrcLength
-        val TypeLength = 4
-        val RequestSignOffset = TypeOffset + TypeLength
-        val RequestSignLength = 4
-        val OriginMessageOverhead = RequestSignOffset + RequestSignLength
+        const val CrcOffset = 0
+        private const val CrcLength = 4
 
-        const val truely: Byte = 1
+        private const val RequestTypeOffset = CrcOffset + CrcLength
+        private const val RequestTypeLength = 4
+
+        private const val IdentifierOffset = RequestTypeOffset + RequestTypeLength
+        private const val IdentifierSignLength = 8
+
+        const val OriginMessageOverhead = IdentifierOffset + IdentifierSignLength
+
+        private const val positive: Byte = 1
         val requestSignBoxer = AtomicLong(Long.MIN_VALUE)
-    }
 
-    fun translateToByte(boolean: Boolean): Byte {
-        return if (boolean) {
-            1
-        } else {
-            0
+        fun translateToByte(boolean: Boolean): Byte {
+            return if (boolean) {
+                1
+            } else {
+                0
+            }
         }
+
+        fun translateToBool(byte: Byte): Boolean {
+            return byte == positive
+        }
+
     }
 
-    fun translateToBool(byte: Byte): Boolean {
-        return byte == truely
+    lateinit var buffer: ByteBuffer
+
+    fun init(capacity: Int, requestTypeEnum: RequestTypeEnum, then: (ByteBuffer) -> Unit) {
+        val bf = ByteBuffer.allocate(capacity)
+        bf.mark()
+        bf.position(RequestTypeOffset)
+        bf.putInt(requestTypeEnum.byteSign) // type
+        bf.putLong(requestSignBoxer.incrementAndGet()) // identifier
+        then.invoke(bf)
+        bf.reset()
+
+        buffer = bf
     }
 
-    // =================================================================
-
-    protected var buffer: ByteBuffer? = null
+    fun asResponse(abstractStruct: AbstractStruct): AbstractStruct {
+        buffer.putLong(IdentifierOffset, abstractStruct.buffer.getLong(IdentifierOffset))
+        return this
+    }
 
     fun size(): Int {
-        return buffer!!.limit()
+        return buffer.limit()
+    }
+
+    fun getIdentifier(): Int {
+        return buffer.getInt(IdentifierOffset)
+    }
+
+    fun getRequestType(): RequestTypeEnum {
+        return RequestTypeEnum.parseByByteSign(buffer.getInt(RequestTypeOffset))
     }
 
     fun ensureValid() {
@@ -64,32 +90,12 @@ abstract class AbstractStruct {
         }
     }
 
-    fun checkSum(): Long {
+    private fun checkSum(): Long {
         return ByteBufferUtil.readUnsignedInt(buffer, CrcOffset)
     }
 
     fun computeChecksum(): Long {
-        return ByteBufferUtil.crc32(buffer!!.array(), buffer!!.arrayOffset() + TypeOffset, buffer!!.limit() - TypeOffset)
-    }
-
-    fun getRequestSign(): Int {
-        return buffer!!.getInt(RequestSignOffset)
-    }
-
-    fun getRequestType(): RequestTypeEnum {
-        return RequestTypeEnum.parseByByteSign(buffer!!.getInt(TypeOffset))
-    }
-
-    fun init(capacity: Int, requestTypeEnum: RequestTypeEnum, then: (ByteBuffer) -> Unit) {
-        val bf = ByteBuffer.allocate(capacity)
-        bf.mark()
-        bf.position(TypeOffset)
-        bf.putInt(requestTypeEnum.byteSign)
-        bf.putLong(requestSignBoxer.incrementAndGet()) // RequestSign
-        then.invoke(bf)
-        bf.reset()
-
-        buffer = bf
+        return ByteBufferUtil.crc32(buffer.array(), buffer.arrayOffset() + RequestTypeOffset, buffer.limit() - RequestTypeOffset)
     }
 
     /**

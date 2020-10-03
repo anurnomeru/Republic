@@ -27,12 +27,12 @@ class _KanashiExecutors(val logger: Logger, corePoolSize: Int, maximumPoolSize: 
                 tToLog = ee.cause
             } catch (ie: InterruptedException) {
                 Thread.currentThread()
-                    .interrupt()
+                        .interrupt()
             }
         }
 
         if (tToLog != null) {
-            logger.error(tToLog.message, tToLog)
+            logger.error(tToLog.message ?: "", tToLog)
         }
     }
 }
