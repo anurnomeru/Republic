@@ -38,4 +38,8 @@ class RepublicNode {
         return result
     }
 
+    override fun toString(): String {
+        return "RepublicNode(host='$host', port=$port)"
+    }
+
 }

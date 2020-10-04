@@ -1,7 +1,7 @@
 package ink.anur.core.common
 
+import ink.anur.common.struct.RepublicNode
 import ink.anur.pojo.common.RequestTypeEnum
-import io.netty.channel.Channel
 import java.nio.ByteBuffer
 
 /**
@@ -19,5 +19,5 @@ interface RequestMapping {
     /**
      * 如何去消费一个消息
      */
-    fun handleRequest(fromServer: String, msg: ByteBuffer, channel: Channel)
+    fun handleRequest(republicNode: RepublicNode, msg: ByteBuffer)
 }

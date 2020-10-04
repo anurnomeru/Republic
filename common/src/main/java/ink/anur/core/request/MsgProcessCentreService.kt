@@ -11,6 +11,7 @@ import ink.anur.pojo.common.AbstractStruct
 import ink.anur.pojo.common.RequestTypeEnum
 import ink.anur.service.RegisterHandleService
 import io.netty.channel.Channel
+import io.netty.channel.ChannelHandlerContext
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
 
@@ -53,49 +54,26 @@ class MsgProcessCentreService : ReentrantReadWriteLocker() {
     /**
      * 接收到消息如何处理
      */
-    fun receive(msg: ByteBuffer, requestTypeEnum: RequestTypeEnum, channel: Channel?) {
+    fun receive(msg: ByteBuffer, requestTypeEnum: RequestTypeEnum, channel: ChannelHandlerContext) {
 
         if (channel == null) {
             logger.error("????????????????????????????????????")
         } else {
-            val requestTimestampCurrent = 1L
-            val serverName = channelService.getChannelName(channel)
-
             // serverName 是不会为空的，但是有一种情况例外，便是服务还未注册时 这里做特殊处理
-            when {
-                serverName == null -> registerHandleService.handleRequest("", msg, channel)
-                writeLockSupplierCompel {
-                    when (requestTypeEnum) {
-                        // command 类型不需要防止重发的问题，可以无限重发，其他类型避免同一个消息发送多次被重复消费
-                        else -> {
-                            var changed = false
-                            receiveLog.compute(serverName) { _, timestampMap ->
-                                (timestampMap ?: mutableMapOf()).also {
-                                    it.compute(requestTypeEnum) { _, timestampBefore ->
-                                        changed = (timestampBefore == null || requestTimestampCurrent > timestampBefore)
-                                        if (changed) requestTimestampCurrent else timestampBefore
-                                    }
-                                }
-                            }
-                            changed
-                        }
-                    }
+            try {
+                val requestMapping = requestMappingRegister[requestTypeEnum]
 
-                } -> try {
-                    val requestMapping = requestMappingRegister[requestTypeEnum]
+                if (requestMapping != null) {
+                    requestMapping.handleRequest(serverName, msg, channel)// 收到正常的请求
+                } else {
+                    logger.error("类型 $requestTypeEnum 消息没有定制化 requestMapping ！！！")
+                }
 
-                    if (requestMapping != null) {
-                        requestMapping.handleRequest(serverName, msg, channel)// 收到正常的请求
-                    } else {
-                        logger.error("类型 $requestTypeEnum 消息没有定制化 requestMapping ！！！")
-                    }
-
-                } catch (e: Exception) {
-                    logger.error("在处理来自节点 $serverName 的 $requestTypeEnum 请求时出现异常", e)
-                    writeLocker {
-                        receiveLog.compute(serverName) { _, timestampMap ->
-                            (timestampMap ?: mutableMapOf()).also { it.remove(requestTypeEnum) }
-                        }
+            } catch (e: Exception) {
+                logger.error("在处理来自节点 $serverName 的 $requestTypeEnum 请求时出现异常", e)
+                writeLocker {
+                    receiveLog.compute(serverName) { _, timestampMap ->
+                        (timestampMap ?: mutableMapOf()).also { it.remove(requestTypeEnum) }
                     }
                 }
             }
