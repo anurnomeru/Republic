@@ -1,9 +1,9 @@
 package ink.anur.io.server
 
-import ink.anur.io.common.ShutDownHooker
+import ink.anur.io.common.handler.AutoUnRegistryHandler
 import ink.anur.io.common.handler.ErrorHandler
 import ink.anur.io.common.handler.KanashiDecoder
-import ink.anur.io.common.handler.AutoUnRegistryHandler
+import ink.anur.io.common.transport.ShutDownHooker
 import io.netty.channel.ChannelPipeline
 
 /**

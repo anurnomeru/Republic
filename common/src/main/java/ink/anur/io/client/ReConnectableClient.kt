@@ -1,12 +1,13 @@
 package ink.anur.io.client
 
 import ink.anur.common.KanashiExecutors
-import ink.anur.io.common.handler.CustomChannelHandler
+import ink.anur.io.common.handler.ChannelActiveHandler
 import ink.anur.io.common.handler.ErrorHandler
 import ink.anur.io.common.handler.KanashiDecoder
 import ink.anur.io.common.handler.ReconnectHandler
+import ink.anur.io.common.transport.ShutDownHooker
 import io.netty.bootstrap.Bootstrap
-import io.netty.channel.Channel
+import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInitializer
 import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.SocketChannel
@@ -30,12 +31,7 @@ class ReConnectableClient(private val host: String, private val port: Int,
                           /**
                            * 当受到对方的注册回调后，触发此函数，注意 它可能会被多次调用
                            */
-                          private val doAfterConnectToServer: ((Channel) -> Unit)? = null,
-
-                          /**
-                           * 当连接上对方后，如果断开了连接，做什么处理
-                           */
-                          private val doAfterDisConnectToServer: (() -> Unit)? = null) {
+                          private val doAfterConnectToServer: ((ChannelHandlerContext) -> Unit)? = null) {
 
     private val logger = LoggerFactory.getLogger(this::class.java)
 
@@ -54,7 +50,7 @@ class ReConnectableClient(private val host: String, private val port: Int,
                 logger.debug("与节点 {$host:$port} 的连接已被终止，无需再进行重连")
             } else {
                 logger.trace("正在重新连接节点 {$host:$port} ...")
-                ReConnectableClient(host, port, connectConnectLicense, shutDownHooker, doAfterConnectToServer, doAfterDisConnectToServer).start()
+                ReConnectableClient(host, port, connectConnectLicense, shutDownHooker, doAfterConnectToServer).start()
             }
         }
         KanashiExecutors.execute(restartMission)
@@ -72,7 +68,7 @@ class ReConnectableClient(private val host: String, private val port: Int,
                         override fun initChannel(socketChannel: SocketChannel) {
                             socketChannel.pipeline()
                                     .addLast(KanashiDecoder())// 解码处理器
-                                    .addLast(CustomChannelHandler(doAfterConnectToServer, doAfterDisConnectToServer))
+                                    .addLast(ChannelActiveHandler(doAfterConnectToServer))
                                     .addLast(ReconnectHandler(reconnectLatch))// 重连控制器
                                     .addLast(ErrorHandler())// 错误处理
                         }
@@ -105,41 +101,6 @@ class ReConnectableClient(private val host: String, private val port: Int,
                 e.printStackTrace()
             }
         }
-    }
-
-
-    /**
-     * Created by Anur IjuoKaruKas on 2020/2/22
-     *
-     * 可注册结束事件的钩子
-     */
-    @ThreadSafe
-    class ShutDownHooker {
-
-        @Volatile
-        private var shutDown: Boolean = false
-
-        private var shutDownConsumer: () -> Unit = {}
-
-        @Synchronized
-        fun completeShutDown() {
-            shutDown = true
-            shutDownConsumer.invoke()
-        }
-
-        @Synchronized
-        fun shutdown() = shutDownConsumer.invoke()
-
-        @Synchronized
-        fun shutDownRegister(shutDownSupplier: () -> Unit) {
-
-            // 如果已经事先触发了关闭，则不需要再注册关闭事件了，直接调用关闭方法
-            if (!shutDown) {
-                this.shutDownConsumer = shutDownSupplier
-            }
-        }
-
-        fun isShutDown(): Boolean = shutDown
     }
 
     @ThreadSafe

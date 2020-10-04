@@ -1,20 +1,15 @@
 package ink.anur.io.common.transport
 
 import ink.anur.common.struct.RepublicNode
-import ink.anur.config.InetConfiguration
-import ink.anur.exception.SynErrorException
-import ink.anur.inject.bean.Nigate
-import ink.anur.inject.bean.NigateInject
+import ink.anur.debug.Debugger
 import ink.anur.io.client.ReConnectableClient
+import ink.anur.io.common.handler.ChannelInactiveHandler
 import ink.anur.mutex.ReentrantLocker
 import ink.anur.pojo.common.AbstractStruct
-import ink.anur.pojo.connection.Establish
-import ink.anur.pojo.connection.Syn
-import ink.anur.pojo.connection.SynAck
 import ink.anur.util.ByteBufferUtil
 import ink.anur.util.TimeUtil
 import io.netty.buffer.Unpooled
-import io.netty.channel.Channel
+import io.netty.channel.ChannelHandlerContext
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
 import java.net.InetSocketAddress
@@ -24,213 +19,137 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * Created by Anur on 2020/7/13
- *
- * manage a connection's status by channel
+ * Created by Anur on 2020/10/3
  */
-open class Connection(private val host: String, private val port: Int, private val ts: Long, @Volatile var connectionStatus: ConnectionStatus) {
+class Connection(private val host: String, private val port: Int, private val ts: Long, @Volatile var connectionStatus: ConnectionStatus) {
 
     companion object {
-
         private val waitDeck = ConcurrentHashMap<Int /* sign */, CountDownLatch>()
         private val response = ConcurrentHashMap<Int /* sign */, AbstractStruct>()
         private val unique = ConcurrentHashMap<Connection, Connection>()
+        private val logger = Debugger(this::class.java)
 
-        private fun getConnection(host: String, port: Int, status: ConnectionStatus): Connection {
-            val connection = Connection(host, port, TimeUtil.getTime(), status)
+        private fun RepublicNode.getConnection(): Connection {
+            val connection = Connection(host, port, TimeUtil.getTime(), ConnectionStatus.UN_CONNECTED)
             return unique.computeIfAbsent(connection) { connection }
         }
 
-        fun Channel.getNode(): RepublicNode {
+        private fun ChannelHandlerContext.getConnection(): Connection {
+            val socketAddress = this.channel().remoteAddress() as InetSocketAddress
+            val connection = Connection(socketAddress.hostName, socketAddress.port, TimeUtil.getTime(), ConnectionStatus.UN_CONNECTED)
+            return unique.computeIfAbsent(connection) { connection }
+        }
 
+        fun RepublicNode.send(struct: AbstractStruct) {
+            getConnection().send(struct)
         }
 
         /**
          * receive a msg and signal cdl
          */
-        fun Channel.receive(struct: AbstractStruct) {
+        fun ChannelHandlerContext.receive(struct: AbstractStruct) {
+            getConnection().mayConnectByRemote(this)
+
             val sign = struct.getIdentifier()
             response[sign] = struct
             waitDeck[sign]?.countDown()
         }
 
-        fun RepublicNode.isEstablished(): Boolean {
-            return getConnection(this.host, this.port, ConnectionStatus.SYN_SEND).isEstablished()
+        /**
+         * actually send the struct and wait for response
+         *
+         * caution: may disconnect when sending
+         */
+        fun <T> RepublicNode.sendAndWaitingResponse(struct: AbstractStruct, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): T {
+            val sign = struct.getIdentifier()
+            val cdl = CountDownLatch(1)
+
+            return Mono
+                    .create<AbstractStruct> {
+                        send(struct)
+                    }
+                    .publishOn(Schedulers.elastic())
+                    .map {
+                        cdl.await()
+                        response[sign]
+                    }
+                    .timeout(Duration.ofMillis(unit.toMillis(timeout)))
+                    .doFinally {
+                        response.remove(sign)
+                        waitDeck.remove(sign)
+                    }
+                    .block() as T
         }
 
-        fun RepublicNode.sendSync(): Boolean {
-            return getConnection(this.host, this.port, ConnectionStatus.SYN_SEND)
-                    .tryConnect(this)
-        }
-
-        fun RepublicNode.recvSync(syn: Syn): Boolean {
-            return getConnection(this.host, this.port, ConnectionStatus.SYN_RECV)
-                    .recvConnect(syn, this)
-        }
     }
 
     @Volatile
-    private var channel: Channel? = null
+    private var ctx: ChannelHandlerContext? = null
 
-    @NigateInject
-    private lateinit var inetConfiguration: InetConfiguration
+    private val locker = ReentrantLocker()
 
-    private val shutDownHooker = ReConnectableClient.ShutDownHooker()
+    private val shutDownHooker = ShutDownHooker()
 
     private val connectLicense = ReConnectableClient.License()
 
     private val sendLicense = ReConnectableClient.License()
 
-    private val client: ReConnectableClient = ReConnectableClient(host, port, connectLicense, shutDownHooker, {
-        if (it.sendSync()) {
-            channel = it
-        } else {
-            channel = null
-            connectLicense.disable()
-            shutDownHooker.shutdown()
-        }
-    })
-
-    init {
-        Nigate.injectOnly(this)
-    }
-
-    /**
-     * make sure that 1 process modify this connection
-     */
-    private val synLock = ReentrantLocker()
-
-    private val recvLock = ReentrantLocker()
-
-    /**
-     * actually send the struct
-     *
-     * caution: may disconnect when sending
-     */
-    fun doSend(struct: AbstractStruct) {
+    private fun send(struct: AbstractStruct) {
         sendLicense.license()
-        val c = channel!!
-        c.write(Unpooled.copyInt(struct.totalSize()))
+        val channel = ctx!!.channel()
+        channel.write(Unpooled.copyInt(struct.totalSize()))
         ByteBufferUtil.writeUnsignedInt(struct.buffer, 0, struct.computeChecksum())
-        struct.writeIntoChannel(c)
-        c.flush()
+        struct.writeIntoChannel(channel)
+        channel.flush()
     }
 
-    /**
-     * actually send the struct and wait for response
-     *
-     * caution: may disconnect when sending
-     */
-    fun <T> sendAndWaitingResponse(struct: AbstractStruct, timeout: Long = inetConfiguration.timeoutMs, unit: TimeUnit = TimeUnit.MILLISECONDS): T {
-        val sign = struct.getIdentifier()
-        val cdl = CountDownLatch(1)
-
-        return Mono
-                .create<AbstractStruct> {
-                    doSend(struct)
-                }
-                .publishOn(Schedulers.elastic())
-                .map {
-                    cdl.await()
-                    response[sign]
-                }
-                .timeout(Duration.ofMillis(unit.toMillis(timeout)))
-                .doFinally {
-                    response.remove(sign)
-                    waitDeck.remove(sign)
-                }
-                .block() as T
-    }
-
-    /**
-     * try connect, make sure that only one process try connection to remote server
-     *
-     * it will block until connect to remote server
-     *
-     * @return true mean this channel successful connect to remote sever
-     * or channel should be disconnected from remote server
-     */
-    fun tryConnect(channel: Channel): Boolean {
-        val connect =
-                if (isEstablished()) {
-                    Connect.CONNECTED
-                } else {
-                    synLock.lockSupplierCompel {
-                        if (connectionStatus == ConnectionStatus.ESTABLISHED) {
-                            return@lockSupplierCompel Connect.CONNECTED
-                        }
-
-                        val synAck: SynAck = sendAndWaitingResponse(
-                                Syn(ts)
-                        )
-                                ?: throw SynErrorException()
-
-                        if (synAck.reject()) {
-                            return@lockSupplierCompel Connect.REJECT
-                        } else {
-                            doSend(
-                                    Establish(ts).asResponse(synAck)
-                            )
-                            this.establish(channel)
-                            return@lockSupplierCompel Connect.SUCCESSFUL
-                        }
-                    }
-                }
-
-        if (connect.isReject()) {
-            tryConnect(channel)
-        }
-
-        return connect.isSuccessful()
-    }
-
-    fun recvConnect(syn: Syn, channel: Channel): Boolean {
-        if (isEstablished()) {
-            return false
+    private val client: ReConnectableClient = ReConnectableClient(host, port, connectLicense, shutDownHooker) {
+        if (connectionStatus.isEstablished()) {
+            this.connectLicense.disable()
+            this.shutDownHooker.shutdown()
+            logger.info("Already connect to remote server {}:{}, so stop try connect to remote server", host, port)
         } else {
-            return recvLock.lockSupplierCompel {
-                val remoteTs = syn.getTs()
-                if (remoteTs < ts) { // mean remote syn send before current
-                    val establish: Establish = sendAndWaitingResponse(
-                            SynAck(ts).asResponse(syn)
-                    )
-                    this.establish(channel)
-                } else {
-                    doSend(
-                            SynAck(SynAck.Reject).asResponse(syn)
-                    )
-                    false
+            this.connect(it) {
+                logger.info("Connect to remote server {}:{}", host, port)
+            }
+        }
+    }
+
+    private fun mayConnectByRemote(ctx: ChannelHandlerContext) {
+        locker.lockSupplier {
+            if (connectionStatus.isEstablished() && ctx != this.ctx) {
+                ctx.close()
+            } else {
+                this.connect(ctx) {
+                    logger.info("Connect to remote server {}:{} cause passive connection", host, port)
                 }
             }
         }
     }
 
-    @Synchronized
-    fun establish(channel: Channel): Boolean {
-        if (isEstablished()) {
-            return false
-        }
+    private fun connect(ctx: ChannelHandlerContext, successfulConnected: () -> Unit) {
+        return locker.lockSupplier {
+            connectionStatus.isEstablished()
 
-        this.connectionStatus = ConnectionStatus.ESTABLISHED
-        this.channel = channel
-        return true
+            this.connectionStatus = ConnectionStatus.ESTABLISHED
+            this.ctx = ctx
+            this.sendLicense.enable()
+            ctx.pipeline().addLast(ChannelInactiveHandler {
+                this.disconnect()
+            })
+            successfulConnected.invoke()
+        }
     }
 
-    fun isEstablished(): Boolean {
-        return connectionStatus.isEstablished()
-    }
-
-    enum class Connect {
-        CONNECTED,
-        SUCCESSFUL,
-        REJECT;
-
-        fun isReject(): Boolean {
-            return this == REJECT
-        }
-
-        fun isSuccessful(): Boolean {
-            return this == SUCCESSFUL
+    private fun disconnect() {
+        locker.lockSupplier {
+            if (connectionStatus.isEstablished()) {
+                logger.info("Disconnect from remote server {}:{}", host, port)
+                this.sendLicense.disable()
+                this.ctx = null
+                this.connectionStatus = ConnectionStatus.UN_CONNECTED
+                this.connectLicense.enable()
+            }
         }
     }
 
@@ -240,19 +159,8 @@ open class Connection(private val host: String, private val port: Int, private v
      */
     enum class ConnectionStatus {
 
-        /**
-         * 此状态还不可发送
-         */
-        SYN_SEND,
+        UN_CONNECTED,
 
-        /**
-         * 此状态还不可发送
-         */
-        SYN_RECV,
-
-        /**
-         * 此状态可发送
-         */
         ESTABLISHED;
 
         fun isEstablished(): Boolean {

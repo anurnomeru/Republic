@@ -1,7 +1,7 @@
 package ink.anur.io.server
 
 import ink.anur.common.KanashiRunnable
-import ink.anur.io.common.ShutDownHooker
+import ink.anur.io.common.transport.ShutDownHooker
 import io.netty.bootstrap.ServerBootstrap
 import io.netty.channel.ChannelInitializer
 import io.netty.channel.ChannelOption
