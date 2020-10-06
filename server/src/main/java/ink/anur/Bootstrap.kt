@@ -13,14 +13,9 @@ object Bootstrap {
 
     @JvmStatic
     fun main(args: Array<String>) {
-
-        // 保存jvm参数
-        //        BootstrapConfiguration.init(args)
-        // 初始化 bean管理
         Nigate
-
         while (RUNNING) {
-            Thread.sleep(1000)
+            Thread.sleep(10000)
         }
     }
 
