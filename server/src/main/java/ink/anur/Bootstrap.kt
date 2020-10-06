@@ -14,8 +14,8 @@ object Bootstrap {
     @JvmStatic
     fun main(args: Array<String>) {
 
-//        // 保存jvm参数
-//        BootstrapConfiguration.init(args)
+        // 保存jvm参数
+        //        BootstrapConfiguration.init(args)
         // 初始化 bean管理
         Nigate
 
