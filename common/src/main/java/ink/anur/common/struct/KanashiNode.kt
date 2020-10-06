@@ -20,7 +20,7 @@ class KanashiNode(val serverName: String, val host: String, val port: Int) {
             Nigate.injectOnly(this)
         }
 
-        return this.serverName == inetConfiguration!!.localServerName
+        return true
     }
 
     override fun equals(other: Any?): Boolean {

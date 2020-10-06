@@ -107,6 +107,8 @@ class ReConnectableClient(private val host: String, private val port: Int,
     class License {
         private val semaphore = Semaphore(0)
 
+        fun hasLicense() = semaphore.availablePermits() > 0
+
         fun license() = semaphore.acquire()
 
         fun disable() = semaphore.drainPermits()

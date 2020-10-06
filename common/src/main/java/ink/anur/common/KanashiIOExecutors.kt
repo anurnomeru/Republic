@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit
  *
  * 全局线程池
  */
-object KanashiExecutors {
+object KanashiIOExecutors {
 
     private val logger = LoggerFactory.getLogger(this::class.java)
 
@@ -30,9 +30,8 @@ object KanashiExecutors {
     init {
         val coreCount = Runtime.getRuntime()
                 .availableProcessors()
-        val threadCount = coreCount * 2
-        logger.info("创建 Kanashi 线程池 => 机器核心数为 {}, 故创建线程 {} 个", coreCount, threadCount)
-        Pool = _KanashiExecutors(logger, threadCount, threadCount, 5, TimeUnit.SECONDS, MissionQueue, ThreadFactoryBuilder().setNameFormat("Kanashi Pool")
+        logger.info("创建 Kanashi IO 线程池")
+        Pool = _KanashiExecutors(logger, 0, Int.MAX_VALUE, 5, TimeUnit.SECONDS, MissionQueue, ThreadFactoryBuilder().setNameFormat("Kanashi Pool")
                 .setDaemon(true)
                 .build())
     }

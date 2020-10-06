@@ -1,6 +1,7 @@
 package ink.anur.core.raft
 
 import ink.anur.common.struct.KanashiNode
+import ink.anur.common.struct.RepublicNode
 import ink.anur.config.InetConfiguration
 import ink.anur.inject.event.Event
 import ink.anur.inject.bean.NigateBean
@@ -65,25 +66,25 @@ class ElectionMetaService {
      * 现在集群的leader是哪个节点
      */
     @Volatile
-    private var leader: String? = null
+    private var leader: RepublicNode? = null
 
     /**
      * 投票箱
      */
     @Volatile
-    var box: MutableMap<String/* serverName */, Boolean> = mutableMapOf()
+    var box: MutableMap<RepublicNode, Boolean> = mutableMapOf()
 
     /**
      * 投票给了谁的投票记录
      */
     @Volatile
-    var voteRecord: String? = null
+    var voteRecord: RepublicNode? = null
 
     /**
      * 缓存一份集群信息，因为集群信息是可能变化的，我们要保证在一次选举中，集群信息是不变的
      */
     @Volatile
-    var clusters: List<KanashiNode>? = null
+    var clusters: List<RepublicNode>? = null
 
     /**
      * 法定人数
@@ -132,11 +133,11 @@ class ElectionMetaService {
     @Volatile
     var clusterValid = false
 
-    fun setLeader(leader: String) {
+    fun setLeader(leader: RepublicNode) {
         this.leader = leader
     }
 
-    fun getLeader(): String? {
+    fun getLeader(): RepublicNode? {
         return this.leader
     }
 
@@ -196,9 +197,9 @@ class ElectionMetaService {
         beginElectTime = 0L
 
         logger.info("本节点 {} 在世代 {} 角色由 {} 变更为 {} 选举耗时 {} ms，并开始向其他节点发送心跳包 ......",
-                inetConfiguration.localServerName, generation, raftRole, RaftRole.LEADER, becomeLeaderCostTime)
+                inetConfiguration.localServer, generation, raftRole, RaftRole.LEADER, becomeLeaderCostTime)
 
-        leader = inetConfiguration.localServerName
+        leader = inetConfiguration.localServer
         raftRole = RaftRole.LEADER
         heartBeat = HeartBeat(generation)
         this.electionStateChanged(true)

@@ -1,5 +1,6 @@
 package ink.anur.service.coordinate
 
+import ink.anur.common.struct.RepublicNode
 import ink.anur.pojo.common.RequestTypeEnum
 import ink.anur.core.common.AbstractRequestMapping
 import ink.anur.core.raft.RaftCenterController
@@ -24,8 +25,8 @@ class HeartbeatHandleService : AbstractRequestMapping() {
         return RequestTypeEnum.HEAT_BEAT
     }
 
-    override fun handleRequest(fromServer: String, msg: ByteBuffer, channel: Channel) {
+    override fun handleRequest(republicNode: RepublicNode, msg: ByteBuffer) {
         val heartbeat = HeartBeat(msg)
-        raftCenterController.receiveHeatBeat(fromServer, heartbeat.generation)
+        raftCenterController.receiveHeatBeat(republicNode, heartbeat.generation)
     }
 }

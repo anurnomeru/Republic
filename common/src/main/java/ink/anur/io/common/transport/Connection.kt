@@ -1,5 +1,6 @@
 package ink.anur.io.common.transport
 
+import ink.anur.common.KanashiExecutors
 import ink.anur.common.struct.RepublicNode
 import ink.anur.core.common.RequestMapping
 import ink.anur.debug.Debugger
@@ -17,9 +18,8 @@ import reactor.core.scheduler.Schedulers
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.time.Duration
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.*
+import kotlin.system.exitProcess
 
 /**
  * Created by Anur on 2020/10/3
@@ -28,23 +28,49 @@ class Connection(private val host: String, private val port: Int, private val ts
 
     companion object {
         private val waitDeck = ConcurrentHashMap<Int /* sign */, CountDownLatch>()
-        private val response = ConcurrentHashMap<Int /* sign */, AbstractStruct>()
-        private val uniqueConnection = ConcurrentHashMap<Connection, Connection>()
-        private val uniqueNode = ConcurrentHashMap<RepublicNode, RepublicNode>()
+        private val response = ConcurrentHashMap<Int /* sign */, ByteBuffer>()
+        private val uniqueConnection = ConcurrentHashMap<RepublicNode, Connection>()
+        private val requestMappingRegister = mutableMapOf<RequestTypeEnum, RequestMapping>()
         private val logger = Debugger(this::class.java)
 
+        private val t = Thread {
+            while (true) {
+                for (conn in uniqueConnection.values) {
+                    val struct = conn.asyncSendingQueue.poll()
+
+                    while (struct != null) {
+                        try {
+                            conn.sendIfHasLicense(struct)
+                        } catch (t: Throwable) {
+                            // ignore
+                            logger.error("Async sending struct type:[${struct.getRequestType()}] to $conn error occur!")
+                            conn.asyncSendingQueue.push(struct)
+                        }
+                    }
+                }
+
+                Thread.sleep(100)
+            }
+        }
+
+        init {
+            t.name = "AsyncSender"
+            KanashiExecutors.execute(t)
+        }
+
         /**
-         * 注册所有的请求应该采用什么处理的映射
+         * 注册 RequestMapping
          */
-        private val requestMappingRegister = mutableMapOf<RequestTypeEnum, RequestMapping>()
+        fun registerRequestMapping(typeEnum: RequestTypeEnum, requestMapping: RequestMapping) {
+            requestMappingRegister[typeEnum] = requestMapping
+        }
 
         private fun RepublicNode.getConnection(): Connection {
-            val connection = Connection(host, port, TimeUtil.getTime(), ConnectionStatus.UN_CONNECTED)
-            return uniqueConnection.computeIfAbsent(connection) { connection }
+            return uniqueConnection.computeIfAbsent(this) { Connection(this.host, this.port, TimeUtil.getTime(), ConnectionStatus.UN_CONNECTED) }
         }
 
         private fun ChannelHandlerContext.getRepublicNode(): RepublicNode {
-            return RepublicNode(this.channel().remoteAddress() as InetSocketAddress)
+            return RepublicNode.construct(this.channel().remoteAddress() as InetSocketAddress)
         }
 
         /**
@@ -53,12 +79,11 @@ class Connection(private val host: String, private val port: Int, private val ts
         fun ChannelHandlerContext.receive(msg: ByteBuffer) {
             val republicNode = getRepublicNode().also { it.getConnection().mayConnectByRemote(this) }
 
-            val requestType = msg.getRequestType()
-            val sign = msg.getIdentifier()
-            waitDeck[sign]?.let {
-                response[sign] = msg
+            val requestType = RequestTypeEnum.parseByByteSign(msg.getInt(AbstractStruct.RequestTypeOffset))
+            val identifier = msg.getInt(AbstractStruct.IdentifierOffset)
+            waitDeck[identifier]?.let {
+                response[identifier] = msg
                 it.countDown()
-                waitDeck.remove(sign)
             } ?: also {
                 try {
                     val requestMapping = requestMappingRegister[requestType]
@@ -66,13 +91,17 @@ class Connection(private val host: String, private val port: Int, private val ts
                     if (requestMapping != null) {
                         requestMapping.handleRequest(republicNode, msg)// 收到正常的请求
                     } else {
-                        logger.error("$requestType has not custom requestMapping ！！！")
+                        logger.error("msg type:[$requestType] from $republicNode has not custom requestMapping ！！！")
                     }
 
                 } catch (e: Exception) {
                     logger.error("Error occur while process msg type:[$requestType] from $republicNode", e)
                 }
             }
+        }
+
+        fun RepublicNode.sendAsync(struct: AbstractStruct) {
+            getConnection().sendToQueue(struct)
         }
 
         fun RepublicNode.send(struct: AbstractStruct) {
@@ -84,8 +113,8 @@ class Connection(private val host: String, private val port: Int, private val ts
          *
          * caution: may disconnect when sending
          */
-        fun <T> RepublicNode.sendAndWaitingResponse(struct: AbstractStruct, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): T {
-            val sign = struct.getIdentifier()
+        fun <T> RepublicNode.sendAndWaitingResponse(struct: AbstractStruct, timeout: Long = 3000, expect: Class<T>, unit: TimeUnit = TimeUnit.MILLISECONDS): T {
+            val identifier = struct.getIdentifier()
             val cdl = CountDownLatch(1)
 
             return Mono
@@ -95,16 +124,15 @@ class Connection(private val host: String, private val port: Int, private val ts
                     .publishOn(Schedulers.elastic())
                     .map {
                         cdl.await()
-                        response[sign]
+                        expect.getConstructor(ByteBuffer::class.java).newInstance(response[identifier])
                     }
                     .timeout(Duration.ofMillis(unit.toMillis(timeout)))
                     .doFinally {
-                        response.remove(sign)
-                        waitDeck.remove(sign)
+                        response.remove(identifier)
+                        waitDeck.remove(identifier)
                     }
                     .block() as T
         }
-
     }
 
     @Volatile
@@ -118,6 +146,12 @@ class Connection(private val host: String, private val port: Int, private val ts
 
     private val sendLicense = ReConnectableClient.License()
 
+    private val asyncSendingQueue = LinkedBlockingDeque<AbstractStruct>()
+
+    private fun sendToQueue(struct: AbstractStruct) {
+        asyncSendingQueue.push(struct)
+    }
+
     private fun send(struct: AbstractStruct) {
         sendLicense.license()
         val channel = ctx!!.channel()
@@ -127,16 +161,30 @@ class Connection(private val host: String, private val port: Int, private val ts
         channel.flush()
     }
 
+    private fun sendIfHasLicense(struct: AbstractStruct) {
+        if (sendLicense.hasLicense()) {
+            val channel = ctx!!.channel()
+            channel.write(Unpooled.copyInt(struct.totalSize()))
+            ByteBufferUtil.writeUnsignedInt(struct.buffer, 0, struct.computeChecksum())
+            struct.writeIntoChannel(channel)
+            channel.flush()
+        }
+    }
+
     private val client: ReConnectableClient = ReConnectableClient(host, port, connectLicense, shutDownHooker) {
         if (connectionStatus.isEstablished()) {
             this.connectLicense.disable()
             this.shutDownHooker.shutdown()
-            logger.info("Already connect to remote server {}:{}, so stop try connect to remote server", host, port)
+            logger.info("Already connect to remote server $this, so stop try connect to remote server")
         } else {
             this.connect(it) {
-                logger.info("Connect to remote server {}:{}", host, port)
+                logger.info("Connect to remote server $this")
             }
         }
+    }
+
+    init {
+        client.start()
     }
 
     private fun mayConnectByRemote(ctx: ChannelHandlerContext) {
@@ -145,7 +193,7 @@ class Connection(private val host: String, private val port: Int, private val ts
                 ctx.close()
             } else {
                 this.connect(ctx) {
-                    logger.info("Connect to remote server {}:{} cause passive connection", host, port)
+                    logger.info("Connect to remote server $this cause passive connection")
                 }
             }
         }
@@ -168,7 +216,7 @@ class Connection(private val host: String, private val port: Int, private val ts
     private fun disconnect() {
         locker.lockSupplier {
             if (connectionStatus.isEstablished()) {
-                logger.info("Disconnect from remote server {}:{}", host, port)
+                logger.info("Disconnect from remote server $this")
                 this.sendLicense.disable()
                 this.ctx = null
                 this.connectionStatus = ConnectionStatus.UN_CONNECTED
@@ -177,10 +225,11 @@ class Connection(private val host: String, private val port: Int, private val ts
         }
     }
 
-    /**
-     * 主动连接 : SYN_SENT -> ESTABLISHED
-     * 被动连接 ：SYN_RECV -> ESTABLISHED
-     */
+    override fun toString(): String {
+        return "RepublicNode(host='$host', port=$port)"
+    }
+
+
     enum class ConnectionStatus {
 
         UN_CONNECTED,

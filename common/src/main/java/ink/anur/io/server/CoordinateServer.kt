@@ -12,9 +12,9 @@ import io.netty.channel.ChannelPipeline
  * 通用的 Server，提供了 ByteBuffer 的消费入口
  * 以及 pipeline 的定制入口
  */
-class CoordinateServer(port: Int,
+class CoordinateServer(host: String, port: Int,
                        shutDownHooker: ShutDownHooker)
-    : Server(port, shutDownHooker) {
+    : Server(host, port, shutDownHooker) {
     override fun channelPipelineConsumer(channelPipeline: ChannelPipeline): ChannelPipeline {
         channelPipeline
                 .addFirst(AutoUnRegistryHandler())

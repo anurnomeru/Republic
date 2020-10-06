@@ -5,6 +5,7 @@ import ink.anur.util.ByteBufferUtil
 import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
 import java.nio.ByteBuffer
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -26,16 +27,16 @@ abstract class AbstractStruct {
         const val CrcOffset = 0
         private const val CrcLength = 4
 
-        private const val RequestTypeOffset = CrcOffset + CrcLength
+        const val RequestTypeOffset = CrcOffset + CrcLength
         private const val RequestTypeLength = 4
 
-        private const val IdentifierOffset = RequestTypeOffset + RequestTypeLength
-        private const val IdentifierSignLength = 8
+        const val IdentifierOffset = RequestTypeOffset + RequestTypeLength
+        private const val IdentifierSignLength = 4
 
         const val OriginMessageOverhead = IdentifierOffset + IdentifierSignLength
 
         private const val positive: Byte = 1
-        val requestSignBoxer = AtomicLong(Long.MIN_VALUE)
+        val requestSignBoxer = AtomicInteger(Int.MIN_VALUE)
 
         fun translateToByte(boolean: Boolean): Byte {
             return if (boolean) {
@@ -58,7 +59,7 @@ abstract class AbstractStruct {
         bf.mark()
         bf.position(RequestTypeOffset)
         bf.putInt(requestTypeEnum.byteSign) // type
-        bf.putLong(requestSignBoxer.incrementAndGet()) // identifier
+        bf.putInt(requestSignBoxer.incrementAndGet()) // identifier
         then.invoke(bf)
         bf.reset()
 
