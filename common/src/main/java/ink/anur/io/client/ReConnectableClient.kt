@@ -65,6 +65,7 @@ class ReConnectableClient(private val host: String, private val port: Int,
                 KanashiIOExecutors.execute(ReConnectableClient(host, port, connectLicense, shutDownHooker, doAfterConnectToServer))
             }
         }
+
         KanashiIOExecutors.execute(restartMission)
         restartMission.name = "Client Restart {$host:$port}"
 
