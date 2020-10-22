@@ -58,7 +58,6 @@ class Connection(private val host: String, private val port: Int) {
                         }
                     }
                 }
-
                 Thread.sleep(100)
             }
         }
