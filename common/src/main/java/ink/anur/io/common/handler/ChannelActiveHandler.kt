@@ -17,6 +17,4 @@ class ChannelActiveHandler(private val doAfterConnectToServer: ((ChannelHandlerC
         super.channelActive(ctx)
         doAfterConnectToServer?.invoke(ctx)
     }
-
-
 }

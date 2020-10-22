@@ -2,6 +2,7 @@ package ink.anur.timewheel
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import ink.anur.common.KanashiExecutors.execute
+import ink.anur.debug.Debugger
 import ink.anur.util.TimeUtil
 import java.util.concurrent.DelayQueue
 import java.util.concurrent.ExecutorService
@@ -13,6 +14,8 @@ import java.util.concurrent.TimeUnit
  */
 class Timer {
     companion object {
+
+        private val logger = Debugger(this::class.java)
 
         private val bossThreadPool: ExecutorService = Executors.newFixedThreadPool(1, ThreadFactoryBuilder().setPriority(10)
                 .setNameFormat("TimeWheelBoss")

@@ -30,6 +30,11 @@ public class InetConfiguration {
     }
 
     @Nonnull
+    public String getLocalServerAddr() {
+        return localServerAddr;
+    }
+
+    @Nonnull
     public RepublicNode getLocalServer() {
         return RepublicNode.Companion.construct(localServerAddr);
     }

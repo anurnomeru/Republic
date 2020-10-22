@@ -14,14 +14,14 @@ enum class RequestTypeEnum(val byteSign: Int) {
     HEAT_BEAT(9999),
 
     /**
-     * 协调从节点向主节点注册
+     * 向其他 server 进行注册
      */
-    REGISTER(10000),
+    SYN(10000),
 
     /**
-     * 协调从节点向主节点注册 的回复
+     * 拿到其他 server 的注册回复
      */
-    REGISTER_RESPONSE(10001),
+    SYN_RESPONSE(10001),
 
     /**
      * 进行拉票

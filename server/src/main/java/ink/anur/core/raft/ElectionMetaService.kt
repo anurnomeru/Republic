@@ -1,6 +1,5 @@
 package ink.anur.core.raft
 
-import ink.anur.common.struct.KanashiNode
 import ink.anur.common.struct.RepublicNode
 import ink.anur.config.InetConfiguration
 import ink.anur.inject.event.Event

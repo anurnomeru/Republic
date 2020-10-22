@@ -8,15 +8,7 @@ import ink.anur.inject.bean.Nigate
  */
 object Bootstrap {
 
-    @Volatile
-    private var RUNNING = true
-
     @JvmStatic
-    fun main(args: Array<String>) {
-        Nigate
-        while (RUNNING) {
-            Thread.sleep(10000)
-        }
-    }
+    fun main(args: Array<String>) = Nigate.start(args)
 
 }

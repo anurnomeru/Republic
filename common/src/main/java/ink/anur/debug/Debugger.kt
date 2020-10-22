@@ -1,5 +1,6 @@
 package ink.anur.debug
 
+import ink.anur.mutex.ReentrantLocker
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -20,6 +21,12 @@ class Debugger(clazz: Class<*>) {
     fun switch(level: DebuggerLevel): Debugger {
         this.level = level
         return this
+    }
+
+    fun logTrace(msg: String, deep: Int) {
+        if (level == DebuggerLevel.TRACE) {
+            trace("$msg ${Throwable().stackTrace[deep].let { "${it.className} [${it.methodName}#${it.lineNumber}]" }}")
+        }
     }
 
     fun info(s: String) = invoke(s) { h.info(s) }

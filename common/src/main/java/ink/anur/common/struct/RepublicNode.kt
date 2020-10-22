@@ -8,22 +8,25 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Created by Anur on 2020/9/30
  */
-class RepublicNode {
-
-    val host: String
-    val port: Int
+class RepublicNode private constructor(val host: String, val port: Int) {
 
     companion object {
 
-        val unique = ConcurrentHashMap<String /* addr */, RepublicNode>()
+        private val constructor = RepublicNode::class.java.getDeclaredConstructor(String::class.java, Int::class.java)
+
+        init {
+            constructor.isAccessible = true
+        }
+
+        private val unique = ConcurrentHashMap<String /* addr */, RepublicNode>()
 
         fun construct(addr: String): RepublicNode {
             val split: Array<String> = addr.split(":").toTypedArray()
-            return construct(split[0], split[1].toInt())
+            return constructor.newInstance(split[0], split[1].toInt())
         }
 
         fun construct(inetSocketAddress: InetSocketAddress): RepublicNode {
-            return construct(inetSocketAddress.hostName, inetSocketAddress.port)
+            return constructor.newInstance(inetSocketAddress.hostName, inetSocketAddress.port)
         }
 
         fun construct(host: String, port: Int): RepublicNode {
@@ -32,11 +35,6 @@ class RepublicNode {
                 RepublicNode(host, port)
             }
         }
-    }
-
-    private constructor(host: String, port: Int) {
-        this.host = host
-        this.port = port
     }
 
     fun isLocal(): Boolean = Nigate.getBeanByClass(InetConfiguration::class.java).localServer == this

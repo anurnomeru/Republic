@@ -18,6 +18,7 @@ import java.lang.reflect.Method
 import java.lang.reflect.Proxy
 import java.net.JarURLConnection
 import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.reflect.KClass
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.full.memberFunctions
@@ -34,17 +35,17 @@ import kotlin.system.exitProcess
 @Suppress("UNCHECKED_CAST")
 object Nigate {
 
-    /**
-     * bean 容器
-     */
-    private val beanContainer = NigateBeanContainer()
+    /// ==================================
 
-    private val hasBeanPostConstruct: MutableSet<String> = mutableSetOf()
+    private val vmArgs = ConcurrentHashMap<String, String>()
 
-    private val logger = LoggerFactory.getLogger(this::class.java)
+    fun start(args: Array<String>) {
+        for (arg in args) {
+            val splitter = arg.indexOf("=")
+            vmArgs[arg.substring(0, splitter)] = arg.substring(splitter + 1)
+        }
 
-    init {
-        try {
+          try {
             logger.info("\n __  _   ____  ____    ____  _____ __ __  ____ \n" +
                     "|  |/ ] /    ||    \\  /    |/ ___/|  |  ||    |\n" +
                     "|  ' / |  o  ||  _  ||  o  (   \\_ |  |  | |  | \n" +
@@ -53,6 +54,7 @@ object Nigate {
                     "|  .  ||  |  ||  |  ||  |  |\\    ||  |  | |  | \n" +
                     "|__|\\_||__|__||__|__||__|__| \\___||__|__||____|\n\n" +
                     "                                          Ver: 0.0.1 Alpha\n")
+
 
             val start = TimeUtil.getTime()
             logger.info("Nigate ==> Registering..")
@@ -86,7 +88,26 @@ object Nigate {
             e.printStackTrace()
             exitProcess(1)
         }
+
+        while (true) {
+            Thread.sleep(10000)
+        }
     }
+
+    fun getFromVm(key: String): String? {
+        return vmArgs[key]
+    }
+
+    /// ==================================
+
+    /**
+     * bean 容器
+     */
+    private val beanContainer = NigateBeanContainer()
+
+    private val hasBeanPostConstruct: MutableSet<String> = mutableSetOf()
+
+    private val logger = LoggerFactory.getLogger(this::class.java)
 
     fun getRPCBeanByName(name: String): KanashiRpcBean? {
         return beanContainer.getRPCBeanByName(name)

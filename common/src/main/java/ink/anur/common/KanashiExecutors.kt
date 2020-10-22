@@ -41,12 +41,12 @@ object KanashiExecutors {
         Pool.execute(runnable)
     }
 
-    fun getPool(): ExecutorService {
-        return Pool
-    }
-
     fun <T> submit(task: Callable<T>): Future<T> {
         return Pool.submit(task)
+    }
+
+    fun getPool(): ExecutorService {
+        return Pool
     }
 
     fun getBlockSize(): Int {

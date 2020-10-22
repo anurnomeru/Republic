@@ -1,8 +1,8 @@
 package ink.anur.inject.config
 
-import ink.anur.config.InetConfiguration
 import ink.anur.debug.Debugger
 import ink.anur.exception.KanashiException
+import ink.anur.inject.bean.Nigate
 import java.lang.reflect.Modifier
 import java.util.*
 import kotlin.reflect.KClass
@@ -78,7 +78,7 @@ object ConfigurationFactory {
         key ?: throw KanashiException("dot not support empty key")
 
         return try {
-            properties.getProperty(key)
+            Nigate.getFromVm(key) ?: properties.getProperty(key)
         } catch (e: Exception) {
             logger.warn("getting config '{}' error", key)
             null

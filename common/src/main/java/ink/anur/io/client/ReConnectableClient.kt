@@ -1,6 +1,6 @@
 package ink.anur.io.client
 
-import ink.anur.common.KanashiExecutors
+import ink.anur.common.KanashiIOExecutors
 import ink.anur.io.common.handler.ChannelActiveHandler
 import ink.anur.io.common.handler.ErrorHandler
 import ink.anur.io.common.handler.KanashiDecoder
@@ -24,21 +24,33 @@ import javax.annotation.concurrent.ThreadSafe
  */
 class ReConnectableClient(private val host: String, private val port: Int,
 
-                          private val connectConnectLicense: License,
+                          private val connectLicense: License,
 
                           private val shutDownHooker: ShutDownHooker,
 
                           /**
                            * 当受到对方的注册回调后，触发此函数，注意 它可能会被多次调用
                            */
-                          private val doAfterConnectToServer: ((ChannelHandlerContext) -> Unit)? = null) {
+                          private val doAfterConnectToServer: ((ChannelHandlerContext) -> Unit)? = null) : Runnable {
 
     private val logger = LoggerFactory.getLogger(this::class.java)
 
     private val reconnectLatch = CountDownLatch(1)
 
-    fun start() {
+    @ThreadSafe
+    class License {
+        private val semaphore = Semaphore(0)
 
+        fun hasLicense() = semaphore.availablePermits() > 0
+
+        fun license() = semaphore.acquire()
+
+        fun disable() = semaphore.drainPermits()
+
+        fun enable() = semaphore.release()
+    }
+
+    override fun run() {
         val restartMission = Thread {
             try {
                 reconnectLatch.await()
@@ -50,10 +62,10 @@ class ReConnectableClient(private val host: String, private val port: Int,
                 logger.debug("与节点 {$host:$port} 的连接已被终止，无需再进行重连")
             } else {
                 logger.trace("正在重新连接节点 {$host:$port} ...")
-                ReConnectableClient(host, port, connectConnectLicense, shutDownHooker, doAfterConnectToServer).start()
+                KanashiIOExecutors.execute(ReConnectableClient(host, port, connectLicense, shutDownHooker, doAfterConnectToServer))
             }
         }
-        KanashiExecutors.execute(restartMission)
+        KanashiIOExecutors.execute(restartMission)
         restartMission.name = "Client Restart {$host:$port}"
 
         val group = NioEventLoopGroup()
@@ -74,7 +86,7 @@ class ReConnectableClient(private val host: String, private val port: Int,
                         }
                     })
 
-            connectConnectLicense.license()
+            connectLicense.license()
             val channelFuture = bootstrap.connect(host, port)
             channelFuture.addListener { future ->
                 if (!future.isSuccess) {
@@ -90,8 +102,8 @@ class ReConnectableClient(private val host: String, private val port: Int,
             channelFuture.channel()
                     .closeFuture()
                     .sync()
-        } catch (e: InterruptedException) {
-            e.printStackTrace()
+        } catch (e: Throwable) {
+            throw e
         } finally {
             try {
                 logger.error("shutdown finally")
@@ -101,18 +113,5 @@ class ReConnectableClient(private val host: String, private val port: Int,
                 e.printStackTrace()
             }
         }
-    }
-
-    @ThreadSafe
-    class License {
-        private val semaphore = Semaphore(0)
-
-        fun hasLicense() = semaphore.availablePermits() > 0
-
-        fun license() = semaphore.acquire()
-
-        fun disable() = semaphore.drainPermits()
-
-        fun enable() = semaphore.release()
     }
 }

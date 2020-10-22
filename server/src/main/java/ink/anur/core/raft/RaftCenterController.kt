@@ -4,6 +4,8 @@ import ink.anur.common.KanashiRunnable
 import ink.anur.common.struct.RepublicNode
 import ink.anur.config.ElectConfiguration
 import ink.anur.config.InetConfiguration
+import ink.anur.debug.Debugger
+import ink.anur.debug.DebuggerLevel
 import ink.anur.exception.NotLeaderException
 import ink.anur.inject.bean.NigateBean
 import ink.anur.inject.bean.NigateInject
@@ -47,7 +49,7 @@ class RaftCenterController : KanashiRunnable() {
 
     private val reentrantLocker = ReentrantLocker()
 
-    private val logger = LoggerFactory.getLogger(this::class.java)
+    private val logger = Debugger(this::class.java)
 
     /**
      * 所有正在跑的定时任务
@@ -56,7 +58,7 @@ class RaftCenterController : KanashiRunnable() {
 
     @NigatePostConstruct
     private fun init() {
-        logger.info("初始化选举控制器 ElectOperator")
+        logger.info("初始化选举控制器 ElectOperator，本节点为 {}", inetConfiguration.localServer)
         this.name = "RaftCenterController"
         this.start()
 
@@ -107,6 +109,7 @@ class RaftCenterController : KanashiRunnable() {
         reentrantLocker.lockSupplier {
             // The election timeout is randomized to be between 150ms and 300ms.
             val electionTimeout = electionTimeoutMs + (electionTimeoutMs * random.nextFloat()).toLong()
+            logger.trace("become candidate task will be trigger after $electionTimeout")
             val timedTask = TimedTask(electionTimeout, Runnable { this.beginElect(generation) })
             Timer.addTask(timedTask)
 
@@ -133,7 +136,6 @@ class RaftCenterController : KanashiRunnable() {
     private fun updateGeneration(reason: String) {
         reentrantLocker.lockSupplier {
             logger.debug("强制更新当前世代 {} => 新世代 {}", electionMetaService.generation, electionMetaService.generation + 1)
-
             if (!this.eden(electionMetaService.generation + 1, reason)) {
                 updateGeneration(reason)
             }
@@ -171,6 +173,7 @@ class RaftCenterController : KanashiRunnable() {
      * 4、请求其他节点，要求其他节点给自己投票
      */
     private fun beginElect(generation: Long) {
+
         reentrantLocker.lockSupplier {
 
             if (electionMetaService.generation != generation) {// 存在这么一种情况，虽然取消了选举任务，但是选举任务还是被执行了，所以这里要多做一重处理，避免上个周期的任务被执行
@@ -181,7 +184,7 @@ class RaftCenterController : KanashiRunnable() {
                 electionMetaService.beginElectTime = TimeUtil.getTime()
             }
 
-            logger.debug("Election Timeout 到期，可能期间内未收到来自 Leader 的心跳包或上一轮选举没有在期间内选出 Leader，故本节点即将发起选举")
+            logger.info("Election Timeout 到期，可能期间内未收到来自 Leader 的心跳包或上一轮选举没有在期间内选出 Leader，故本节点即将发起选举")
             updateGeneration("本节点发起了选举")// meta.getGeneration() ++
 
             // 成为候选者
@@ -190,7 +193,7 @@ class RaftCenterController : KanashiRunnable() {
             val votes = Voting(agreed = true, fromLeaderNode = false, canvassGeneration = electionMetaService.generation, voteGeneration = electionMetaService.generation)
 
             // 给自己投票箱投票
-            this.receiveVote(inetConfiguration.localServer, votes)
+            receiveVote(inetConfiguration.localServer, votes)
 
             // 记录一下，自己给自己投了票
             electionMetaService.voteRecord = inetConfiguration.localServer

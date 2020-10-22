@@ -24,13 +24,13 @@ abstract class AbstractStruct {
      * 4字节 crc + 4字节类型 + 内容
      */
     companion object {
-        const val CrcOffset = 0
+        private const val CrcOffset = 0
         private const val CrcLength = 4
 
-        const val RequestTypeOffset = CrcOffset + CrcLength
+        private const val RequestTypeOffset = CrcOffset + CrcLength
         private const val RequestTypeLength = 4
 
-        const val IdentifierOffset = RequestTypeOffset + RequestTypeLength
+        private const val IdentifierOffset = RequestTypeOffset + RequestTypeLength
         private const val IdentifierSignLength = 4
 
         const val OriginMessageOverhead = IdentifierOffset + IdentifierSignLength
@@ -50,6 +50,9 @@ abstract class AbstractStruct {
             return byte == positive
         }
 
+        fun ByteBuffer.getRequestType(): RequestTypeEnum = RequestTypeEnum.parseByByteSign(this.getInt(RequestTypeOffset))
+
+        fun ByteBuffer.getIdentifier(): Int = this.getInt(IdentifierOffset)
     }
 
     lateinit var buffer: ByteBuffer
