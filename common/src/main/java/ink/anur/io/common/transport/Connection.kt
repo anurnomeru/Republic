@@ -35,7 +35,6 @@ import java.util.concurrent.*
 class Connection(private val host: String, private val port: Int) {
 
     companion object {
-
         private val waitDeck = ConcurrentHashMap<Int /* sign */, CountDownLatch>()
         private val response = ConcurrentHashMap<Int /* sign */, ByteBuffer>()
         private val channelRemoteNodeMapping = ConcurrentHashMap<Channel, RepublicNode>()
