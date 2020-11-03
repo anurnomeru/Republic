@@ -259,6 +259,7 @@ class Connection(private val host: String, private val port: Int) {
         }
     }
 
+
     private fun tryEstablish(ctx: ChannelHandlerContext, abstractStruct: AbstractStruct, successfulConnected: (() -> Unit)? = null, doAfterDisConnected: (() -> Unit)? = null) {
         return locker.lockSupplier {
             if (!connectionStatus.isEstablished()) {
