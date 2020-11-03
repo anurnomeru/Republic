@@ -94,7 +94,6 @@ class Connection(private val host: String, private val port: Int) {
         fun ChannelHandlerContext.receive(msg: ByteBuffer) {
             val requestType = msg.getRequestType()
             val identifier = msg.getIdentifier()
-
             val republicNode = this.getRepublicNodeByChannel()
 
             if (republicNode == null) {
@@ -143,6 +142,23 @@ class Connection(private val host: String, private val port: Int) {
                     getConnection().sendAndWaitForResponse(struct, timeout, unit)
             )
         }
+
+        @JvmStatic
+        fun main(args: Array<String>) {
+            Mono
+                    .create<AbstractStruct> {
+
+                    }
+                    .publishOn(Schedulers.elastic())
+                    .map {
+                        CountDownLatch(1).await()
+                    }
+                    .timeout(Duration.ofMillis(3000))
+                    .doFinally {
+                        logger.trace("waiting for identifier: final -> $it")
+                    }
+                    .block(Duration.ofMillis(3000))!!
+        }
     }
 
     @NigateInject
@@ -185,11 +201,9 @@ class Connection(private val host: String, private val port: Int) {
         val identifier = struct.getIdentifier()
         val cdl = CountDownLatch(1)
 
-        return Mono
-                .create<AbstractStruct> {
-                    send(struct)
-                }
+        return Mono.empty<Any>()
                 .publishOn(Schedulers.elastic())
+                .map { send(struct) }
                 .map {
                     logger.trace("able to wait response identifier $identifier")
                     cdl.await()
@@ -201,7 +215,7 @@ class Connection(private val host: String, private val port: Int) {
                     response.remove(identifier)
                     waitDeck.remove(identifier)
                 }
-                .block()!!
+                .block(Duration.ofMillis(unit.toMillis(timeout)))!!
     }
 
     private fun sendIfHasLicense(struct: AbstractStruct) {
@@ -248,8 +262,22 @@ class Connection(private val host: String, private val port: Int) {
     private fun tryEstablish(ctx: ChannelHandlerContext, abstractStruct: AbstractStruct, successfulConnected: (() -> Unit)? = null, doAfterDisConnected: (() -> Unit)? = null) {
         return locker.lockSupplier {
             if (!connectionStatus.isEstablished()) {
-                logger.trace("try to establish")
-                sendAndWaitForResponse(abstractStruct)
+
+                var loop = true
+                while (loop) {
+                    if (connectionStatus.isEstablished()) {
+                        return@lockSupplier
+                    }
+
+                    logger.trace("try to establish")
+
+                    try {
+                        sendAndWaitForResponse(abstractStruct)
+                        loop = false
+                    } catch (e: Throwable) {
+                    }
+                }
+
 
                 this.connectionStatus = ConnectionStatus.ESTABLISHED
                 this.ctx = ctx
