@@ -1,13 +1,11 @@
 package ink.anur.core.raft
 
-import ink.anur.common.struct.KanashiNode
-import ink.anur.config.InetConfig
-import ink.anur.inject.Event
-import ink.anur.inject.NigateBean
-import ink.anur.inject.NigateInject
-import ink.anur.inject.NigateListenerService
-import ink.anur.inject.NigatePostConstruct
-import ink.anur.core.log.LogService
+import ink.anur.common.struct.RepublicNode
+import ink.anur.config.InetConfiguration
+import ink.anur.inject.event.Event
+import ink.anur.inject.bean.NigateBean
+import ink.anur.inject.bean.NigateInject
+import ink.anur.inject.event.NigateListenerService
 import ink.anur.pojo.HeartBeat
 import ink.anur.util.TimeUtil
 import org.slf4j.Logger
@@ -22,30 +20,17 @@ import org.slf4j.LoggerFactory
 class ElectionMetaService {
 
     @NigateInject
-    private lateinit var inetSocketAddressConfiguration: InetConfig
+    private lateinit var inetConfiguration: InetConfiguration
 
     @NigateInject
-    private lateinit var nigateListenerService: NigateListenerService
-
-    @NigateInject
-    private lateinit var logService: LogService
+    private lateinit var kanashiListenerService: NigateListenerService
 
     private val logger: Logger = LoggerFactory.getLogger(this::class.java)
-
-    /**
-     * 启动后将之前保存的 GAO 进度重新加载回内存
-     */
-    @NigatePostConstruct(dependsOn = "logService")
-    private fun init() {
-        val initialGAO = logService.getInitialGAO()
-        this.generation = initialGAO.generation
-        this.offset = initialGAO.offset
-    }
 
     @Synchronized
     fun eden(newGen: Long) {
         // 0、更新集群信息
-        this.clusters = inetSocketAddressConfiguration.getCluster()
+        this.clusters = inetConfiguration.cluster
         this.quorum = clusters!!.size / 2 + 1
         logger.debug("更新集群节点信息")
 
@@ -80,25 +65,25 @@ class ElectionMetaService {
      * 现在集群的leader是哪个节点
      */
     @Volatile
-    private var leader: String? = null
+    private var leader: RepublicNode? = null
 
     /**
      * 投票箱
      */
     @Volatile
-    var box: MutableMap<String/* serverName */, Boolean> = mutableMapOf()
+    var box: MutableMap<RepublicNode, Boolean> = mutableMapOf()
 
     /**
      * 投票给了谁的投票记录
      */
     @Volatile
-    var voteRecord: String? = null
+    var voteRecord: RepublicNode? = null
 
     /**
      * 缓存一份集群信息，因为集群信息是可能变化的，我们要保证在一次选举中，集群信息是不变的
      */
     @Volatile
-    var clusters: List<KanashiNode>? = null
+    var clusters: List<RepublicNode>? = null
 
     /**
      * 法定人数
@@ -147,11 +132,11 @@ class ElectionMetaService {
     @Volatile
     var clusterValid = false
 
-    fun setLeader(leader: String) {
+    fun setLeader(leader: RepublicNode) {
         this.leader = leader
     }
 
-    fun getLeader(): String? {
+    fun getLeader(): RepublicNode? {
         return this.leader
     }
 
@@ -164,10 +149,10 @@ class ElectionMetaService {
         if (changed) {
             this.electionCompleted = electionCompleted
             clusterValid = if (electionCompleted) {
-                nigateListenerService.onEvent(Event.CLUSTER_VALID)
+                kanashiListenerService.onEvent(Event.CLUSTER_VALID)
                 true
             } else {
-                nigateListenerService.onEvent(Event.CLUSTER_INVALID)
+                kanashiListenerService.onEvent(Event.CLUSTER_INVALID)
                 false
             }
         }
@@ -207,13 +192,13 @@ class ElectionMetaService {
      */
     @Synchronized
     fun becomeLeader() {
-        val becomeLeaderCostTime = TimeUtil.getTime() - beginElectTime;
+        val becomeLeaderCostTime = TimeUtil.getTime() - beginElectTime
         beginElectTime = 0L
 
         logger.info("本节点 {} 在世代 {} 角色由 {} 变更为 {} 选举耗时 {} ms，并开始向其他节点发送心跳包 ......",
-            inetSocketAddressConfiguration.getLocalServerName(), generation, raftRole, RaftRole.LEADER, becomeLeaderCostTime)
+                inetConfiguration.localServer, generation, raftRole, RaftRole.LEADER, becomeLeaderCostTime)
 
-        leader = inetSocketAddressConfiguration.getLocalServerName()
+        leader = inetConfiguration.localServer
         raftRole = RaftRole.LEADER
         heartBeat = HeartBeat(generation)
         this.electionStateChanged(true)

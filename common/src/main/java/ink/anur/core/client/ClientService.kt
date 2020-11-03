@@ -1,7 +1,7 @@
 package ink.anur.core.client
 
 import ink.anur.common.struct.KanashiNode
-import ink.anur.inject.NigateBean
+import ink.anur.inject.bean.NigateBean
 import org.slf4j.LoggerFactory
 
 /**

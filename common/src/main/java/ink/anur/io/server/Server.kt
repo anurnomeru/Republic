@@ -1,10 +1,8 @@
 package ink.anur.io.server
 
-import ink.anur.common.KanashiIOExecutors
 import ink.anur.common.KanashiRunnable
-import ink.anur.io.common.ShutDownHooker
+import ink.anur.io.common.transport.ShutDownHooker
 import io.netty.bootstrap.ServerBootstrap
-import io.netty.channel.ChannelFuture
 import io.netty.channel.ChannelInitializer
 import io.netty.channel.ChannelOption
 import io.netty.channel.ChannelPipeline
@@ -12,8 +10,6 @@ import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioServerSocketChannel
 import org.slf4j.LoggerFactory
-import java.util.concurrent.CountDownLatch
-import kotlin.random.Random
 import kotlin.system.exitProcess
 
 /**
@@ -22,7 +18,7 @@ import kotlin.system.exitProcess
  * 作为 server 端的抽象父类，暴露了可定制的 channelPipelineConsumer，
  * 接入了打印错误的 ErrorHandler，注册了 shutDownHooker 可供停止此server
  */
-abstract class Server(var port: Int?, private val shutDownHooker: ShutDownHooker, private val startLatch: CountDownLatch?) : KanashiRunnable() {
+abstract class Server(private val host: String, private val port: Int, private val shutDownHooker: ShutDownHooker) : KanashiRunnable() {
 
     private val logger = LoggerFactory.getLogger(this::class.java)
 
@@ -38,67 +34,47 @@ abstract class Server(var port: Int?, private val shutDownHooker: ShutDownHooker
         shutDownHooker.shutdown()
     }
 
-    val random = Random(1)
-
     /**
      * 启动这个 server
      */
     override fun run() {
-        val group = NioEventLoopGroup(0, KanashiIOExecutors.Pool)
+        val group = NioEventLoopGroup()
 
         try {
             val serverBootstrap = ServerBootstrap()
             serverBootstrap.group(group)
-                .channel(NioServerSocketChannel::class.java)
-                .childHandler(object : ChannelInitializer<SocketChannel>() {
+                    .channel(NioServerSocketChannel::class.java)
+                    .childHandler(object : ChannelInitializer<SocketChannel>() {
 
-                    override fun initChannel(socketChannel: SocketChannel) {
-                        channelPipelineConsumer(socketChannel.pipeline())
-                    }
-                })
-                // 保持连接
-                .childOption(ChannelOption.SO_KEEPALIVE, true)
+                        override fun initChannel(socketChannel: SocketChannel) {
+                            channelPipelineConsumer(socketChannel.pipeline())
+                        }
+                    })
+                    // 保持连接
+                    .childOption(ChannelOption.SO_KEEPALIVE, true)
 
-
-            var f: ChannelFuture?
-            if (port == null) {
-                while (true) {
-                    try {
-                        val randomPort = random.nextInt(60000, 65535)
-                        f = serverBootstrap.bind(randomPort)
-                        f.get()
-                        port = randomPort
-                        break
-                    } catch (t: Throwable) {
-                        // ignore
-                    }
-                }
-            } else {
-                f = serverBootstrap.bind(port!!)
-            }
-            f!!
+            val f = serverBootstrap.bind(host, port)
 
             f.addListener { future ->
                 if (!future.isSuccess) {
-                    logger.error("监听端口 {} 失败！项目启动失败！", port)
+                    logger.error("监听 {}:{} 失败！项目启动失败！", host, port)
                     exitProcess(1)
                 } else {
-                    startLatch?.countDown()
-                    logger.info("服务器启动成功，监听端口 {}", port)
+                    logger.info("协调服务器启动成功，监听 {}:{}", host, port)
                 }
             }
 
             shutDownHooker.shutDownRegister { group.shutdownGracefully() }
 
             f.channel()
-                .closeFuture()
-                .sync()
+                    .closeFuture()
+                    .sync()
         } catch (e: InterruptedException) {
             e.printStackTrace()
         } finally {
             try {
                 group.shutdownGracefully()
-                    .sync()
+                        .sync()
             } catch (e: InterruptedException) {
                 e.printStackTrace()
             }

@@ -1,56 +1,32 @@
 package ink.anur.mutex
 
-import java.util.concurrent.locks.Condition
+import ink.anur.debug.Debugger
+import ink.anur.debug.DebuggerLevel
 import java.util.concurrent.locks.ReentrantLock
 
 /**
  * Created by Anur IjuoKaruKas on 2019/7/10
  */
 open class ReentrantLocker {
+
+    companion object {
+        val logger = Debugger(ReentrantLocker::class.java).switch(DebuggerLevel.INFO)
+    }
+
     private val reentrantLock: ReentrantLock = ReentrantLock()
-
-    fun newCondition(): Condition {
-        return reentrantLock.newCondition()
-    }
-
-    private val switch = reentrantLock.newCondition()
-
-    @Volatile
-    private var switcher = 0
-
-    fun switchOff() {
-        switcher = 1
-    }
-
-    fun switchOn() {
-        try {
-            reentrantLock.lock()
-            switcher = 0
-            switch.signalAll()
-        } finally {
-            reentrantLock.unlock()
-        }
-    }
-
-    fun isSwitchOff(): Boolean {
-        return switcher > 0
-    }
 
     /**
      * 提供一个统一的锁入口
      */
     fun <T> lockSupplier(supplier: () -> T?): T? {
-        reentrantLock.newCondition()
-
         val t: T?
         try {
+            logger.logTrace("lock ", 2)
             reentrantLock.lock()
-            if (switcher > 0) {
-                switch.await()
-            }
             t = supplier.invoke()
         } finally {
             reentrantLock.unlock()
+            logger.logTrace("un lock ", 2)
         }
         return t
     }
@@ -61,13 +37,12 @@ open class ReentrantLocker {
     fun <T> lockSupplierCompel(supplier: () -> T): T {
         val t: T
         try {
+            logger.logTrace("lock ", 2)
             reentrantLock.lock()
-            if (switcher > 0) {
-                switch.await()
-            }
             t = supplier.invoke()
         } finally {
             reentrantLock.unlock()
+            logger.logTrace("un lock ", 2)
         }
         return t
     }
@@ -77,13 +52,12 @@ open class ReentrantLocker {
      */
     fun lockSupplier(doSomething: () -> Unit) {
         try {
+            logger.logTrace("lock ", 2)
             reentrantLock.lock()
-            if (switcher > 0) {
-                switch.await()
-            }
             doSomething.invoke()
         } finally {
             reentrantLock.unlock()
+            logger.logTrace("un lock ", 2)
         }
     }
 }

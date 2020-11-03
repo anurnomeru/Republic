@@ -8,19 +8,16 @@ import java.nio.ByteBuffer
 /**
  * Created by Anur IjuoKaruKas on 2020/2/22
  *
- * 通用的解码器 格式为 32位的length + body
+ * 通用的解码器 格式为 32 位的length + body
  */
 class KanashiDecoder : ByteToMessageDecoder() {
     override fun decode(ctx: ChannelHandlerContext?, buffer: ByteBuf?, list: MutableList<Any>) {
         if (ctx != null && buffer != null) {
             decode(ctx, buffer)
-                ?.let { list.add(it) }
+                    ?.let { list.add(it) }
         }
     }
 
-    /**
-     * 4位 长度  + 消息内容
-     */
     private fun decode(ctx: ChannelHandlerContext, buffer: ByteBuf): ByteBuffer? {
         buffer.markReaderIndex()
         val maybeLength = buffer.readInt()

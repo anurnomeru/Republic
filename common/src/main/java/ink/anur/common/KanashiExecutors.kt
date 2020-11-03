@@ -20,20 +20,21 @@ object KanashiExecutors {
     /**
      * 线程池的 Queue
      */
-    private var MissionQueue = LinkedBlockingDeque<Runnable>()
+    private val MissionQueue = LinkedBlockingDeque<Runnable>()
 
     /**
      * 统一管理的线程池
      */
-    private var Pool: ExecutorService
+    private val Pool: ExecutorService
 
     init {
         val coreCount = Runtime.getRuntime()
-            .availableProcessors()
+                .availableProcessors()
         val threadCount = coreCount * 2
         logger.info("创建 Kanashi 线程池 => 机器核心数为 {}, 故创建线程 {} 个", coreCount, threadCount)
-        Pool = _KanashiExecutors(logger, threadCount, threadCount, 5, TimeUnit.MILLISECONDS, MissionQueue, ThreadFactoryBuilder().setNameFormat("Kanashi Pool")
-            .build())
+        Pool = _KanashiExecutors(logger, threadCount, threadCount, 5, TimeUnit.SECONDS, MissionQueue, ThreadFactoryBuilder().setNameFormat("Kanashi Pool")
+                .setDaemon(true)
+                .build())
     }
 
     fun execute(runnable: Runnable) {
@@ -42,6 +43,10 @@ object KanashiExecutors {
 
     fun <T> submit(task: Callable<T>): Future<T> {
         return Pool.submit(task)
+    }
+
+    fun getPool(): ExecutorService {
+        return Pool
     }
 
     fun getBlockSize(): Int {

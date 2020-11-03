@@ -1,11 +1,11 @@
 package ink.anur.core.server
 
 import ink.anur.common.Shutdownable
-import ink.anur.config.InetConfig
-import ink.anur.inject.NigateBean
-import ink.anur.inject.NigateInject
-import ink.anur.inject.NigatePostConstruct
-import ink.anur.io.common.ShutDownHooker
+import ink.anur.config.InetConfiguration
+import ink.anur.inject.bean.NigateBean
+import ink.anur.inject.bean.NigateInject
+import ink.anur.inject.bean.NigatePostConstruct
+import ink.anur.io.common.transport.ShutDownHooker
 import ink.anur.io.server.CoordinateServer
 
 /**
@@ -17,17 +17,17 @@ import ink.anur.io.server.CoordinateServer
 class ServerService : Shutdownable {
 
     @NigateInject
-    private lateinit var inetSocketAddressConfiguration: InetConfig
+    private lateinit var inetConfiguration: InetConfiguration
 
     /**
      * 协调服务端
      */
     private lateinit var coordinateServer: CoordinateServer
 
-    @NigatePostConstruct(dependsOn = "inetSocketAddressConfiguration")
+    @NigatePostConstruct
     private fun init() {
-        val sdh = ShutDownHooker("终止协调服务器的套接字接口 ${inetSocketAddressConfiguration.getLocalPort()} 的监听！")
-        this.coordinateServer = CoordinateServer(inetSocketAddressConfiguration.getLocalPort(), sdh)
+        val sdh = ShutDownHooker()
+        this.coordinateServer = CoordinateServer(inetConfiguration.localServer.host, inetConfiguration.localServer.port, sdh)
         coordinateServer.start()
     }
 

@@ -1,10 +1,9 @@
 package ink.anur.io.server
 
-import ink.anur.io.common.ShutDownHooker
-import ink.anur.io.common.handler.EventDriverPoolHandler
 import ink.anur.io.common.handler.ErrorHandler
 import ink.anur.io.common.handler.KanashiDecoder
-import ink.anur.io.common.handler.AutoUnRegistryHandler
+import ink.anur.io.common.handler.RequestMappingHandler
+import ink.anur.io.common.transport.ShutDownHooker
 import io.netty.channel.ChannelPipeline
 
 /**
@@ -13,15 +12,14 @@ import io.netty.channel.ChannelPipeline
  * 通用的 Server，提供了 ByteBuffer 的消费入口
  * 以及 pipeline 的定制入口
  */
-class CoordinateServer(port: Int,
+class CoordinateServer(host: String, port: Int,
                        shutDownHooker: ShutDownHooker)
-    : Server(port, shutDownHooker, null) {
+    : Server(host, port, shutDownHooker) {
     override fun channelPipelineConsumer(channelPipeline: ChannelPipeline): ChannelPipeline {
         channelPipeline
-            .addFirst(AutoUnRegistryHandler())
-            .addLast(KanashiDecoder())
-            .addLast(EventDriverPoolHandler())
-            .addLast(ErrorHandler())
+                .addLast(KanashiDecoder())
+                .addLast(RequestMappingHandler())
+                .addLast(ErrorHandler())
         return channelPipeline
     }
 }

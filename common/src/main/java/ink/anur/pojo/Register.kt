@@ -30,7 +30,7 @@ open class Register : AbstractStruct {
         val bytes = serverName.toByteArray(Charset.defaultCharset())
         val size = bytes.size
 
-        init(ContentOffset + size, RequestTypeEnum.REGISTER) {
+        init(ContentOffset + size, RequestTypeEnum.SYN) {
             it.putLong(registrySign)
             it.putInt(size)
             it.put(bytes)

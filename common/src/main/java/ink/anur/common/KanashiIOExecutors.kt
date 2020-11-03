@@ -4,16 +4,14 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder
 import org.slf4j.LoggerFactory
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.util.concurrent.LinkedBlockingDeque
-import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.TimeUnit
 
 /**
  * Created by Anur IjuoKaruKas on 2019/7/14
  *
- * 线程池，0个核心线程池，可以创建很多个线程
+ * 全局线程池
  */
 object KanashiIOExecutors {
 
@@ -22,19 +20,28 @@ object KanashiIOExecutors {
     /**
      * 线程池的 Queue
      */
-    private var MissionQueue = SynchronousQueue<Runnable>()
+    private val MissionQueue = LinkedBlockingDeque<Runnable>()
 
     /**
      * 统一管理的线程池
      */
-    val Pool = _KanashiExecutors(logger, 0, Int.MAX_VALUE, 20, TimeUnit.SECONDS, MissionQueue, ThreadFactoryBuilder().setNameFormat("Kanashi IO Pool").build())
+    private val Pool: ExecutorService
 
     init {
+        val coreCount = Runtime.getRuntime()
+                .availableProcessors()
         logger.info("创建 Kanashi IO 线程池")
+        Pool = _KanashiExecutors(logger, 0, Int.MAX_VALUE, 5, TimeUnit.SECONDS, MissionQueue, ThreadFactoryBuilder().setNameFormat("Kanashi Pool")
+                .setDaemon(true)
+                .build())
     }
 
     fun execute(runnable: Runnable) {
         Pool.execute(runnable)
+    }
+
+    fun getPool(): ExecutorService {
+        return Pool
     }
 
     fun <T> submit(task: Callable<T>): Future<T> {

@@ -26,7 +26,7 @@ class Canvass : AbstractStruct {
 
     constructor(generation: Long) {
         this.generation = generation
-        init(Capacity, RequestTypeEnum.CANVASS){
+        init(Capacity, RequestTypeEnum.CANVASS) {
             it.putLong(generation)
         }
     }

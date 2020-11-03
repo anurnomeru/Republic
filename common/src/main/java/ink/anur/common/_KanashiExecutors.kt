@@ -14,7 +14,7 @@ class _KanashiExecutors(val logger: Logger, corePoolSize: Int, maximumPoolSize: 
     override fun afterExecute(r: Runnable?, t: Throwable?) {
         super.afterExecute(r, t)
 
-        var tToLog: Throwable? = t
+        var thr = t
         if (t == null && r is Future<*>) {
             try {
                 val future = r as Future<*>
@@ -22,17 +22,15 @@ class _KanashiExecutors(val logger: Logger, corePoolSize: Int, maximumPoolSize: 
                     future.get()
                 }
             } catch (ce: CancellationException) {
-                tToLog = ce
+                thr = ce
             } catch (ee: ExecutionException) {
-                tToLog = ee.cause
+                thr = ee.cause
             } catch (ie: InterruptedException) {
                 Thread.currentThread()
-                    .interrupt()
+                        .interrupt()
             }
         }
 
-        if (tToLog != null) {
-            logger.error(tToLog.message, tToLog)
-        }
+        thr?.printStackTrace()
     }
 }

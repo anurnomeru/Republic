@@ -24,12 +24,9 @@ class HeartBeat : AbstractStruct {
 
     constructor(generation: Long) {
         this.generation = generation
-
-        val byteBuffer = ByteBuffer.allocate(Capacity)
-        init(byteBuffer, RequestTypeEnum.HEAT_BEAT)
-
-        byteBuffer.putLong(generation)
-        byteBuffer.flip()
+        init(Capacity, RequestTypeEnum.HEAT_BEAT) {
+            it.putLong(generation)
+        }
     }
 
     constructor(byteBuffer: ByteBuffer) {

@@ -1,56 +1,56 @@
 package ink.anur.io.client
 
-import ink.anur.common.KanashiExecutors
 import ink.anur.common.KanashiIOExecutors
-import ink.anur.common.struct.KanashiNode
-import ink.anur.inject.Nigate
-import ink.anur.io.common.ShutDownHooker
-import ink.anur.io.common.handler.*
-import ink.anur.pojo.Register
-import ink.anur.service.RegisterResponseHandleService
+import ink.anur.io.common.handler.ChannelActiveHandler
+import ink.anur.io.common.handler.ErrorHandler
+import ink.anur.io.common.handler.KanashiDecoder
+import ink.anur.io.common.handler.ReconnectHandler
+import ink.anur.io.common.transport.ShutDownHooker
 import io.netty.bootstrap.Bootstrap
-import io.netty.channel.Channel
-import io.netty.channel.ChannelInboundHandlerAdapter
+import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInitializer
 import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioSocketChannel
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Semaphore
+import javax.annotation.concurrent.ThreadSafe
 
 /**
  * Created by Anur IjuoKaruKas on 2020/2/23
  *
  * 可重连的客户端
  */
-class ReConnectableClient(private val node: KanashiNode, private val shutDownHooker: ShutDownHooker,
+class ReConnectableClient(private val host: String, private val port: Int,
 
-                          /**
-                           * 管道可用后触发此函数，注意可能被调用多次
-                           */
-                          private val doAfterChannelActive: ((Channel) -> Unit)? = null,
+                          private val connectLicense: License,
+
+                          private val shutDownHooker: ShutDownHooker,
 
                           /**
                            * 当受到对方的注册回调后，触发此函数，注意 它可能会被多次调用
                            */
-                          private val doAfterReceiveRegisterResponse: (() -> Unit)? = null,
-
-                          /**
-                           * 当连接上对方后，如果断开了连接，做什么处理
-                           *
-                           * 返回 true 代表继续重连
-                           * 返回 false 则不再重连
-                           */
-                          private val doAfterDisConnectToServer: (() -> Boolean)? = null) {
+                          private val doAfterConnectToServer: ((ChannelHandlerContext) -> Unit)? = null) : Runnable {
 
     private val logger = LoggerFactory.getLogger(this::class.java)
 
     private val reconnectLatch = CountDownLatch(1)
 
-    val register: Register = Nigate.getBeanByClass(RegisterResponseHandleService::class.java).genRegister(doAfterReceiveRegisterResponse)
+    @ThreadSafe
+    class License {
+        private val semaphore = Semaphore(0)
 
-    fun start() {
+        fun hasLicense() = semaphore.availablePermits() > 0
 
+        fun license() = semaphore.acquire()
+
+        fun disable() = semaphore.drainPermits()
+
+        fun enable() = semaphore.release()
+    }
+
+    override fun run() {
         val restartMission = Thread {
             try {
                 reconnectLatch.await()
@@ -59,16 +59,18 @@ class ReConnectableClient(private val node: KanashiNode, private val shutDownHoo
             }
 
             if (shutDownHooker.isShutDown()) {
-                logger.debug("与节点 $node 的连接已被终止，无需再进行重连")
+                logger.debug("与节点 {$host:$port} 的连接已被终止，无需再进行重连")
             } else {
-                logger.trace("正在重新连接节点 $node ...")
-                ReConnectableClient(node, shutDownHooker, doAfterChannelActive, doAfterReceiveRegisterResponse, doAfterDisConnectToServer).start()
+                logger.trace("正在重新连接节点 {$host:$port} ...")
+                KanashiIOExecutors.execute(ReConnectableClient(host, port, connectLicense, shutDownHooker, doAfterConnectToServer))
             }
         }
-        KanashiExecutors.execute(restartMission)
-        restartMission.name = "Client Restart $node"
 
-        val group = NioEventLoopGroup(0, KanashiIOExecutors.Pool)
+
+        KanashiIOExecutors.execute(restartMission)
+        restartMission.name = "Client Restart {$host:$port}"
+
+        val group = NioEventLoopGroup()
 
         try {
             val bootstrap = Bootstrap()
@@ -79,20 +81,19 @@ class ReConnectableClient(private val node: KanashiNode, private val shutDownHoo
                         @Throws(Exception::class)
                         override fun initChannel(socketChannel: SocketChannel) {
                             socketChannel.pipeline()
-                                    .addFirst(ChannelActiveHandler(doAfterChannelActive)) // 自动注册到管道管理服务
-                                    .addLast(ChannelInactiveHandler(shutDownHooker, doAfterDisConnectToServer))
                                     .addLast(KanashiDecoder())// 解码处理器
-                                    .addLast(EventDriverPoolHandler())// 消息事件驱动
+                                    .addLast(ChannelActiveHandler(doAfterConnectToServer))
                                     .addLast(ReconnectHandler(reconnectLatch))// 重连控制器
                                     .addLast(ErrorHandler())// 错误处理
                         }
                     })
 
-            val channelFuture = bootstrap.connect(node.host, node.port)
+            connectLicense.license()
+            val channelFuture = bootstrap.connect(host, port)
             channelFuture.addListener { future ->
                 if (!future.isSuccess) {
                     if (reconnectLatch.count == 1L) {
-                        logger.trace("连接节点 $node 失败，准备进行重连 ...")
+                        logger.trace("连接节点 {$host:$port} 失败，准备进行重连 ...")
                     }
                     reconnectLatch.countDown()
                 }
@@ -103,10 +104,11 @@ class ReConnectableClient(private val node: KanashiNode, private val shutDownHoo
             channelFuture.channel()
                     .closeFuture()
                     .sync()
-        } catch (e: InterruptedException) {
-            e.printStackTrace()
+        } catch (e: Throwable) {
+            throw e
         } finally {
             try {
+                logger.error("shutdown finally")
                 group.shutdownGracefully()
                         .sync()
             } catch (e: InterruptedException) {

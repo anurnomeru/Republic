@@ -63,7 +63,7 @@ class Voting : AbstractStruct {
         this.askVoteGeneration = canvassGeneration
         this.generation = voteGeneration
 
-        init(Capacity, RequestTypeEnum.VOTING){
+        init(Capacity, RequestTypeEnum.VOTING) {
             it.put(translateToByte(agreed))
             it.put(translateToByte(fromLeaderNode))
             it.putLong(canvassGeneration)

@@ -20,13 +20,13 @@ open class RegisterResponse : AbstractStruct {
     }
 
     constructor(registrySign: Long) {
-        init(Capacity, RequestTypeEnum.REGISTER_RESPONSE) {
+        init(Capacity, RequestTypeEnum.SYN_RESPONSE) {
             it.putLong(registrySign)
         }
     }
 
     fun getRegistrySign(): Long {
-        return buffer!!.getLong(Register.RegistrySignOffset)
+        return buffer.getLong(Register.RegistrySignOffset)
     }
 
     constructor(byteBuffer: ByteBuffer) {
