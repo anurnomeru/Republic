@@ -7,7 +7,6 @@ import ink.anur.core.raft.RaftCenterController
 import ink.anur.inject.bean.NigateBean
 import ink.anur.inject.bean.NigateInject
 import ink.anur.pojo.HeartBeat
-import io.netty.channel.Channel
 import java.nio.ByteBuffer
 
 /**
