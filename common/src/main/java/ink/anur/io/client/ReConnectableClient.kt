@@ -88,7 +88,7 @@ class ReConnectableClient(private val host: String, private val port: Int,
                         }
                     })
 
-            connectLicense.license()
+//            connectLicense.license()
             val channelFuture = bootstrap.connect(host, port)
             channelFuture.addListener { future ->
                 if (!future.isSuccess) {

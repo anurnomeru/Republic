@@ -1,6 +1,5 @@
 package ink.anur.debug
 
-import ink.anur.mutex.ReentrantLocker
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 

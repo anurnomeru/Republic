@@ -70,7 +70,7 @@ abstract class AbstractStruct {
     }
 
     fun asResponse(abstractStruct: AbstractStruct): AbstractStruct {
-        buffer.putLong(IdentifierOffset, abstractStruct.buffer.getLong(IdentifierOffset))
+        buffer.putInt(IdentifierOffset, abstractStruct.getIdentifier())
         return this
     }
 

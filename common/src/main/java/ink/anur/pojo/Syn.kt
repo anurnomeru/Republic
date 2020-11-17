@@ -13,11 +13,11 @@ import java.nio.charset.Charset
 class Syn : AbstractStruct {
 
     companion object {
-        private val AddrSizeOffset = OriginMessageOverhead
-        private val AddrSizeLength = 4
-        private val AddrOffset = AddrSizeOffset + AddrSizeLength
-        private val AddrLength = 0
-        private val Capacity = AddrOffset + AddrLength
+        private const val AddrSizeOffset = OriginMessageOverhead
+        private const val AddrSizeLength = 4
+        private const val AddrOffset = AddrSizeOffset + AddrSizeLength
+        private const val AddrLength = 0
+        private const val Capacity = AddrOffset + AddrLength
     }
 
     private var addr: String
@@ -36,9 +36,9 @@ class Syn : AbstractStruct {
 
     constructor(byteBuffer: ByteBuffer) {
         buffer = byteBuffer
-        val size = byteBuffer.getInt(Register.SizeOffset)
+        val size = byteBuffer.getInt(AddrSizeOffset)
 
-        byteBuffer.position(Register.ContentOffset)
+        byteBuffer.position(Capacity)
         val bytes = ByteArray(size)
         byteBuffer.get(bytes)
         this.addr = String(bytes)
