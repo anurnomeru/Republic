@@ -43,6 +43,7 @@ object Nigate {
         for (arg in args) {
             val splitter = arg.indexOf("=")
             vmArgs[arg.substring(0, splitter)] = arg.substring(splitter + 1)
+
         }
 
           try {
