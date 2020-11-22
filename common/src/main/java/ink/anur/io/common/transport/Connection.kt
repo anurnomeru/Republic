@@ -1,5 +1,6 @@
 package ink.anur.io.common.transport
 
+import com.sun.corba.se.spi.transport.CorbaConnection.ESTABLISHED
 import ink.anur.common.KanashiExecutors
 import ink.anur.common.KanashiIOExecutors
 import ink.anur.common.struct.RepublicNode
@@ -25,6 +26,7 @@ import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
+import java.lang.UnsupportedOperationException
 import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.*
@@ -41,12 +43,6 @@ class Connection(private val host: String, private val port: Int) {
         Nigate.injectOnly(this)
     }
 
-    @Volatile
-    private var connectionStatus: ConnectionStatus = ConnectionStatus.UN_CONNECTED
-
-    @Volatile
-    private var ctx: ChannelHandlerContext? = null
-
     private val locker = ReentrantLocker()
 
     private val shutDownHooker = ShutDownHooker()
@@ -55,65 +51,116 @@ class Connection(private val host: String, private val port: Int) {
 
     private val sendLicense = ReConnectableClient.License()
 
+    private val contextHandler = ChannelHandlerContextHandler(sendLicense)
+
     private val asyncSendingQueue = ConcurrentHashMap<RequestTypeEnum, AbstractStruct>()
+
+    /**
+     * manage the channelHandlerContext that shield pin mode and socket mode
+     */
+    private class ChannelHandlerContextHandler(private val sendLicense: ReConnectableClient.License) {
+
+        @Volatile
+        private var pin: ChannelHandlerContext? = null
+
+        @Volatile
+        private var socket: ChannelHandlerContext? = null
+
+        @Volatile
+        private var mode = ChchMode.UN_CONNECTED
+
+        fun established() = mode != ChchMode.UN_CONNECTED
+
+        @Synchronized
+        fun establish(mode: ChchMode, chc: ChannelHandlerContext, doAtLast: (() -> Unit)? = null): Boolean {
+            return if (established()) {
+                false
+            } else {
+                when (mode) {
+                    ChchMode.PIN -> {
+                        pin = chc
+                    }
+                    ChchMode.SOCKET -> {
+                        socket = chc
+                    }
+                    else -> {
+                        throw UnsupportedOperationException()
+                    }
+                }
+                this.mode = mode
+                this.sendLicense.enable()
+                doAtLast?.invoke()
+                true
+            }
+        }
+
+        @Synchronized
+        fun disConnect(successfulConnected: (() -> Unit)? = null): Boolean {
+            return if (!established()) {
+                false
+            } else {
+                this.mode = ChchMode.UN_CONNECTED
+                this.sendLicense.disable()
+                successfulConnected?.invoke()
+                true
+            }
+        }
+
+        @Synchronized
+        fun getPinUnEstablished(): ChannelHandlerContext? = takeIf { !established() }?.let { pin }
+
+        enum class ChchMode {
+            PIN, SOCKET, UN_CONNECTED
+        }
+    }
 
     /**
      * netty client inner connection
      */
-    private val client: ReConnectableClient = ReConnectableClient(host, port, connectLicense, shutDownHooker) {
-
-        /*
-         * do after channel connect to remote in socketChannel.pipeline()
-         */
-        if (connectionStatus.isEstablished()) {
-            this.connectLicense.disable()
-            this.shutDownHooker.shutdown()
-            logger.info("Already connect to remote node $this, so stop try connect to remote node")
-        } else {
-            this.tryEstablish(it,
-                    { logger.debug("Connection established to remote node $this") },
-                    { logger.debug("Disconnection to remote node $this") })
-        }
+    private val client: ReConnectableClient = ReConnectableClient(host, port, shutDownHooker) {
     }
 
     init {
         KanashiIOExecutors.execute(client)
     }
 
-    private fun establish(ctx: ChannelHandlerContext, successfulConnected: (() -> Unit)? = null, doAfterDisConnected: (() -> Unit)? = null) {
-        locker.lockSupplier {
-            this.connectionStatus = ConnectionStatus.ESTABLISHED
-            this.ctx = ctx
-            this.sendLicense.enable()
-            ctx.pipeline().addLast(ChannelInactiveHandler {
-                this.tryDisconnect()
-                doAfterDisConnected?.invoke()
-            })
-            successfulConnected?.invoke()
-        }
+    private fun establish(chchMode: ChannelHandlerContextHandler.ChchMode, ctx: ChannelHandlerContext,
+                          successfulConnected: (() -> Unit)? = null, doAfterDisConnected: (() -> Unit)? = null) {
+        this.contextHandler.establish(chchMode, ctx, successfulConnected)
+        ctx.pipeline().addLast(ChannelInactiveHandler {
+            this.contextHandler.disConnect(doAfterDisConnected)
+        })
     }
 
     /* * syn * */
 
-    private fun tryEstablish(ctx: ChannelHandlerContext, successfulConnected: (() -> Unit)? = null, doAfterDisConnected: (() -> Unit)? = null) {
-        return locker.lockSupplier {
-            if (!connectionStatus.isEstablished()) {
+    private fun tryEstablish() {
+        while (true) {
+            connectLicense.license()
 
-                var loop = true
-                while (loop) {
-                    if (connectionStatus.isEstablished()) {
-                        return@lockSupplier
+            if (contextHandler.established()) {
+                logger.trace("Connection is already established, so disable [ConnectLicense]")
+                connectLicense.disable()
+            }
+
+            contextHandler.getPinUnEstablished()?.let {
+                logger.trace("now try to establish")
+
+                try {
+                    val sendAndWaitForResponse = sendAndWaitForResponse(Syn(inetConnection.localServerAddr), it.channel())
+                    if (sendAndWaitForResponse != null) {
+                        this.establish(ChannelHandlerContextHandler.ChchMode.PIN, it,
+                                {
+                                    logger.info("Connection to node $this is established by [Pin Mode]")
+                                },
+                                {
+                                    logger.info("Connection to node $this is disConnected by [Pin Mode]")
+                                })
                     }
-                    logger.trace("try to establish")
-                    try {
-                        val sendAndWaitForResponse = sendAndWaitForResponse(Syn(inetConnection.localServerAddr), ctx.channel())
-                        loop = false
-                    } catch (e: Throwable) {
-                        logger.trace("sending [Syn] to the remote node but can't get response, retrying...")
-                    }
+                } catch (e: Throwable) {
+                    logger.trace("sending [Syn] to the remote node but can't get response, retrying...")
+                    return@let
                 }
-
-                this.establish(ctx, successfulConnected, doAfterDisConnected)
             }
         }
     }
@@ -205,29 +252,8 @@ class Connection(private val host: String, private val port: Int) {
         }
     }
 
-    private fun tryDisconnect() {
-        locker.lockSupplier {
-            if (connectionStatus.isEstablished()) {
-                logger.debug("Disconnect from remote node $this")
-                this.sendLicense.disable()
-                this.ctx = null
-                this.connectionStatus = ConnectionStatus.UN_CONNECTED
-                this.connectLicense.enable()
-            }
-        }
-    }
-
     override fun toString(): String {
         return "RepublicNode(host='$host', port=$port)"
-    }
-
-    enum class ConnectionStatus {
-        UN_CONNECTED,
-        ESTABLISHED;
-
-        fun isEstablished(): Boolean {
-            return this == ESTABLISHED
-        }
     }
 
     companion object {

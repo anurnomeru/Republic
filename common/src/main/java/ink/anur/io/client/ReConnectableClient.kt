@@ -23,15 +23,9 @@ import javax.annotation.concurrent.ThreadSafe
  * 可重连的客户端
  */
 class ReConnectableClient(private val host: String, private val port: Int,
-
-                          private val connectLicense: License,
-
                           private val shutDownHooker: ShutDownHooker,
-
-                          /**
-                           * 当受到对方的注册回调后，触发此函数，注意 它可能会被多次调用
-                           */
-                          private val doAfterConnectToServer: ((ChannelHandlerContext) -> Unit)? = null) : Runnable {
+                          private val channelActiveHook: ((ChannelHandlerContext) -> Unit)? = null,
+                          private val channelInactiveHook: ((ChannelHandlerContext) -> Unit)? = null) : Runnable {
 
     private val logger = LoggerFactory.getLogger(this::class.java)
 
@@ -59,16 +53,16 @@ class ReConnectableClient(private val host: String, private val port: Int,
             }
 
             if (shutDownHooker.isShutDown()) {
-                logger.debug("与节点 {$host:$port} 的连接已被终止，无需再进行重连")
+                logger.debug("Connection to the node {$host:$port} is shutting down!")
             } else {
-                logger.trace("正在重新连接节点 {$host:$port} ...")
-                KanashiIOExecutors.execute(ReConnectableClient(host, port, connectLicense, shutDownHooker, doAfterConnectToServer))
+                logger.trace("Reconnect to the node {$host:$port} ...")
+                KanashiIOExecutors.execute(ReConnectableClient(host, port, shutDownHooker, channelActiveHook, channelInactiveHook))
             }
         }
 
 
         KanashiIOExecutors.execute(restartMission)
-        restartMission.name = "Client Restart {$host:$port}"
+        restartMission.name = "Client Restart... node {$host:$port}"
 
         val group = NioEventLoopGroup()
 
@@ -82,18 +76,17 @@ class ReConnectableClient(private val host: String, private val port: Int,
                         override fun initChannel(socketChannel: SocketChannel) {
                             socketChannel.pipeline()
                                     .addLast(KanashiDecoder())// 解码处理器
-                                    .addLast(ChannelActiveHandler(doAfterConnectToServer))
+                                    .addLast(ChannelActiveHandler(channelActiveHook, channelInactiveHook))
                                     .addLast(ReconnectHandler(reconnectLatch))// 重连控制器
                                     .addLast(ErrorHandler())// 错误处理
                         }
                     })
 
-//            connectLicense.license()
             val channelFuture = bootstrap.connect(host, port)
             channelFuture.addListener { future ->
                 if (!future.isSuccess) {
                     if (reconnectLatch.count == 1L) {
-                        logger.trace("连接节点 {$host:$port} 失败，准备进行重连 ...")
+                        logger.trace("try to connect to node {$host:$port} but failed, try to re connect...")
                     }
                     reconnectLatch.countDown()
                 }

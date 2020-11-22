@@ -5,16 +5,18 @@ import io.netty.channel.ChannelInboundHandlerAdapter
 
 /**
  * Created by Anur IjuoKaruKas on 2020/4/6
- *
- * 当连接上对方后，如果断开了连接，做什么处理
- *
- * 返回 true 代表继续重连
- * 返回 false 则不再重连
  */
-class ChannelActiveHandler(private val doAfterConnectToServer: ((ChannelHandlerContext) -> Unit)? = null) : ChannelInboundHandlerAdapter() {
+class ChannelActiveHandler(
+        private val channelActiveHook: ((ChannelHandlerContext) -> Unit)? = null,
+        private val channelInactiveHook: ((ChannelHandlerContext) -> Unit)? = null) : ChannelInboundHandlerAdapter() {
 
     override fun channelActive(ctx: ChannelHandlerContext) {
         super.channelActive(ctx)
-        doAfterConnectToServer?.invoke(ctx)
+        channelActiveHook?.invoke(ctx)
+    }
+
+    override fun channelInactive(ctx: ChannelHandlerContext) {
+        super.channelInactive(ctx)
+        channelInactiveHook?.invoke(ctx)
     }
 }
