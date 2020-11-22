@@ -1,6 +1,5 @@
 package ink.anur.io.common.transport
 
-import com.sun.corba.se.spi.transport.CorbaConnection.ESTABLISHED
 import ink.anur.common.KanashiExecutors
 import ink.anur.common.KanashiIOExecutors
 import ink.anur.common.struct.RepublicNode
@@ -20,12 +19,10 @@ import ink.anur.pojo.common.AbstractStruct.Companion.getIdentifier
 import ink.anur.pojo.common.AbstractStruct.Companion.getRequestType
 import ink.anur.pojo.common.RequestTypeEnum
 import ink.anur.util.ByteBufferUtil
-import ink.anur.util.TimeUtil
 import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext
 import reactor.core.publisher.Mono
-import reactor.core.scheduler.Schedulers
 import java.lang.UnsupportedOperationException
 import java.nio.ByteBuffer
 import java.time.Duration
@@ -34,7 +31,7 @@ import java.util.concurrent.*
 /**
  * Created by Anur on 2020/10/3
  */
-class Connection(private val host: String, private val port: Int) {
+class Connection(private val host: String, private val port: Int) : Runnable {
 
     @NigateInject
     private lateinit var inetConnection: InetConfiguration
@@ -43,86 +40,34 @@ class Connection(private val host: String, private val port: Int) {
         Nigate.injectOnly(this)
     }
 
-    private val locker = ReentrantLocker()
-
     private val shutDownHooker = ShutDownHooker()
 
-    private val connectLicense = ReConnectableClient.License()
+    private val pinLicense = ReConnectableClient.License()
 
     private val sendLicense = ReConnectableClient.License()
 
-    private val contextHandler = ChannelHandlerContextHandler(sendLicense)
+    private val contextHandler = ChannelHandlerContextHandler(sendLicense, pinLicense)
 
     private val asyncSendingQueue = ConcurrentHashMap<RequestTypeEnum, AbstractStruct>()
 
-    /**
-     * manage the channelHandlerContext that shield pin mode and socket mode
-     */
-    private class ChannelHandlerContextHandler(private val sendLicense: ReConnectableClient.License) {
+    private val connectionThread = Thread(this).also { it.name = "$this Connection Thread" }
 
-        @Volatile
-        private var pin: ChannelHandlerContext? = null
-
-        @Volatile
-        private var socket: ChannelHandlerContext? = null
-
-        @Volatile
-        private var mode = ChchMode.UN_CONNECTED
-
-        fun established() = mode != ChchMode.UN_CONNECTED
-
-        @Synchronized
-        fun establish(mode: ChchMode, chc: ChannelHandlerContext, doAtLast: (() -> Unit)? = null): Boolean {
-            return if (established()) {
-                false
-            } else {
-                when (mode) {
-                    ChchMode.PIN -> {
-                        pin = chc
-                    }
-                    ChchMode.SOCKET -> {
-                        socket = chc
-                    }
-                    else -> {
-                        throw UnsupportedOperationException()
-                    }
-                }
-                this.mode = mode
-                this.sendLicense.enable()
-                doAtLast?.invoke()
-                true
-            }
-        }
-
-        @Synchronized
-        fun disConnect(successfulConnected: (() -> Unit)? = null): Boolean {
-            return if (!established()) {
-                false
-            } else {
-                this.mode = ChchMode.UN_CONNECTED
-                this.sendLicense.disable()
-                successfulConnected?.invoke()
-                true
-            }
-        }
-
-        @Synchronized
-        fun getPinUnEstablished(): ChannelHandlerContext? = takeIf { !established() }?.let { pin }
-
-        enum class ChchMode {
-            PIN, SOCKET, UN_CONNECTED
-        }
-    }
+    /* * initial * */
 
     /**
      * netty client inner connection
      */
     private val client: ReConnectableClient = ReConnectableClient(host, port, shutDownHooker) {
+        logger.trace("ReConnectableClient is connecting to remote node $this, setting to pin.")
+        contextHandler.settingPin(it)
     }
 
     init {
         KanashiIOExecutors.execute(client)
+        KanashiIOExecutors.execute(connectionThread)
     }
+
+    /* * establish * */
 
     private fun establish(chchMode: ChannelHandlerContextHandler.ChchMode, ctx: ChannelHandlerContext,
                           successfulConnected: (() -> Unit)? = null, doAfterDisConnected: (() -> Unit)? = null) {
@@ -134,13 +79,19 @@ class Connection(private val host: String, private val port: Int) {
 
     /* * syn * */
 
-    private fun tryEstablish() {
+    private fun tryEstablishLicense() {
+        this.pinLicense.enable()
+    }
+
+    override fun run() {
+        logger.info("connection [Pin Mode] to node $this start to work")
+
         while (true) {
-            connectLicense.license()
+            pinLicense.license()
 
             if (contextHandler.established()) {
                 logger.trace("Connection is already established, so disable [ConnectLicense]")
-                connectLicense.disable()
+                pinLicense.disable()
             }
 
             contextHandler.getPinUnEstablished()?.let {
@@ -169,24 +120,28 @@ class Connection(private val host: String, private val port: Int) {
 
     private fun mayConnectByRemote(ctx: ChannelHandlerContext, synResponse: SynResponse, doAfterDisConnected: (() -> Unit)) {
         logger.trace("remote node ${ctx.channel().remoteAddress()} try to establish with local server")
-        locker.lockSupplier {
-            if (connectionStatus.isEstablished() && ctx != this.ctx) {
-                // if is already establish then close the remote channel
-                logger.trace("remote node ${ctx.channel().remoteAddress()} already establish and ctx will be close")
-                ctx.close()
-            } else {
-                try {
-                    sendWithNoSendLicense(ctx.channel(), synResponse)
-                } catch (e: Throwable) {
-                    logger.trace("sending [SynResponse] to the remote node but can't get response, retrying...")
-                }
+
+        if (contextHandler.established() && contextHandler.getSocket() != null && contextHandler.getSocket() != ctx) {
+            // if is already establish then close the remote channel
+            logger.trace("remote node ${ctx.channel().remoteAddress()} already establish and ctx will be close")
+            ctx.close()
+        } else {
+            try {
+                sendWithNoSendLicense(ctx.channel(), synResponse)
+                this.establish(ChannelHandlerContextHandler.ChchMode.PIN, ctx,
+                        {
+                            logger.info("Connection to node $this is established by [Socket Mode]")
+                        },
+                        {
+                            logger.info("Connection to node $this is disConnected by [Socket Mode]")
+                            doAfterDisConnected.invoke()
+                        })
+            } catch (e: Throwable) {
+                logger.trace("sending [SynResponse] to the remote node but can't get response, retrying...")
             }
         }
     }
 
-    private fun tryConnect() {
-        this.connectLicense.enable()
-    }
 
     private fun sendToQueue(struct: AbstractStruct) {
         asyncSendingQueue[struct.getRequestType()] = struct
@@ -194,11 +149,21 @@ class Connection(private val host: String, private val port: Int) {
 
     private fun send(struct: AbstractStruct) {
         sendLicense.license()
-        val channel = ctx!!.channel()
-        channel.write(Unpooled.copyInt(struct.totalSize()))
-        ByteBufferUtil.writeUnsignedInt(struct.buffer, 0, struct.computeChecksum())
-        struct.writeIntoChannel(channel)
-        channel.flush()
+        contextHandler.getChannelHandlerContext()?.channel()?.also {
+            this.sendWithNoSendLicense(it, struct)
+        } ?: also {
+            logger.error("sending struct with license but can not find channel!")
+        }
+    }
+
+    private fun sendIfHasLicense(struct: AbstractStruct) {
+        if (sendLicense.hasLicense()) {
+            contextHandler.getChannelHandlerContext()?.channel()?.also {
+                this.sendWithNoSendLicense(it, struct)
+            } ?: also {
+                logger.error("sending struct with license but can not find channel!")
+            }
+        }
     }
 
     /**
@@ -242,38 +207,11 @@ class Connection(private val host: String, private val port: Int) {
                 .block(Duration.ofMillis(unit.toMillis(timeout)))
     }
 
-    private fun sendIfHasLicense(struct: AbstractStruct) {
-        if (sendLicense.hasLicense()) {
-            val channel = ctx!!.channel()
-            channel.write(Unpooled.copyInt(struct.totalSize()))
-            ByteBufferUtil.writeUnsignedInt(struct.buffer, 0, struct.computeChecksum())
-            struct.writeIntoChannel(channel)
-            channel.flush()
-        }
-    }
-
     override fun toString(): String {
         return "RepublicNode(host='$host', port=$port)"
     }
 
     companion object {
-        @JvmStatic
-        fun main(args: Array<String>) {
-
-            println(TimeUtil.getTimeFormatted())
-            try {
-                Mono.defer {
-                    Thread.sleep(100000)
-                    Mono.just { }
-                }
-                        .publishOn(Schedulers.elastic())
-                        .map { Thread.sleep(100000) }
-                        .block(Duration.ofMillis(2000))
-            } catch (t: Throwable) {
-                println()
-            }
-            println(TimeUtil.getTimeFormatted())
-        }
 
         private val waitDeck = ConcurrentHashMap<Int /* sign */, CountDownLatch>()
         private val response = ConcurrentHashMap<Int /* sign */, ByteBuffer>()
@@ -324,8 +262,18 @@ class Connection(private val host: String, private val port: Int) {
          * until connection establish
          */
         private fun RepublicNode.getConnection(): Connection {
-            return uniqueConnection.computeIfAbsent(this)
-            { Connection(this.host, this.port).also { it.tryConnect() } }
+            if (!uniqueConnection.contains(this)) {
+                synchronized(Connection::class.java) {
+
+
+                    // todo YOU BUG
+                    if (!uniqueConn
+                            ection.contains(this)) {
+                        uniqueConnection[this] = Connection(this.host, this.port).also { it.tryEstablishLicense() }
+                    }
+                }
+            }
+            return uniqueConnection[this]!!
         }
 
         /**
@@ -337,7 +285,11 @@ class Connection(private val host: String, private val port: Int) {
 
         private fun ChannelHandlerContext.mayConnectByRemote(syn: Syn) {
             val republicNode = RepublicNode.construct(syn.getAddr())
-            republicNode.getConnection().mayConnectByRemote(this, SynResponse(Nigate.getBeanByClass(InetConfiguration::class.java).localServerAddr).asResponse(syn) as SynResponse) { channelRemoteNodeMapping.remove(this.channel()) }
+            republicNode.getConnection().mayConnectByRemote(
+                    this,
+                    SynResponse(Nigate.getBeanByClass(InetConfiguration::class.java).localServerAddr).asResponse(syn) as SynResponse
+            )
+            { channelRemoteNodeMapping.remove(this.channel()) }
         }
 
         /**
@@ -393,6 +345,94 @@ class Connection(private val host: String, private val port: Int) {
             return expect.getConstructor(ByteBuffer::class.java).newInstance(
                     getConnection().sendAndWaitForResponse(struct, timeout, unit)
             )
+        }
+    }
+
+    /**
+     * manage the channelHandlerContext that shield pin mode and socket mode
+     */
+    private class ChannelHandlerContextHandler(
+            private val sendLicense: ReConnectableClient.License,
+            private val pinLicense: ReConnectableClient.License) {
+
+        @Volatile
+        private var pin: ChannelHandlerContext? = null
+
+        @Volatile
+        private var socket: ChannelHandlerContext? = null
+
+        @Volatile
+        private var mode = ChchMode.UN_CONNECTED
+
+        fun established() = mode != ChchMode.UN_CONNECTED
+
+        @Synchronized
+        fun establish(mode: ChchMode, chc: ChannelHandlerContext, doAtLast: (() -> Unit)? = null): Boolean {
+            return if (established()) {
+                false
+            } else {
+                when (mode) {
+                    ChchMode.PIN -> {
+                        pin = chc
+                    }
+                    ChchMode.SOCKET -> {
+                        socket = chc
+                    }
+                    else -> {
+                        throw UnsupportedOperationException()
+                    }
+                }
+                this.mode = mode
+                this.sendLicense.enable()
+                this.pinLicense.disable()
+                doAtLast?.invoke()
+                true
+            }
+        }
+
+        @Synchronized
+        fun disConnect(successfulConnected: (() -> Unit)? = null): Boolean {
+            return if (!established()) {
+                false
+            } else {
+                this.mode = ChchMode.UN_CONNECTED
+                this.sendLicense.disable()
+                this.pinLicense.enable()
+                successfulConnected?.invoke()
+                true
+            }
+        }
+
+        /*
+         * high frequency call
+         */
+        fun getChannelHandlerContext(): ChannelHandlerContext? {
+            return when (mode) {
+                ChchMode.PIN -> {
+                    pin
+                }
+                ChchMode.SOCKET -> {
+                    socket
+                }
+                else -> {
+                    null
+                }
+            }
+        }
+
+        @Synchronized
+        fun getSocket(): ChannelHandlerContext? = socket
+
+        @Synchronized
+        fun getPinUnEstablished(): ChannelHandlerContext? = takeIf { !established() }?.let { pin }
+
+        @Synchronized
+        fun settingPin(it: ChannelHandlerContext) {
+            pin = it
+        }
+
+        enum class ChchMode {
+            PIN, SOCKET, UN_CONNECTED
         }
     }
 }

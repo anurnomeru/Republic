@@ -2,11 +2,7 @@ package ink.anur.common
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import org.slf4j.LoggerFactory
-import java.util.concurrent.Callable
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Future
-import java.util.concurrent.LinkedBlockingDeque
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.*
 
 /**
  * Created by Anur IjuoKaruKas on 2019/7/14
@@ -20,7 +16,7 @@ object KanashiIOExecutors {
     /**
      * 线程池的 Queue
      */
-    private val MissionQueue = LinkedBlockingDeque<Runnable>()
+    private val MissionQueue = SynchronousQueue<Runnable>()
 
     /**
      * 统一管理的线程池
