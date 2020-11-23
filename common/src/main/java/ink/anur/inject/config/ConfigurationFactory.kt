@@ -51,13 +51,14 @@ object ConfigurationFactory {
                 try {
                     result = clazz.getDeclaredConstructor().newInstance()
                 } catch (e: Throwable) {
-                    logger.error("please make sure member {} has default constructor or use @ConfigurationIgnore to skip inject it", clazz)
+                    logger.error("please make sure member [$clazz] prefix [$prefix] has default constructor or use @ConfigurationIgnore to skip inject it")
                     throw e
                 }
                 val declaredFields = clazz.declaredFields
 
                 for (field in declaredFields) {
-                    if (Modifier.isAbstract(field.modifiers) || Modifier.isStatic(field.modifiers) || Modifier.isFinal(field.modifiers)) {
+                    if (Modifier.isAbstract(field.modifiers) || Modifier.isStatic(field.modifiers) || Modifier.isFinal(field.modifiers)
+                            || field.isAnnotationPresent(ConfigurationIgnore::class.java)) {
                         continue
                     }
 

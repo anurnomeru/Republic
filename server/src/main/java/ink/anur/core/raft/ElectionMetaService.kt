@@ -32,13 +32,13 @@ class ElectionMetaService {
         // 0、更新集群信息
         this.clusters = inetConfiguration.cluster
         this.quorum = clusters!!.size / 2 + 1
-        logger.debug("更新集群节点信息")
+        logger.debug("update cluster info")
 
         // 1、成为follower
         this.becomeFollower()
 
         // 2、重置 ElectMeta 变量
-        logger.debug("更新世代：旧世代 {} => 新世代 {}", generation, newGen)
+        logger.debug("update generation: $generation => $newGen")
         this.generation = newGen
         this.offset = 0L
         this.voteRecord = null
@@ -166,12 +166,11 @@ class ElectionMetaService {
     @Synchronized
     fun becomeCandidate(): Boolean {
         return if (raftRole == RaftRole.FOLLOWER) {
-            logger.debug("本节点角色由 {} 变更为 {}", raftRole, RaftRole.CANDIDATE)
+            logger.debug("local server changed role from  $raftRole to ${RaftRole.CANDIDATE}")
             raftRole = RaftRole.CANDIDATE
             this.electionStateChanged(false)
             true
         } else {
-            logger.debug("本节点的角色已经是 {} ，无法变更为 {}", raftRole, raftRole)
             false
         }
     }
@@ -182,7 +181,7 @@ class ElectionMetaService {
     @Synchronized
     fun becomeFollower() {
         if (raftRole !== RaftRole.FOLLOWER) {
-            logger.debug("本节点角色由 {} 变更为 {}", raftRole, RaftRole.FOLLOWER)
+            logger.debug("local server changed role from  $raftRole to ${RaftRole.FOLLOWER}")
             raftRole = RaftRole.FOLLOWER
         }
     }
@@ -195,7 +194,7 @@ class ElectionMetaService {
         val becomeLeaderCostTime = TimeUtil.getTime() - beginElectTime
         beginElectTime = 0L
 
-        logger.info("本节点 {} 在世代 {} 角色由 {} 变更为 {} 选举耗时 {} ms，并开始向其他节点发送心跳包 ......",
+        logger.info("local server become leader, start sending heart beat......",
                 inetConfiguration.localServer, generation, raftRole, RaftRole.LEADER, becomeLeaderCostTime)
 
         leader = inetConfiguration.localServer

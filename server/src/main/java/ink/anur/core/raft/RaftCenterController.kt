@@ -18,7 +18,6 @@ import ink.anur.pojo.coordinate.Voting
 import ink.anur.timewheel.TimedTask
 import ink.anur.timewheel.Timer
 import ink.anur.util.TimeUtil
-import org.slf4j.LoggerFactory
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
@@ -58,7 +57,7 @@ class RaftCenterController : KanashiRunnable() {
 
     @NigatePostConstruct
     private fun init() {
-        logger.info("初始化选举控制器 ElectOperator，本节点为 {}", inetConfiguration.localServer)
+        logger.info("initial RaftCenterController，local server ${inetConfiguration.localServer}")
         this.name = "RaftCenterController"
         this.start()
 
@@ -68,7 +67,7 @@ class RaftCenterController : KanashiRunnable() {
     }
 
     override fun run() {
-        logger.info("初始化选举控制器 启动中...")
+        logger.info("running RaftCenterController... start up")
         this.becomeCandidateAndBeginElectTask(electionMetaService.generation)
     }
 
@@ -83,7 +82,7 @@ class RaftCenterController : KanashiRunnable() {
     private fun eden(generation: Long, reason: String): Boolean {
         return reentrantLocker.lockSupplierCompel {
             if (generation > electionMetaService.generation) {// 如果有选票的世代已经大于当前世代，那么重置投票箱
-                logger.debug("初始化投票箱，原因：{}", reason)
+                logger.debug("initial vote box, cause：$reason")
 
                 // 1、刷新选举状态
                 electionMetaService.eden(generation)
@@ -123,7 +122,7 @@ class RaftCenterController : KanashiRunnable() {
      */
     private fun cancelAllTask() {
         reentrantLocker.lockSupplier {
-            logger.debug("取消本节点在上个世代的所有定时任务")
+            logger.debug("cancel all task in last generation")
             for (task in taskMap.values) {
                 task.cancel()
             }
@@ -135,8 +134,9 @@ class RaftCenterController : KanashiRunnable() {
      */
     private fun updateGeneration(reason: String) {
         reentrantLocker.lockSupplier {
-            logger.debug("强制更新当前世代 {} => 新世代 {}", electionMetaService.generation, electionMetaService.generation + 1)
-            if (!this.eden(electionMetaService.generation + 1, reason)) {
+            val newGen = electionMetaService.generation + 1
+            logger.debug("force update generation ${electionMetaService.generation} => new generation $newGen")
+            if (!this.eden(newGen, reason)) {
                 updateGeneration(reason)
             }
         }
@@ -158,7 +158,7 @@ class RaftCenterController : KanashiRunnable() {
         return reentrantLocker.lockSupplier {
             this.cancelAllTask()
             electionMetaService.becomeLeader()
-            logger.info("开始给集群内的节点发送心跳包")
+            logger.info("begin sending heart beat...")
             this.initHeartBeatTask()
         }
     }
@@ -184,11 +184,9 @@ class RaftCenterController : KanashiRunnable() {
                 electionMetaService.beginElectTime = TimeUtil.getTime()
             }
 
-            logger.info("Election Timeout 到期，可能期间内未收到来自 Leader 的心跳包或上一轮选举没有在期间内选出 Leader，故本节点即将发起选举")
-            updateGeneration("本节点发起了选举")// meta.getGeneration() ++
+            logger.debug("election timeout, local server is campaigning for election")
+            updateGeneration("local server begin election")// meta.getGeneration() ++
 
-            // 成为候选者
-            logger.debug("本节点正式开始世代 {} 的选举", electionMetaService.generation)
             this.becomeCandidate()
             val votes = Voting(agreed = true, fromLeaderNode = false, canvassGeneration = electionMetaService.generation, voteGeneration = electionMetaService.generation)
 
@@ -219,27 +217,27 @@ class RaftCenterController : KanashiRunnable() {
      * 为true代表接受投票成功。
      * 为false代表已经给其他节点投过票了，
      */
-    fun receiveCanvass(remoteServer: RepublicNode, canvass: Canvass) {
+    fun receiveCanvass(republicNode: RepublicNode, canvass: Canvass) {
         reentrantLocker.lockSupplier {
-            eden(canvass.generation, "收到了来自 $remoteServer 世代更高的请求 [${canvass.generation}]，故触发 EDEN")
+            eden(canvass.generation, "receive higher generation [${canvass.generation}] request from $republicNode")
 
-            logger.debug("收到节点 {} 的拉票请求，其世代为 {}", remoteServer, canvass.generation)
+            logger.debug("receive canvass from $republicNode with generation ${canvass.generation}")
             when {
                 canvass.generation < electionMetaService.generation -> {
-                    logger.debug("拒绝来自 $remoteServer 的拉票请求，其世代 ${canvass.generation} 小于当前世代 ${electionMetaService.generation}")
+                    logger.debug("refuse canvass from $republicNode with generation ${canvass.generation}, local generation is ${electionMetaService.generation}")
                     return@lockSupplier
                 }
-                electionMetaService.voteRecord != null -> logger.debug("拒绝来自 $remoteServer 的拉票请求，在世代 ${electionMetaService.generation} 本节点已投票给 => ${electionMetaService.voteRecord} 节点")
-                else -> electionMetaService.voteRecord = remoteServer// 代表投票成功了
+                electionMetaService.voteRecord != null -> logger.debug("refuse canvass from $republicNode, because local server has been vote for ${electionMetaService.voteRecord} on generation ${electionMetaService.generation}")
+                else -> electionMetaService.voteRecord = republicNode// 代表投票成功了
             }
 
-            val agreed = electionMetaService.voteRecord == remoteServer
+            val agreed = electionMetaService.voteRecord == republicNode
 
             if (agreed) {
-                logger.debug("投票记录更新成功：在世代 ${canvass.generation}，本节点投票给 => $remoteServer 节点")
+                logger.debug("update vote record: on generation ${canvass.generation}, local server vote to node => $republicNode")
             }
 
-            remoteServer.sendAsync(Voting(agreed, electionMetaService.isLeader(), canvass.generation, electionMetaService.generation))
+            republicNode.sendAsync(Voting(agreed, electionMetaService.isLeader(), canvass.generation, electionMetaService.generation))
         }
     }
 
@@ -248,7 +246,7 @@ class RaftCenterController : KanashiRunnable() {
      */
     fun receiveVote(republicNode: RepublicNode, voting: Voting) {
         reentrantLocker.lockSupplier {
-            eden(voting.generation, "收到了来自 $republicNode 世代更高的请求 [${voting.generation}]，故触发 EDEN")
+            eden(voting.generation, "receive higher generation [${voting.generation}] request from $republicNode")
 
             // 已经有过回包了，无需再处理
             if (electionMetaService.box[republicNode] != null) {
@@ -256,18 +254,18 @@ class RaftCenterController : KanashiRunnable() {
             }
             val voteSelf = republicNode.isLocal()
             if (voteSelf) {
-                logger.debug("本节点在世代 {} 转变为候选者，给自己先投一票", electionMetaService.generation)
+                logger.debug("local server become candidate on generation ${electionMetaService.generation}, vote self")
             } else {
-                logger.debug("收到来自节点 {} 的投票应答，其世代为 {}", republicNode, voting.generation)
+                logger.debug("receive vote on generation ${voting.generation} from $republicNode")
             }
 
             if (voting.fromLeaderNode) {
-                logger.debug("来自节点 {} 的投票应答表明其身份为 Leader，本轮拉票结束。", republicNode)
+                logger.debug("receive vote on generation ${voting.generation} from leader node $republicNode")
                 this.receiveHeatBeat(republicNode, voting.generation)
             }
 
             if (electionMetaService.generation > voting.askVoteGeneration) {// 如果选票的世代小于当前世代，投票无效
-                logger.debug("来自节点 {} 的投票应答世代是以前世代 {} 的选票，选票无效", republicNode, voting.askVoteGeneration)
+                logger.debug("receive invalid vote on generation ${voting.generation} from $republicNode")
                 return@lockSupplier
             }
 
@@ -276,22 +274,21 @@ class RaftCenterController : KanashiRunnable() {
 
             if (voting.agreed) {
                 if (!voteSelf) {
-                    logger.debug("来自节点 {} 的投票应答有效，投票箱 + 1", republicNode)
+                    logger.debug("receive valid vote on generation ${voting.generation} from $republicNode")
                 }
 
-                val kanashiNodeList = electionMetaService.clusters!!
+                val cluster = electionMetaService.clusters!!
                 val voteCount = electionMetaService.box.values.filter { it }.count()
 
-                logger.debug("集群中共 {} 个节点，本节点当前投票箱进度 {}/{}", kanashiNodeList.size, voteCount, electionMetaService.quorum)
+                logger.debug("there is ${cluster.size} node in cluster，elect process ${voteCount}/${electionMetaService.quorum}")
 
                 // 如果获得的选票已经大于了集群数量的一半以上，则成为leader
                 if (voteCount == electionMetaService.quorum) {
-                    logger.debug("选票过半，本节点将上位成为 leader 节点")
+                    logger.debug("receive all quorum vote, local server become leader")
                     this.becomeLeader()
                 }
             } else {
-                logger.debug("节点 {} 在世代 {} 的投票应答为：拒绝给本节点在世代 {} 的选举投票（当前世代 {}）", republicNode, voting.generation, voting.askVoteGeneration,
-                        electionMetaService.generation)
+                logger.debug("node $republicNode refuse to vote local server on generation ${voting.generation}")
             }
         }
     }
@@ -304,8 +301,8 @@ class RaftCenterController : KanashiRunnable() {
                 needToSendHeartBeatInfection = false
 
                 if (electionMetaService.getLeader() == null) {
-                    eden(generation, "收到了来自 $leaderRepublicNode 世代更高的请求 [$generation]，故触发 EDEN")
-                    logger.info("集群中，其他节点 {} 已经成功在世代 {} 上位成为 Leader，本节点将成为 Follower，直到与 Leader 的网络通讯出现问题", leaderRepublicNode, generation)
+                    eden(generation, "receive higher generation [${generation}] request from $leaderRepublicNode")
+                    logger.info("node $leaderRepublicNode become leader on generation $generation")
 
                     // 如果是leader。则先触发集群无效
                     if (electionMetaService.isLeader()) {
@@ -355,7 +352,7 @@ class RaftCenterController : KanashiRunnable() {
     private fun canvassingTask(canvass: Canvass) {
         if (electionMetaService.isCandidate()) {
             if (electionMetaService.clusters!!.size == electionMetaService.box.size) {
-                logger.debug("所有的节点都已经应答了本世代 {} 的拉票请求，拉票定时任务执行完成", electionMetaService.generation)
+                logger.debug("all node on generation ${electionMetaService.generation} already response for canvass")
             }
 
             reentrantLocker.lockSupplier {
@@ -363,11 +360,10 @@ class RaftCenterController : KanashiRunnable() {
                     electionMetaService.clusters!!
                             .forEach { republicNode ->
                                 // 如果还没收到这个节点的选票，就继续发
-                                if (electionMetaService.box[republicNode] == null) {
-                                    logger.debug("正向节点 {} [{}:{}] 发送世代 {} 的拉票请求...", republicNode, republicNode.host, republicNode.port, electionMetaService.generation)
+                                if (!republicNode.isLocal() && electionMetaService.box[republicNode] == null) {
+                                    logger.debug("sending canvass to $republicNode on generation ${electionMetaService.generation}...")
+                                    republicNode.sendAsync(Canvass(electionMetaService.generation))
                                 }
-
-                                republicNode.sendAsync(Canvass(electionMetaService.generation))
                             }
 
                     val timedTask = TimedTask(votesBackOffMs, Runnable {
@@ -394,7 +390,7 @@ class RaftCenterController : KanashiRunnable() {
 
                 // 当流水号达到最大时，进行世代的自增，
                 if (electionMetaService.offset == java.lang.Long.MAX_VALUE) {
-                    logger.warn("流水号 offset 已达最大值，节点将更新自身世代 {} => {}", electionMetaService.generation, electionMetaService.generation + 1)
+                    logger.warn("offset has been reach limitation, local server will update generation to ${electionMetaService.generation + 1}")
                     electionMetaService.offset = 0L
                     gen = electionMetaService.generationIncr()
                 }
@@ -403,7 +399,7 @@ class RaftCenterController : KanashiRunnable() {
 
                 return@lockSupplierCompel GenerationAndOffset(gen, offset)
             } else {
-                throw NotLeaderException("不是 Leader 的节点无法生成id号")
+                throw NotLeaderException("can not generate offset if local server not leader")
             }
         }
     }

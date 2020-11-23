@@ -11,7 +11,6 @@ import ink.anur.inject.bean.Nigate
 import ink.anur.inject.bean.NigateInject
 import ink.anur.io.client.ReConnectableClient
 import ink.anur.io.common.handler.ChannelInactiveHandler
-import ink.anur.mutex.ReentrantLocker
 import ink.anur.pojo.Syn
 import ink.anur.pojo.SynResponse
 import ink.anur.pojo.common.AbstractStruct
@@ -19,14 +18,14 @@ import ink.anur.pojo.common.AbstractStruct.Companion.getIdentifier
 import ink.anur.pojo.common.AbstractStruct.Companion.getRequestType
 import ink.anur.pojo.common.RequestTypeEnum
 import ink.anur.util.ByteBufferUtil
+import ink.anur.util.TimeUtil
 import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext
-import reactor.core.publisher.Mono
 import java.lang.UnsupportedOperationException
 import java.nio.ByteBuffer
-import java.time.Duration
 import java.util.concurrent.*
+import kotlin.system.exitProcess
 
 /**
  * Created by Anur on 2020/10/3
@@ -38,7 +37,15 @@ class Connection(private val host: String, private val port: Int) : Runnable {
 
     init {
         Nigate.injectOnly(this)
+        if (inetConnection.localServer.host == host && inetConnection.localServer.port == port) {
+            logger.error("can not connect by self!")
+            exitProcess(1)
+        }
     }
+
+    private val createdTs = TimeUtil.getTime()
+
+    private val randomSeed = ThreadLocalRandom.current().nextLong()
 
     private val shutDownHooker = ShutDownHooker()
 
@@ -57,10 +64,10 @@ class Connection(private val host: String, private val port: Int) : Runnable {
     /**
      * netty client inner connection
      */
-    private val client: ReConnectableClient = ReConnectableClient(host, port, shutDownHooker) {
+    private val client: ReConnectableClient = ReConnectableClient(host, port, shutDownHooker, {
         logger.trace("ReConnectableClient is connecting to remote node $this, setting to pin.")
         contextHandler.settingPin(it)
-    }
+    })
 
     init {
         KanashiIOExecutors.execute(client)
@@ -69,9 +76,9 @@ class Connection(private val host: String, private val port: Int) : Runnable {
 
     /* * establish * */
 
-    private fun establish(chchMode: ChannelHandlerContextHandler.ChchMode, ctx: ChannelHandlerContext,
+    private fun establish(mode: ChannelHandlerContextHandler.ChchMode, ctx: ChannelHandlerContext,
                           successfulConnected: (() -> Unit)? = null, doAfterDisConnected: (() -> Unit)? = null) {
-        this.contextHandler.establish(chchMode, ctx, successfulConnected)
+        this.contextHandler.establish(mode, ctx, successfulConnected)
         ctx.pipeline().addLast(ChannelInactiveHandler {
             this.contextHandler.disConnect(doAfterDisConnected)
         })
@@ -90,7 +97,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
             pinLicense.license()
 
             if (contextHandler.established()) {
-                logger.trace("Connection is already established, so disable [ConnectLicense]")
+                logger.trace("connection is already established, so disable [ConnectLicense]")
                 pinLicense.disable()
             }
 
@@ -98,14 +105,14 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                 logger.trace("now try to establish")
 
                 try {
-                    val sendAndWaitForResponse = sendAndWaitForResponse(Syn(inetConnection.localServerAddr), it.channel())
+                    val sendAndWaitForResponse = sendAndWaitForResponse(Syn(inetConnection.localServerAddr, createdTs, randomSeed), it.channel())
                     if (sendAndWaitForResponse != null) {
                         this.establish(ChannelHandlerContextHandler.ChchMode.PIN, it,
                                 {
-                                    logger.info("Connection to node $this is established by [Pin Mode]")
+                                    logger.info("connection to node $this is established by [Pin Mode]")
                                 },
                                 {
-                                    logger.info("Connection to node $this is disConnected by [Pin Mode]")
+                                    logger.info("connection to node $this is disConnected by [Pin Mode]")
                                 })
                     }
                 } catch (e: Throwable) {
@@ -118,8 +125,8 @@ class Connection(private val host: String, private val port: Int) : Runnable {
 
     /* * syn response * */
 
-    private fun mayConnectByRemote(ctx: ChannelHandlerContext, synResponse: SynResponse, doAfterDisConnected: (() -> Unit)) {
-        logger.trace("remote node ${ctx.channel().remoteAddress()} try to establish with local server")
+    private fun mayConnectByRemote(ctx: ChannelHandlerContext, syn: Syn, doAfterDisConnected: (() -> Unit)) {
+        logger.trace("remote node from ${ctx.channel().remoteAddress()} attempt to establish with local server")
 
         if (contextHandler.established() && contextHandler.getSocket() != null && contextHandler.getSocket() != ctx) {
             // if is already establish then close the remote channel
@@ -127,15 +134,20 @@ class Connection(private val host: String, private val port: Int) : Runnable {
             ctx.close()
         } else {
             try {
-                sendWithNoSendLicense(ctx.channel(), synResponse)
-                this.establish(ChannelHandlerContextHandler.ChchMode.PIN, ctx,
-                        {
-                            logger.info("Connection to node $this is established by [Socket Mode]")
-                        },
-                        {
-                            logger.info("Connection to node $this is disConnected by [Socket Mode]")
-                            doAfterDisConnected.invoke()
-                        })
+                if (syn.allowConnect(createdTs, randomSeed)) {
+                    sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localServerAddr).asResponse(syn))
+                    this.establish(ChannelHandlerContextHandler.ChchMode.PIN, ctx,
+                            {
+                                logger.info("connection to node $this is established by [Socket Mode]")
+                            },
+                            {
+                                logger.info("connection to node $this is disConnected by [Socket Mode]")
+                                doAfterDisConnected.invoke()
+                            })
+                } else {
+                    logger.trace("remote node $this attempt to established with local server but refused. try to establish initiative.")
+                    pinLicense.enable()
+                }
             } catch (e: Throwable) {
                 logger.trace("sending [SynResponse] to the remote node but can't get response, retrying...")
             }
@@ -193,18 +205,15 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         val identifier = struct.getIdentifier()
         val cdl = CountDownLatch(1)
 
-        return Mono.fromSupplier {
+        try {
             channel?.also { sendWithNoSendLicense(channel, struct) } ?: send(struct)
-            logger.trace("able to wait response identifier $identifier ${channel?.let { ", send with no send license mode" }}")
-            cdl.await()
-            response[identifier]
+            logger.trace("waiting for response identifier $identifier ${channel?.let { ", send with no send license mode" }}")
+            cdl.await(timeout, unit)
+            return response[identifier]
+        } finally {
+            response.remove(identifier)
+            waitDeck.remove(identifier)
         }
-                .doFinally {
-                    logger.trace("waiting for identifier $identifier: final -> $it")
-                    response.remove(identifier)
-                    waitDeck.remove(identifier)
-                }
-                .block(Duration.ofMillis(unit.toMillis(timeout)))
     }
 
     override fun toString(): String {
@@ -212,7 +221,6 @@ class Connection(private val host: String, private val port: Int) : Runnable {
     }
 
     companion object {
-
         private val waitDeck = ConcurrentHashMap<Int /* sign */, CountDownLatch>()
         private val response = ConcurrentHashMap<Int /* sign */, ByteBuffer>()
         private val channelRemoteNodeMapping = ConcurrentHashMap<Channel, RepublicNode>()
@@ -262,13 +270,9 @@ class Connection(private val host: String, private val port: Int) : Runnable {
          * until connection establish
          */
         private fun RepublicNode.getConnection(): Connection {
-            if (!uniqueConnection.contains(this)) {
+            if (!uniqueConnection.containsKey(this)) {
                 synchronized(Connection::class.java) {
-
-
-                    // todo YOU BUG
-                    if (!uniqueConn
-                            ection.contains(this)) {
+                    if (!uniqueConnection.containsKey(this)) {
                         uniqueConnection[this] = Connection(this.host, this.port).also { it.tryEstablishLicense() }
                     }
                 }
@@ -287,7 +291,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
             val republicNode = RepublicNode.construct(syn.getAddr())
             republicNode.getConnection().mayConnectByRemote(
                     this,
-                    SynResponse(Nigate.getBeanByClass(InetConfiguration::class.java).localServerAddr).asResponse(syn) as SynResponse
+                    syn
             )
             { channelRemoteNodeMapping.remove(this.channel()) }
         }
@@ -374,9 +378,11 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                 when (mode) {
                     ChchMode.PIN -> {
                         pin = chc
+                        socket?.close()
                     }
                     ChchMode.SOCKET -> {
                         socket = chc
+                        pin?.close()
                     }
                     else -> {
                         throw UnsupportedOperationException()
@@ -429,6 +435,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         @Synchronized
         fun settingPin(it: ChannelHandlerContext) {
             pin = it
+            pinLicense.enable()
         }
 
         enum class ChchMode {

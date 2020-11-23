@@ -31,8 +31,8 @@ object KanashiExecutors {
         val coreCount = Runtime.getRuntime()
                 .availableProcessors()
         val threadCount = coreCount * 2
-        logger.info("创建 Kanashi 线程池 => 机器核心数为 {}, 故创建线程 {} 个", coreCount, threadCount)
-        Pool = _KanashiExecutors(logger, threadCount, threadCount, 5, TimeUnit.SECONDS, MissionQueue, ThreadFactoryBuilder().setNameFormat("Kanashi Pool")
+        logger.info("Creating Kanashi Executors => core thread $threadCount, max thread $threadCount")
+        Pool = _KanashiExecutors(logger, threadCount, threadCount, 5, TimeUnit.SECONDS, MissionQueue, ThreadFactoryBuilder().setNameFormat("Kanashi Executors")
                 .setDaemon(true)
                 .build())
     }

@@ -14,6 +14,6 @@ class ErrorHandler : ChannelInboundHandlerAdapter() {
     private val logger = LoggerFactory.getLogger(this::class.java)
 
     override fun exceptionCaught(ctx: ChannelHandlerContext?, cause: Throwable?) {
-        cause?.let { logger.error("管道中出现了异常", it) }
+        cause?.let { logger.error("Channel Exception Caught: ", it) }
     }
 }

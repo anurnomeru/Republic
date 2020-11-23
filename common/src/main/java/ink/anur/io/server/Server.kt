@@ -57,10 +57,10 @@ abstract class Server(private val host: String, private val port: Int, private v
 
             f.addListener { future ->
                 if (!future.isSuccess) {
-                    logger.error("监听 {}:{} 失败！项目启动失败！", host, port)
+                    logger.error("listening {}:{} failed!", host, port)
                     exitProcess(1)
                 } else {
-                    logger.info("协调服务器启动成功，监听 {}:{}", host, port)
+                    logger.info("Server start up, listening {}:{}", host, port)
                 }
             }
 

@@ -1,5 +1,7 @@
 package ink.anur.io.common.handler
 
+import ink.anur.debug.Debugger
+import ink.anur.debug.DebuggerLevel
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
 import org.slf4j.LoggerFactory
@@ -11,7 +13,7 @@ import java.util.concurrent.CountDownLatch
  * 此处理器用于客户端重连
  */
 class ReconnectHandler(private val reconnectLatch: CountDownLatch) : ChannelInboundHandlerAdapter() {
-    private val logger = LoggerFactory.getLogger(this::class.java)
+    private val logger = Debugger(this::class.java).switch(DebuggerLevel.INFO)
 
     @Throws(Exception::class)
     override fun channelActive(ctx: ChannelHandlerContext) {
@@ -31,10 +33,10 @@ class ReconnectHandler(private val reconnectLatch: CountDownLatch) : ChannelInbo
         super.channelInactive(ctx)
         if (reconnectLatch.count == 1L) {
             logger.debug("与节点 [{}] 的连接断开，准备进行重连 ...", ctx.channel()
-                .remoteAddress())
+                    .remoteAddress())
         }
         ctx.close()
         logger.debug("与节点 [{}] 的连接断开，原因：{}", ctx.channel()
-            .remoteAddress(), cause.message)
+                .remoteAddress(), cause.message)
     }
 }

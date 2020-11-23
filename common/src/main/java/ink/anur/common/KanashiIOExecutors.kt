@@ -24,9 +24,7 @@ object KanashiIOExecutors {
     private val Pool: ExecutorService
 
     init {
-        val coreCount = Runtime.getRuntime()
-                .availableProcessors()
-        logger.info("创建 Kanashi IO 线程池")
+        logger.info("Creating Kanashi Executors => core thread 0, max thread ${Int.MAX_VALUE}")
         Pool = _KanashiExecutors(logger, 0, Int.MAX_VALUE, 5, TimeUnit.SECONDS, MissionQueue, ThreadFactoryBuilder().setNameFormat("Kanashi Pool")
                 .setDaemon(true)
                 .build())

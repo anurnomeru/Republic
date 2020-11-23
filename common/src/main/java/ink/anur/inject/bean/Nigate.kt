@@ -19,7 +19,6 @@ import java.lang.reflect.Proxy
 import java.net.JarURLConnection
 import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.reflect.KClass
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.full.memberFunctions
 import kotlin.reflect.jvm.isAccessible
