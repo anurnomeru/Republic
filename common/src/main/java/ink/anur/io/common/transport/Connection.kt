@@ -74,16 +74,6 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         KanashiIOExecutors.execute(connectionThread)
     }
 
-    /* * establish * */
-
-    private fun establish(mode: ChannelHandlerContextHandler.ChchMode, ctx: ChannelHandlerContext,
-                          successfulConnected: (() -> Unit)? = null, doAfterDisConnected: (() -> Unit)? = null) {
-        this.contextHandler.establish(mode, ctx, successfulConnected)
-        ctx.pipeline().addLast(ChannelInactiveHandler {
-            this.contextHandler.disConnect(doAfterDisConnected)
-        })
-    }
-
     /* * syn * */
 
     private fun tryEstablishLicense() {
@@ -105,9 +95,9 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                 logger.trace("now try to establish")
 
                 try {
-                    val sendAndWaitForResponse = sendAndWaitForResponse(Syn(inetConnection.localServerAddr, createdTs, randomSeed), it.channel())
+                    val sendAndWaitForResponse = sendWithNoSendLicenseAndWaitForResponse(it.channel(), Syn(inetConnection.localServerAddr, createdTs, randomSeed))
                     if (sendAndWaitForResponse != null) {
-                        this.establish(ChannelHandlerContextHandler.ChchMode.PIN, it,
+                        this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.PIN, it,
                                 {
                                     logger.info("connection to node $this is established by [Pin Mode]")
                                 },
@@ -135,8 +125,8 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         } else {
             try {
                 if (syn.allowConnect(createdTs, randomSeed)) {
-                    sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localServerAddr).asResponse(syn))
-                    this.establish(ChannelHandlerContextHandler.ChchMode.PIN, ctx,
+                    sendWithNoSendLicenseAndWaitForResponse(ctx.channel(), SynResponse(inetConnection.localServerAddr).asResponse(syn))
+                    this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.PIN, ctx,
                             {
                                 logger.info("connection to node $this is established by [Socket Mode]")
                             },
@@ -144,6 +134,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                                 logger.info("connection to node $this is disConnected by [Socket Mode]")
                                 doAfterDisConnected.invoke()
                             })
+
                 } else {
                     logger.trace("remote node $this attempt to established with local server but refused. try to establish initiative.")
                     pinLicense.enable()
@@ -154,29 +145,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         }
     }
 
-
-    private fun sendToQueue(struct: AbstractStruct) {
-        asyncSendingQueue[struct.getRequestType()] = struct
-    }
-
-    private fun send(struct: AbstractStruct) {
-        sendLicense.license()
-        contextHandler.getChannelHandlerContext()?.channel()?.also {
-            this.sendWithNoSendLicense(it, struct)
-        } ?: also {
-            logger.error("sending struct with license but can not find channel!")
-        }
-    }
-
-    private fun sendIfHasLicense(struct: AbstractStruct) {
-        if (sendLicense.hasLicense()) {
-            contextHandler.getChannelHandlerContext()?.channel()?.also {
-                this.sendWithNoSendLicense(it, struct)
-            } ?: also {
-                logger.error("sending struct with license but can not find channel!")
-            }
-        }
-    }
+    /* * send with no send license * */
 
     /**
      * while the connection is not established, using this method for sending msg
@@ -188,32 +157,64 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         channel.flush()
     }
 
-    private fun sendAndWaitForResponseErrorCaught(struct: AbstractStruct, channel: Channel?): ByteBuffer? {
-        return try {
-            sendAndWaitForResponse(struct, 3000, TimeUnit.MILLISECONDS, channel)
-        } catch (t: Throwable) {
-            logger.trace(t.stackTrace.toString())
-            null
-        }
-    }
-
-    private fun sendAndWaitForResponse(struct: AbstractStruct, channel: Channel?): ByteBuffer? {
-        return sendAndWaitForResponse(struct, 3000, TimeUnit.MILLISECONDS, channel)
-    }
-
-    private fun sendAndWaitForResponse(struct: AbstractStruct, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS, channel: Channel? = null): ByteBuffer? {
+    private fun sendWithNoSendLicenseAndWaitForResponse(channel: Channel, struct: AbstractStruct, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): ByteBuffer? {
         val identifier = struct.getIdentifier()
         val cdl = CountDownLatch(1)
 
         try {
-            channel?.also { sendWithNoSendLicense(channel, struct) } ?: send(struct)
-            logger.trace("waiting for response identifier $identifier ${channel?.let { ", send with no send license mode" }}")
+            logger.trace("waiting for response identifier $identifier")
+            sendWithNoSendLicense(channel, struct)
             cdl.await(timeout, unit)
             return response[identifier]
         } finally {
             response.remove(identifier)
             waitDeck.remove(identifier)
         }
+    }
+
+    /* * normal sending * */
+
+    private fun send(struct: AbstractStruct) {
+        sendLicense.license()
+        contextHandler.getChannelHandlerContext()?.channel()?.also {
+            this.sendWithNoSendLicense(it, struct)
+        } ?: also {
+            logger.error("sending struct with license but can not find channel!")
+        }
+    }
+
+    private fun sendAndWaitForResponse(struct: AbstractStruct, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): ByteBuffer? {
+        val identifier = struct.getIdentifier()
+        val cdl = CountDownLatch(1)
+
+        try {
+            send(struct)
+            logger.trace("waiting for response identifier $identifier")
+            cdl.await(timeout, unit)
+            return response[identifier]
+        } finally {
+            response.remove(identifier)
+            waitDeck.remove(identifier)
+        }
+    }
+
+    private fun sendAndWaitForResponseErrorCaught(struct: AbstractStruct): ByteBuffer? {
+        return try {
+            sendAndWaitForResponse(struct, 3000, TimeUnit.MILLISECONDS)
+        } catch (t: Throwable) {
+            logger.trace(t.stackTrace.toString())
+            null
+        }
+    }
+
+    /* * send async * */
+
+    private fun sendToQueue(struct: AbstractStruct) {
+        asyncSendingQueue[struct.getRequestType()] = struct
+    }
+
+    private fun sendIfHasLicense(struct: AbstractStruct) {
+        if (sendLicense.hasLicense()) send(struct)
     }
 
     override fun toString(): String {
@@ -372,40 +373,51 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         fun established() = mode != ChchMode.UN_CONNECTED
 
         @Synchronized
-        fun establish(mode: ChchMode, chc: ChannelHandlerContext, doAtLast: (() -> Unit)? = null): Boolean {
+        fun establish(mode: ChchMode, chc: ChannelHandlerContext, successfulConnected: (() -> Unit)? = null, doAfterDisConnected: (() -> Unit)? = null): Boolean {
+            chc.pipeline().addLast(ChannelInactiveHandler {
+                disConnect(doAfterDisConnected)
+            })
+
             return if (established()) {
+                chc.close()
                 false
             } else {
-                when (mode) {
-                    ChchMode.PIN -> {
-                        pin = chc
-                        socket?.close()
+                try {
+                    when (mode) {
+                        ChchMode.PIN -> {
+                            pin = chc
+                            socket?.close()
+                        }
+                        ChchMode.SOCKET -> {
+                            socket = chc
+                            pin?.close()
+                        }
+                        else -> {
+                            throw UnsupportedOperationException()
+                        }
                     }
-                    ChchMode.SOCKET -> {
-                        socket = chc
-                        pin?.close()
-                    }
-                    else -> {
-                        throw UnsupportedOperationException()
-                    }
+                    this.mode = mode
+                    this.sendLicense.enable()
+                    this.pinLicense.disable()
+                    successfulConnected?.invoke()
+                    true
+                } catch (e: Exception) {
+                    disConnect(doAfterDisConnected)
+                    logger.error("establish error occur!", e)
+                    false
                 }
-                this.mode = mode
-                this.sendLicense.enable()
-                this.pinLicense.disable()
-                doAtLast?.invoke()
-                true
             }
         }
 
         @Synchronized
-        fun disConnect(successfulConnected: (() -> Unit)? = null): Boolean {
+        fun disConnect(doAfterDisConnected: (() -> Unit)? = null): Boolean {
             return if (!established()) {
                 false
             } else {
                 this.mode = ChchMode.UN_CONNECTED
                 this.sendLicense.disable()
                 this.pinLicense.enable()
-                successfulConnected?.invoke()
+                doAfterDisConnected?.invoke()
                 true
             }
         }
