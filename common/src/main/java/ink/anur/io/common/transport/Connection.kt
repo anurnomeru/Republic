@@ -243,6 +243,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                         } catch (t: Throwable) {
                             // ignore
                             logger.error("Async sending struct type:[$requestTypeEnum] to $conn error occur!")
+
                             conn.asyncSendingQueue.putIfAbsent(requestTypeEnum, abstractStruct)
                         }
                     }
