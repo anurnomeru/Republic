@@ -65,7 +65,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
      * netty client inner connection
      */
     private val client: ReConnectableClient = ReConnectableClient(host, port, shutDownHooker, {
-        logger.trace("ReConnectableClient is connecting to remote node $this, setting to pin.")
+        logger.trace("ReConnectableClient is connecting to remote node $this, setting it pin and waiting for establish.")
         contextHandler.settingPin(it)
     })
 
@@ -123,10 +123,11 @@ class Connection(private val host: String, private val port: Int) : Runnable {
             logger.trace("remote node ${ctx.channel().remoteAddress()} already establish and ctx will be close")
             ctx.close()
         } else {
+            logger.trace("remote node ${ctx.channel().remoteAddress()} haven't establish yet.")
             try {
                 if (syn.allowConnect(createdTs, randomSeed)) {
-                    sendWithNoSendLicenseAndWaitForResponse(ctx.channel(), SynResponse(inetConnection.localServerAddr).asResponse(syn))
-                    this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.PIN, ctx,
+                    sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localServerAddr).asResponse(syn))
+                    val success = this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.SOCKET, ctx,
                             {
                                 logger.info("connection to node $this is established by [Socket Mode]")
                             },
@@ -134,6 +135,9 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                                 logger.info("connection to node $this is disConnected by [Socket Mode]")
                                 doAfterDisConnected.invoke()
                             })
+
+
+
 
                 } else {
                     logger.trace("remote node $this attempt to established with local server but refused. try to establish initiative.")
@@ -379,6 +383,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
             })
 
             return if (established()) {
+                logger.trace("already established!")
                 chc.close()
                 false
             } else {

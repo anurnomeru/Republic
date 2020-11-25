@@ -14,7 +14,6 @@ import io.netty.channel.ChannelInitializer
 import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioSocketChannel
-import org.slf4j.LoggerFactory
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Semaphore
 import javax.annotation.concurrent.ThreadSafe
