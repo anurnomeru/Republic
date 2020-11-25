@@ -27,7 +27,7 @@ class ServerService : Shutdownable {
     @NigatePostConstruct
     private fun init() {
         val sdh = ShutDownHooker()
-        this.coordinateServer = CoordinateServer(inetConfiguration.localServer.host, inetConfiguration.localServer.port, sdh)
+        this.coordinateServer = CoordinateServer(inetConfiguration.localNode.host, inetConfiguration.localNode.port, sdh)
         coordinateServer.start()
     }
 

@@ -37,7 +37,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
 
     init {
         Nigate.injectOnly(this)
-        if (inetConnection.localServer.host == host && inetConnection.localServer.port == port) {
+        if (inetConnection.localNode.host == host && inetConnection.localNode.port == port) {
             logger.error("can not connect by self!")
             exitProcess(1)
         }
@@ -95,7 +95,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                 logger.trace("now try to establish")
 
                 try {
-                    val sendAndWaitForResponse = sendWithNoSendLicenseAndWaitForResponse(it.channel(), Syn(inetConnection.localServerAddr, createdTs, randomSeed))
+                    val sendAndWaitForResponse = sendWithNoSendLicenseAndWaitForResponse(it.channel(), Syn(inetConnection.localNodeAddr, createdTs, randomSeed))
                     if (sendAndWaitForResponse != null) {
                         this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.PIN, it,
                                 {
@@ -116,17 +116,19 @@ class Connection(private val host: String, private val port: Int) : Runnable {
     /* * syn response * */
 
     private fun mayConnectByRemote(ctx: ChannelHandlerContext, syn: Syn, doAfterDisConnected: (() -> Unit)) {
-        logger.trace("remote node from ${ctx.channel().remoteAddress()} attempt to establish with local server")
 
         if (contextHandler.established() && contextHandler.getSocket() != null && contextHandler.getSocket() != ctx) {
             // if is already establish then close the remote channel
-            logger.trace("remote node ${ctx.channel().remoteAddress()} already establish and ctx will be close")
+            logger.trace("local node already establish and syn ctx from ${syn.getAddr()} will be close")
             ctx.close()
         } else {
-            logger.trace("remote node ${ctx.channel().remoteAddress()} haven't establish yet.")
+            logger.trace("remote node ${syn.getAddr()} attempt to establish with local server")
             try {
                 if (syn.allowConnect(createdTs, randomSeed)) {
-                    sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localServerAddr).asResponse(syn))
+                    logger.trace("allowing remote node ${syn.getAddr()} establish to local ")
+                    sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr))
+                    sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr))
+                    sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr))
                     val success = this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.SOCKET, ctx,
                             {
                                 logger.info("connection to node $this is established by [Socket Mode]")
@@ -135,12 +137,8 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                                 logger.info("connection to node $this is disConnected by [Socket Mode]")
                                 doAfterDisConnected.invoke()
                             })
-
-
-
-
                 } else {
-                    logger.trace("remote node $this attempt to established with local server but refused. try to establish initiative.")
+                    logger.trace("remote node $this attempt to established with local node but refused. try to establish initiative.")
                     pinLicense.enable()
                 }
             } catch (e: Throwable) {
@@ -308,6 +306,8 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         fun ChannelHandlerContext.receive(msg: ByteBuffer) {
             val requestType = msg.getRequestType()
             val identifier = msg.getIdentifier()
+
+            logger.trace("receive msg type:{} and identifier:{}", requestType, identifier)
             val republicNode = this.getRepublicNodeByChannel()
 
             if (republicNode == null) {
@@ -317,7 +317,6 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                     logger.error("never connect to remote node but receive msg type:{}", requestType)
                 }
             } else {
-                logger.debug("receive msg type:{} and identifier:{}", requestType, identifier)
                 waitDeck[identifier]?.let {
                     response[identifier] = msg
                     it.countDown()

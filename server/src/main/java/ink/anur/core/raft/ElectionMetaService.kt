@@ -195,9 +195,9 @@ class ElectionMetaService {
         beginElectTime = 0L
 
         logger.info("local server become leader, start sending heart beat......",
-                inetConfiguration.localServer, generation, raftRole, RaftRole.LEADER, becomeLeaderCostTime)
+                inetConfiguration.localNode, generation, raftRole, RaftRole.LEADER, becomeLeaderCostTime)
 
-        leader = inetConfiguration.localServer
+        leader = inetConfiguration.localNode
         raftRole = RaftRole.LEADER
         heartBeat = HeartBeat(generation)
         this.electionStateChanged(true)

@@ -37,7 +37,7 @@ class RepublicNode private constructor(val host: String, val port: Int) {
         }
     }
 
-    fun isLocal(): Boolean = Nigate.getBeanByClass(InetConfiguration::class.java).localServer == this
+    fun isLocal(): Boolean = Nigate.getBeanByClass(InetConfiguration::class.java).localNode == this
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

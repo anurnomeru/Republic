@@ -57,7 +57,7 @@ class RaftCenterController : KanashiRunnable() {
 
     @NigatePostConstruct
     private fun init() {
-        logger.info("initial RaftCenterController，local server ${inetConfiguration.localServer}")
+        logger.info("initial RaftCenterController，local server ${inetConfiguration.localNode}")
         this.name = "RaftCenterController"
         this.start()
 
@@ -191,10 +191,10 @@ class RaftCenterController : KanashiRunnable() {
             val votes = Voting(agreed = true, fromLeaderNode = false, canvassGeneration = electionMetaService.generation, voteGeneration = electionMetaService.generation)
 
             // 给自己投票箱投票
-            receiveVote(inetConfiguration.localServer, votes)
+            receiveVote(inetConfiguration.localNode, votes)
 
             // 记录一下，自己给自己投了票
-            electionMetaService.voteRecord = inetConfiguration.localServer
+            electionMetaService.voteRecord = inetConfiguration.localNode
 
             // 开启拉票任务
 

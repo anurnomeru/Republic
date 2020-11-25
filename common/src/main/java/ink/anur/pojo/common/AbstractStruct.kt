@@ -2,11 +2,9 @@ package ink.anur.pojo.common
 
 import ink.anur.exception.ByteBufferValidationException
 import ink.anur.util.ByteBufferUtil
-import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Created by Anur IjuoKaruKas on 2020/2/22
@@ -36,7 +34,7 @@ abstract class AbstractStruct {
         const val OriginMessageOverhead = IdentifierOffset + IdentifierSignLength
 
         private const val positive: Byte = 1
-        val requestSignBoxer = AtomicInteger(Int.MIN_VALUE)
+        val identifierBoxer = AtomicInteger(Int.MIN_VALUE)
 
         fun translateToByte(boolean: Boolean): Byte {
             return if (boolean) {
@@ -62,7 +60,7 @@ abstract class AbstractStruct {
         bf.mark()
         bf.position(RequestTypeOffset)
         bf.putInt(requestTypeEnum.byteSign) // type
-        bf.putInt(requestSignBoxer.incrementAndGet()) // identifier
+        bf.putInt(identifierBoxer.incrementAndGet()) // identifier
         then.invoke(bf)
         bf.reset()
 

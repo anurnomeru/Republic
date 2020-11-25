@@ -15,7 +15,7 @@ import ink.anur.inject.config.ConfigurationIgnore;
  */
 @Configuration(prefix = "inet")
 public class InetConfiguration {
-    private String localServerAddr;
+    private String localNodeAddr;
     private String clientAddr;
     private long timeoutMs = 2000L;
 
@@ -41,16 +41,16 @@ public class InetConfiguration {
     }
 
     @Nonnull
-    public String getLocalServerAddr() {
-        return localServerAddr;
+    public String getLocalNodeAddr() {
+        return localNodeAddr;
     }
 
     @Nonnull
-    public RepublicNode getLocalServer() {
+    public RepublicNode getLocalNode() {
         if (local == null) {
             synchronized (this) {
                 if (local == null) {
-                    local = RepublicNode.Companion.construct(localServerAddr);
+                    local = RepublicNode.Companion.construct(localNodeAddr);
                 }
             }
         }
