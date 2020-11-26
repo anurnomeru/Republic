@@ -11,6 +11,7 @@ import java.nio.ByteBuffer
  * 通用的解码器 格式为 32 位的length + body
  */
 class KanashiDecoder : ByteToMessageDecoder() {
+
     override fun decode(ctx: ChannelHandlerContext?, buffer: ByteBuf?, list: MutableList<Any>) {
         if (ctx != null && buffer != null) {
             decode(ctx, buffer)

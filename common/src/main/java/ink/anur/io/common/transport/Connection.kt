@@ -1,5 +1,6 @@
 package ink.anur.io.common.transport
 
+import com.google.common.collect.HashBiMap
 import ink.anur.common.KanashiExecutors
 import ink.anur.common.KanashiIOExecutors
 import ink.anur.common.struct.RepublicNode
@@ -11,6 +12,8 @@ import ink.anur.inject.bean.Nigate
 import ink.anur.inject.bean.NigateInject
 import ink.anur.io.client.ReConnectableClient
 import ink.anur.io.common.handler.ChannelInactiveHandler
+import ink.anur.pojo.SendLicense
+import ink.anur.pojo.SendLicenseResponse
 import ink.anur.pojo.Syn
 import ink.anur.pojo.SynResponse
 import ink.anur.pojo.common.AbstractStruct
@@ -43,6 +46,8 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         }
     }
 
+    private val republicNode = RepublicNode.construct(host, port)
+
     private val createdTs = TimeUtil.getTime()
 
     private val randomSeed = ThreadLocalRandom.current().nextLong()
@@ -53,11 +58,11 @@ class Connection(private val host: String, private val port: Int) : Runnable {
 
     private val sendLicense = ReConnectableClient.License()
 
-    private val contextHandler = ChannelHandlerContextHandler(sendLicense, pinLicense)
+    private val contextHandler = ChannelHandlerContextHandler(republicNode, sendLicense, pinLicense)
 
     private val asyncSendingQueue = ConcurrentHashMap<RequestTypeEnum, AbstractStruct>()
 
-    private val connectionThread = Thread(this).also { it.name = "$this Connection Thread" }
+    private val connectionThread = Thread(this).also { it.name = "$republicNode Connection Thread" }
 
     /* * initial * */
 
@@ -65,7 +70,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
      * netty client inner connection
      */
     private val client: ReConnectableClient = ReConnectableClient(host, port, shutDownHooker, {
-        logger.trace("ReConnectableClient is connecting to remote node $this, setting it pin and waiting for establish.")
+        logger.trace("ReConnectableClient is connecting to remote node $republicNode, setting it pin and waiting for establish.")
         contextHandler.settingPin(it)
     })
 
@@ -81,7 +86,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
     }
 
     override fun run() {
-        logger.info("connection [Pin Mode] to node $this start to work")
+        logger.info("connection [Pin Mode] to node $republicNode start to work")
 
         while (true) {
             pinLicense.license()
@@ -97,13 +102,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                 try {
                     val sendAndWaitForResponse = sendWithNoSendLicenseAndWaitForResponse(it.channel(), Syn(inetConnection.localNodeAddr, createdTs, randomSeed))
                     if (sendAndWaitForResponse != null) {
-                        this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.PIN, it,
-                                {
-                                    logger.info("connection to node $this is established by [Pin Mode]")
-                                },
-                                {
-                                    logger.info("connection to node $this is disConnected by [Pin Mode]")
-                                })
+                        this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.PIN, it)
                     }
                 } catch (e: Throwable) {
                     logger.trace("sending [Syn] to the remote node but can't get response, retrying...")
@@ -115,7 +114,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
 
     /* * syn response * */
 
-    private fun mayConnectByRemote(ctx: ChannelHandlerContext, syn: Syn, doAfterDisConnected: (() -> Unit)) {
+    private fun mayConnectByRemote(ctx: ChannelHandlerContext, syn: Syn) {
 
         if (contextHandler.established() && contextHandler.getSocket() != null && contextHandler.getSocket() != ctx) {
             // if is already establish then close the remote channel
@@ -126,25 +125,29 @@ class Connection(private val host: String, private val port: Int) : Runnable {
             try {
                 if (syn.allowConnect(createdTs, randomSeed)) {
                     logger.trace("allowing remote node ${syn.getAddr()} establish to local ")
-                    sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr))
-                    sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr))
-                    sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr))
-                    val success = this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.SOCKET, ctx,
-                            {
-                                logger.info("connection to node $this is established by [Socket Mode]")
-                            },
-                            {
-                                logger.info("connection to node $this is disConnected by [Socket Mode]")
-                                doAfterDisConnected.invoke()
-                            })
+                    sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr).asResponse(syn))
+                    if (this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.SOCKET, ctx)) {
+                        sendWithNoSendLicenseAndWaitForResponse(ctx.channel(), SendLicense(inetConnection.localNodeAddr))
+                                ?.also { this.sendLicense() }
+                                ?: let {
+                                    logger.error("establish to remote node ${syn.getAddr()} but ")
+                                    ctx.close()
+                                }
+                    }
                 } else {
-                    logger.trace("remote node $this attempt to established with local node but refused. try to establish initiative.")
+                    logger.trace("remote node $republicNode attempt to established with local node but refused. try to establish initiative.")
                     pinLicense.enable()
                 }
             } catch (e: Throwable) {
                 logger.trace("sending [SynResponse] to the remote node but can't get response, retrying...")
             }
         }
+    }
+
+    /* send license */
+
+    private fun sendLicense() {
+        contextHandler.sendLicense()
     }
 
     /* * send with no send license * */
@@ -161,9 +164,12 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         val cdl = CountDownLatch(1)
 
         try {
-            logger.trace("waiting for response identifier $identifier")
+            logger.trace("waiting response for identifier $identifier")
+            waitDeck[identifier] = cdl
             sendWithNoSendLicense(channel, struct)
-            cdl.await(timeout, unit)
+            if (!cdl.await(timeout, unit)) {
+                logger.trace("waiting response for identifier $identifier fail")
+            }
             return response[identifier]
         } finally {
             response.remove(identifier)
@@ -223,10 +229,11 @@ class Connection(private val host: String, private val port: Int) : Runnable {
     companion object {
         private val waitDeck = ConcurrentHashMap<Int /* sign */, CountDownLatch>()
         private val response = ConcurrentHashMap<Int /* sign */, ByteBuffer>()
-        private val channelRemoteNodeMapping = ConcurrentHashMap<Channel, RepublicNode>()
         private val uniqueConnection = ConcurrentHashMap<RepublicNode, Connection>()
         private val requestMappingRegister = mutableMapOf<RequestTypeEnum, RequestMapping>()
-        private val logger = Debugger(this::class.java).switch(DebuggerLevel.INFO)
+        private val logger = Debugger(this::class.java)
+
+        private val TSUBASA = ConcurrentHashMap<Channel, RepublicNode>()
 
         /*
          * this thread is using for sending async
@@ -258,10 +265,13 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         }
 
         private fun doSend(channel: Channel, struct: AbstractStruct) {
-            channel.write(Unpooled.copyInt(struct.totalSize()))
-            ByteBufferUtil.writeUnsignedInt(struct.buffer, 0, struct.computeChecksum())
-            struct.writeIntoChannel(channel)
-            channel.flush()
+            synchronized(channel) {
+                channel.write(Unpooled.copyInt(struct.totalSize()))
+                ByteBufferUtil.writeUnsignedInt(struct.buffer, 0, struct.computeChecksum())
+                struct.writeIntoChannel(channel)
+                channel.flush()
+                logger.trace("==> send msg type:{} and identifier:{}", struct.getRequestType(), struct.getIdentifier())
+            }
         }
 
         /**
@@ -286,22 +296,6 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                 }
             }
             return uniqueConnection[this]!!
-        }
-
-        /**
-         * get the RepublicNode that bind to the channel handler context
-         */
-        private fun ChannelHandlerContext.getRepublicNodeByChannel(): RepublicNode? {
-            return channelRemoteNodeMapping[this.channel()]
-        }
-
-        private fun ChannelHandlerContext.mayConnectByRemote(syn: Syn) {
-            val republicNode = RepublicNode.construct(syn.getAddr())
-            republicNode.getConnection().mayConnectByRemote(
-                    this,
-                    syn
-            )
-            { channelRemoteNodeMapping.remove(this.channel()) }
         }
 
         fun RepublicNode.sendAsync(struct: AbstractStruct) {
@@ -332,34 +326,74 @@ class Connection(private val host: String, private val port: Int) : Runnable {
             val requestType = msg.getRequestType()
             val identifier = msg.getIdentifier()
 
-            logger.trace("receive msg type:{} and identifier:{}", requestType, identifier)
-            val republicNode = this.getRepublicNodeByChannel()
+            logger.trace("<== receive msg type:{} and identifier:{}", requestType, identifier)
+            val republicNode = this.tsubasa()
 
-            if (republicNode == null) {
-                if (requestType == RequestTypeEnum.SYN) {
-                    this.mayConnectByRemote(Syn(msg))
-                } else {
-                    logger.error("never connect to remote node but receive msg type:{}", requestType)
-                }
-            } else {
-                waitDeck[identifier]?.let {
-                    response[identifier] = msg
-                    it.countDown()
-                } ?: also {
-                    try {
-                        val requestMapping = requestMappingRegister[requestType]
+            val requestMapping = requestMappingRegister[requestType]
+            when (requestType) {
 
-                        if (requestMapping != null) {
-                            requestMapping.handleRequest(republicNode, msg)// 收到正常的请求
-                        } else {
-                            logger.error("msg type:[$requestType] from $republicNode has not custom requestMapping ！！！")
+                /* establishing */
+                RequestTypeEnum.SYN -> this.mayConnectByRemote(Syn(msg))
+
+                /* send licensing */
+                RequestTypeEnum.SEND_LICENSE -> this.sendLicense(SendLicense(msg))
+
+                /* handling */
+                else -> {
+                    waitDeck[identifier]?.let {
+                        response[identifier] = msg
+                        it.countDown()
+                    } ?: also {
+                        when {
+                            republicNode == null -> {
+                                logger.error("haven't established but receive msg type:[$requestType] from channel ${this.channel().remoteAddress()}")
+                            }
+                            requestMapping == null -> {
+                                logger.error("msg type:[$requestType] from $republicNode has not custom requestMapping !!!")
+                            }
+                            else -> {
+                                try {
+                                    requestMapping.handleRequest(republicNode, msg)// 收到正常的请求
+                                } catch (e: Exception) {
+                                    logger.error("Error occur while process msg type:[$requestType] from $republicNode", e)
+                                }
+                            }
                         }
-
-                    } catch (e: Exception) {
-                        logger.error("Error occur while process msg type:[$requestType] from $republicNode", e)
                     }
                 }
             }
+        }
+
+        private fun ChannelHandlerContext.sendLicense(sendLicense: SendLicense) {
+            val republicNode = RepublicNode.construct(sendLicense.getAddr())
+            republicNode.getConnection().sendLicense()
+            doSend(this.channel(), SendLicenseResponse().asResponse(sendLicense))
+        }
+
+        private fun ChannelHandlerContext.mayConnectByRemote(syn: Syn) {
+            val republicNode = RepublicNode.construct(syn.getAddr())
+            republicNode.getConnection().mayConnectByRemote(this, syn)
+        }
+
+        /**
+         * 絆を探して
+         */
+        private fun ChannelHandlerContext.tsubasa(): RepublicNode? {
+            return TSUBASA[this.channel()]
+        }
+
+        /**
+         * 絆を結ぶ
+         */
+        private fun ChannelHandlerContext.tsubasa(republicNode: RepublicNode) {
+            TSUBASA[this.channel()] = republicNode
+        }
+
+        /**
+         * 别れ
+         */
+        private fun RepublicNode.wakare() {
+            TSUBASA.entries.find { it.value == this }?.key?.let { TSUBASA.remove(it) }
         }
     }
 
@@ -367,6 +401,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
      * manage the channelHandlerContext that shield pin mode and socket mode
      */
     private class ChannelHandlerContextHandler(
+            private val republicNode: RepublicNode,
             private val sendLicense: ReConnectableClient.License,
             private val pinLicense: ReConnectableClient.License) {
 
@@ -382,24 +417,24 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         fun established() = mode != ChchMode.UN_CONNECTED
 
         @Synchronized
-        fun establish(mode: ChchMode, chc: ChannelHandlerContext, successfulConnected: (() -> Unit)? = null, doAfterDisConnected: (() -> Unit)? = null): Boolean {
-            chc.pipeline().addLast(ChannelInactiveHandler {
-                disConnect(doAfterDisConnected)
-            })
-
+        fun establish(mode: ChchMode, ctx: ChannelHandlerContext): Boolean {
             return if (established()) {
-                logger.trace("already established!")
-                chc.close()
+                logger.trace("already established to $republicNode!")
+                ctx.close()
                 false
             } else {
                 try {
+                    ctx.pipeline().addLast(ChannelInactiveHandler {
+                        disConnect()
+                    })
+
                     when (mode) {
                         ChchMode.PIN -> {
-                            pin = chc
+                            pin = ctx
                             socket?.close()
                         }
                         ChchMode.SOCKET -> {
-                            socket = chc
+                            socket = ctx
                             pin?.close()
                         }
                         else -> {
@@ -407,27 +442,27 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                         }
                     }
                     this.mode = mode
-                    this.sendLicense.enable()
                     this.pinLicense.disable()
-                    successfulConnected?.invoke()
+                    logger.info("connection establish with $republicNode using [$mode] mode with channel: ${ctx.channel().remoteAddress()}")
+                    ctx.tsubasa(republicNode)
                     true
                 } catch (e: Exception) {
-                    disConnect(doAfterDisConnected)
-                    logger.error("establish error occur!", e)
+                    logger.error("error occur while establish with $republicNode!", e)
+                    ctx.close()
                     false
                 }
             }
         }
 
         @Synchronized
-        fun disConnect(doAfterDisConnected: (() -> Unit)? = null): Boolean {
+        fun disConnect(): Boolean {
             return if (!established()) {
                 false
             } else {
                 this.mode = ChchMode.UN_CONNECTED
                 this.sendLicense.disable()
                 this.pinLicense.enable()
-                doAfterDisConnected?.invoke()
+                republicNode.wakare()
                 true
             }
         }
@@ -459,6 +494,16 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         fun settingPin(it: ChannelHandlerContext) {
             pin = it
             pinLicense.enable()
+        }
+
+        @Synchronized
+        fun sendLicense() {
+            if (mode != ChchMode.UN_CONNECTED) {
+                sendLicense.enable()
+                logger.info("remote node $republicNode publish send license to local")
+            } else {
+                logger.error("remote node $republicNode publish send license to local but never established")
+            }
         }
 
         enum class ChchMode {

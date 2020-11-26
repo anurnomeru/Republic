@@ -3,10 +3,7 @@ package ink.anur.io.client
 import ink.anur.common.KanashiIOExecutors
 import ink.anur.debug.Debugger
 import ink.anur.debug.DebuggerLevel
-import ink.anur.io.common.handler.ChannelActiveHandler
-import ink.anur.io.common.handler.ErrorHandler
-import ink.anur.io.common.handler.KanashiDecoder
-import ink.anur.io.common.handler.ReconnectHandler
+import ink.anur.io.common.handler.*
 import ink.anur.io.common.transport.ShutDownHooker
 import io.netty.bootstrap.Bootstrap
 import io.netty.channel.ChannelHandlerContext
@@ -81,6 +78,7 @@ class ReConnectableClient(private val host: String, private val port: Int,
                                     .addLast(KanashiDecoder())// 解码处理器
                                     .addLast(ChannelActiveHandler(channelActiveHook, channelInactiveHook))
                                     .addLast(ReconnectHandler(reconnectLatch))// 重连控制器
+                                    .addLast(RequestMappingHandler())
                                     .addLast(ErrorHandler())// 错误处理
                         }
                     })

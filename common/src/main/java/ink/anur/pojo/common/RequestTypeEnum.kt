@@ -9,6 +9,16 @@ import java.util.*
 enum class RequestTypeEnum(val byteSign: Int) {
 
     /**
+     * 颁发发送许可
+     */
+    SEND_LICENSE(8000),
+
+    /**
+     * 颁发发送许可
+     */
+    SEND_LICENSE_RESPONSE(8001),
+
+    /**
      * 心跳
      */
     HEAT_BEAT(9999),
