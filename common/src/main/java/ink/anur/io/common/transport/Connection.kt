@@ -1,13 +1,11 @@
 package ink.anur.io.common.transport
 
-import com.google.common.collect.HashBiMap
 import ink.anur.common.KanashiExecutors
 import ink.anur.common.KanashiIOExecutors
 import ink.anur.common.struct.RepublicNode
 import ink.anur.config.InetConfiguration
 import ink.anur.core.common.RequestMapping
 import ink.anur.debug.Debugger
-import ink.anur.debug.DebuggerLevel
 import ink.anur.inject.bean.Nigate
 import ink.anur.inject.bean.NigateInject
 import ink.anur.io.client.ReConnectableClient
@@ -86,7 +84,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
     }
 
     override fun run() {
-        logger.info("connection [Pin Mode] to node $republicNode start to work")
+        logger.info("connection [Pin] mode to node $republicNode start to work")
 
         while (true) {
             pinLicense.license()
@@ -270,7 +268,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                 ByteBufferUtil.writeUnsignedInt(struct.buffer, 0, struct.computeChecksum())
                 struct.writeIntoChannel(channel)
                 channel.flush()
-                logger.trace("==> send msg type:{} and identifier:{}", struct.getRequestType(), struct.getIdentifier())
+                logger.debug("==> send msg type:{} and identifier:{}", struct.getRequestType(), struct.getIdentifier())
             }
         }
 
@@ -326,7 +324,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
             val requestType = msg.getRequestType()
             val identifier = msg.getIdentifier()
 
-            logger.trace("<== receive msg type:{} and identifier:{}", requestType, identifier)
+            logger.debug("<== receive msg type:{} and identifier:{}", requestType, identifier)
             val republicNode = this.tsubasa()
 
             val requestMapping = requestMappingRegister[requestType]
@@ -459,6 +457,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
             return if (!established()) {
                 false
             } else {
+                logger.error("remote node $republicNode using [$mode] is disconnect")
                 this.mode = ChchMode.UN_CONNECTED
                 this.sendLicense.disable()
                 this.pinLicense.enable()

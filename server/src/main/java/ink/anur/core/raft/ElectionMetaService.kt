@@ -32,13 +32,13 @@ class ElectionMetaService {
         // 0、更新集群信息
         this.clusters = inetConfiguration.cluster
         this.quorum = clusters!!.size / 2 + 1
-        logger.debug("update cluster info")
+        logger.trace("update cluster info")
 
         // 1、成为follower
         this.becomeFollower()
 
         // 2、重置 ElectMeta 变量
-        logger.debug("update generation: $generation => $newGen")
+        logger.trace("update generation: $generation => $newGen")
         this.generation = newGen
         this.offset = 0L
         this.voteRecord = null
@@ -166,7 +166,7 @@ class ElectionMetaService {
     @Synchronized
     fun becomeCandidate(): Boolean {
         return if (raftRole == RaftRole.FOLLOWER) {
-            logger.debug("local server changed role from  $raftRole to ${RaftRole.CANDIDATE}")
+            logger.trace("local server changed role from $raftRole to ${RaftRole.CANDIDATE}")
             raftRole = RaftRole.CANDIDATE
             this.electionStateChanged(false)
             true
@@ -181,7 +181,7 @@ class ElectionMetaService {
     @Synchronized
     fun becomeFollower() {
         if (raftRole !== RaftRole.FOLLOWER) {
-            logger.debug("local server changed role from  $raftRole to ${RaftRole.FOLLOWER}")
+            logger.trace("local server changed role from  $raftRole to ${RaftRole.FOLLOWER}")
             raftRole = RaftRole.FOLLOWER
         }
     }

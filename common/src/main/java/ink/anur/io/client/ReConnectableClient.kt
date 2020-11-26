@@ -25,7 +25,7 @@ class ReConnectableClient(private val host: String, private val port: Int,
                           private val channelActiveHook: ((ChannelHandlerContext) -> Unit)? = null,
                           private val channelInactiveHook: ((ChannelHandlerContext) -> Unit)? = null) : Runnable {
 
-    private val logger = Debugger(this::class.java).switch(DebuggerLevel.INFO)
+    private val logger = Debugger(this::class.java)
 
     private val reconnectLatch = CountDownLatch(1)
 
@@ -56,7 +56,6 @@ class ReConnectableClient(private val host: String, private val port: Int,
 
                 // todo 暂时这么写，后续需要创建一个类将 ReConnectableClient 包起来，屏蔽一些细节
                 Thread.sleep(20000)
-                logger.trace("Reconnect to the node $this ...")
                 KanashiIOExecutors.execute(ReConnectableClient(host, port, shutDownHooker, channelActiveHook, channelInactiveHook))
             }
         }
@@ -87,7 +86,7 @@ class ReConnectableClient(private val host: String, private val port: Int,
             channelFuture.addListener { future ->
                 if (!future.isSuccess) {
                     if (reconnectLatch.count == 1L) {
-                        logger.trace("try connect to node $this but failed, try to re connect...")
+                        logger.debug("try connect to node $this but failed, try to re connect...")
                     }
                     reconnectLatch.countDown()
                 }
