@@ -153,10 +153,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
      * while the connection is not established, using this method for sending msg
      */
     private fun sendWithNoSendLicense(channel: Channel, struct: AbstractStruct) {
-        channel.write(Unpooled.copyInt(struct.totalSize()))
-        ByteBufferUtil.writeUnsignedInt(struct.buffer, 0, struct.computeChecksum())
-        struct.writeIntoChannel(channel)
-        channel.flush()
+        doSend(channel, struct);
     }
 
     private fun sendWithNoSendLicenseAndWaitForResponse(channel: Channel, struct: AbstractStruct, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): ByteBuffer? {
@@ -260,6 +257,13 @@ class Connection(private val host: String, private val port: Int) : Runnable {
             KanashiExecutors.execute(t)
         }
 
+        private fun doSend(channel: Channel, struct: AbstractStruct) {
+            channel.write(Unpooled.copyInt(struct.totalSize()))
+            ByteBufferUtil.writeUnsignedInt(struct.buffer, 0, struct.computeChecksum())
+            struct.writeIntoChannel(channel)
+            channel.flush()
+        }
+
         /**
          * registry RequestMapping for handle response
          */
@@ -300,6 +304,27 @@ class Connection(private val host: String, private val port: Int) : Runnable {
             { channelRemoteNodeMapping.remove(this.channel()) }
         }
 
+        fun RepublicNode.sendAsync(struct: AbstractStruct) {
+            getConnection().sendToQueue(struct)
+        }
+
+        fun RepublicNode.send(struct: AbstractStruct) {
+            getConnection().send(struct)
+        }
+
+        /**
+         * actually send the struct and wait for response
+         *
+         * caution: may disconnect when sending
+         */
+        fun <T> RepublicNode.sendAndWaitingResponse(struct: AbstractStruct, timeout: Long = 3000, expect: Class<T>, unit: TimeUnit = TimeUnit.MILLISECONDS): T {
+            return expect.getConstructor(ByteBuffer::class.java).newInstance(
+                    getConnection().sendAndWaitForResponse(struct, timeout, unit)
+            )
+        }
+
+        /* * receive * */
+
         /**
          * receive a msg and signal cdl
          */
@@ -335,25 +360,6 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                     }
                 }
             }
-        }
-
-        fun RepublicNode.sendAsync(struct: AbstractStruct) {
-            getConnection().sendToQueue(struct)
-        }
-
-        fun RepublicNode.send(struct: AbstractStruct) {
-            getConnection().send(struct)
-        }
-
-        /**
-         * actually send the struct and wait for response
-         *
-         * caution: may disconnect when sending
-         */
-        fun <T> RepublicNode.sendAndWaitingResponse(struct: AbstractStruct, timeout: Long = 3000, expect: Class<T>, unit: TimeUnit = TimeUnit.MILLISECONDS): T {
-            return expect.getConstructor(ByteBuffer::class.java).newInstance(
-                    getConnection().sendAndWaitForResponse(struct, timeout, unit)
-            )
         }
     }
 
