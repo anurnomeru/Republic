@@ -34,6 +34,9 @@ abstract class AbstractStruct {
         const val OriginMessageOverhead = IdentifierOffset + IdentifierSignLength
 
         private const val positive: Byte = 1
+        private const val noneIdentifier: Int = 0
+        private const val respIdentifierMask: Int = 1.shl(31)
+
         val identifierBoxer = AtomicInteger(Int.MIN_VALUE)
 
         fun translateToByte(boolean: Boolean): Byte {
@@ -60,24 +63,15 @@ abstract class AbstractStruct {
         bf.mark()
         bf.position(RequestTypeOffset)
         bf.putInt(requestTypeEnum.byteSign) // type
-        bf.putInt(identifierBoxer.incrementAndGet()) // identifier
+        bf.putInt(noneIdentifier) // identifier
         then.invoke(bf)
         bf.reset()
 
         buffer = bf
     }
 
-    fun asResponse(abstractStruct: AbstractStruct): AbstractStruct {
-        buffer.putInt(IdentifierOffset, abstractStruct.getIdentifier())
-        return this
-    }
-
     fun size(): Int {
         return buffer.limit()
-    }
-
-    fun getIdentifier(): Int {
-        return buffer.getInt(IdentifierOffset)
     }
 
     fun getRequestType(): RequestTypeEnum {
@@ -98,6 +92,23 @@ abstract class AbstractStruct {
 
     fun computeChecksum(): Long {
         return ByteBufferUtil.crc32(buffer.array(), buffer.arrayOffset() + RequestTypeOffset, buffer.limit() - RequestTypeOffset)
+    }
+
+    fun getIdentifier(): Int {
+        return buffer.getInt(IdentifierOffset)
+    }
+
+    fun getRespIdentifier(): Int {
+        return getIdentifier().or(respIdentifierMask)
+    }
+
+    fun isResp(): Boolean {
+        return buffer.getInt(IdentifierOffset).and(respIdentifierMask) == respIdentifierMask
+    }
+
+    fun asResp(request: AbstractStruct): AbstractStruct {
+        buffer.putInt(getRespIdentifier())
+        return this
     }
 
     /**

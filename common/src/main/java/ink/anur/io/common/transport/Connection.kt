@@ -4,6 +4,7 @@ import ink.anur.common.KanashiExecutors
 import ink.anur.common.KanashiIOExecutors
 import ink.anur.common.struct.RepublicNode
 import ink.anur.config.InetConfiguration
+import ink.anur.core.common.License
 import ink.anur.core.common.RequestMapping
 import ink.anur.debug.Debugger
 import ink.anur.inject.bean.Nigate
@@ -15,8 +16,6 @@ import ink.anur.pojo.SendLicenseResponse
 import ink.anur.pojo.Syn
 import ink.anur.pojo.SynResponse
 import ink.anur.pojo.common.AbstractStruct
-import ink.anur.pojo.common.AbstractStruct.Companion.getIdentifier
-import ink.anur.pojo.common.AbstractStruct.Companion.getRequestType
 import ink.anur.pojo.common.RequestTypeEnum
 import ink.anur.util.ByteBufferUtil
 import ink.anur.util.TimeUtil
@@ -52,9 +51,9 @@ class Connection(private val host: String, private val port: Int) : Runnable {
 
     private val shutDownHooker = ShutDownHooker()
 
-    private val pinLicense = ReConnectableClient.License()
+    private val pinLicense = License()
 
-    private val sendLicense = ReConnectableClient.License()
+    private val sendLicense = License()
 
     private val contextHandler = ChannelHandlerContextHandler(republicNode, sendLicense, pinLicense)
 
@@ -123,7 +122,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
             try {
                 if (syn.allowConnect(createdTs, randomSeed)) {
                     logger.trace("allowing remote node ${syn.getAddr()} establish to local ")
-                    sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr).asResponse(syn))
+                    sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr).asResp(syn))
                     if (this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.SOCKET, ctx)) {
                         sendWithNoSendLicenseAndWaitForResponse(ctx.channel(), SendLicense(inetConnection.localNodeAddr))
                                 ?.also { this.sendLicense() }
@@ -187,17 +186,17 @@ class Connection(private val host: String, private val port: Int) : Runnable {
     }
 
     private fun sendAndWaitForResponse(struct: AbstractStruct, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): ByteBuffer? {
-        val identifier = struct.getIdentifier()
+        val respIdentifier = struct.getRespIdentifier()
         val cdl = CountDownLatch(1)
 
         try {
             send(struct)
-            logger.trace("waiting for response identifier $identifier")
+            logger.trace("waiting for response [resp identifier] $respIdentifier")
             cdl.await(timeout, unit)
-            return response[identifier]
+            return response[respIdentifier]
         } finally {
-            response.remove(identifier)
-            waitDeck.remove(identifier)
+            response.remove(respIdentifier)
+            waitDeck.remove(respIdentifier)
         }
     }
 
@@ -320,7 +319,11 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         /**
          * receive a msg and signal cdl
          */
-        fun ChannelHandlerContext.receive(msg: ByteBuffer) {
+        fun ChannelHandlerConte
+
+        // todo
+        xt.receive(msg: ByteBuffer)
+        {
             val requestType = msg.getRequestType()
             val identifier = msg.getIdentifier()
 
@@ -365,7 +368,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         private fun ChannelHandlerContext.sendLicense(sendLicense: SendLicense) {
             val republicNode = RepublicNode.construct(sendLicense.getAddr())
             republicNode.getConnection().sendLicense()
-            doSend(this.channel(), SendLicenseResponse().asResponse(sendLicense))
+            doSend(this.channel(), SendLicenseResponse().asResp(sendLicense))
         }
 
         private fun ChannelHandlerContext.mayConnectByRemote(syn: Syn) {
@@ -400,8 +403,8 @@ class Connection(private val host: String, private val port: Int) : Runnable {
      */
     private class ChannelHandlerContextHandler(
             private val republicNode: RepublicNode,
-            private val sendLicense: ReConnectableClient.License,
-            private val pinLicense: ReConnectableClient.License) {
+            private val sendLicense: License,
+            private val pinLicense: License) {
 
         @Volatile
         private var pin: ChannelHandlerContext? = null
@@ -499,9 +502,9 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         fun sendLicense() {
             if (mode != ChchMode.UN_CONNECTED) {
                 sendLicense.enable()
-                logger.info("remote node $republicNode publish send license to local")
+                logger.info("remote node $republicNode publish SendLicense to local")
             } else {
-                logger.error("remote node $republicNode publish send license to local but never established")
+                logger.error("remote node $republicNode publish SendLicense to local but never established")
             }
         }
 

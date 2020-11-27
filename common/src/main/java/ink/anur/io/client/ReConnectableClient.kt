@@ -29,19 +29,6 @@ class ReConnectableClient(private val host: String, private val port: Int,
 
     private val reconnectLatch = CountDownLatch(1)
 
-    @ThreadSafe
-    class License {
-        private val semaphore = Semaphore(0)
-
-        fun hasLicense() = semaphore.availablePermits() > 0
-
-        fun license() = semaphore.acquire()
-
-        fun disable() = semaphore.drainPermits()
-
-        fun enable() = semaphore.release()
-    }
-
     override fun run() {
         val restartMission = Thread {
             try {
