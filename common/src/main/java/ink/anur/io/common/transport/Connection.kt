@@ -101,7 +101,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                 logger.trace("now try to establish")
 
                 try {
-                    val sendAndWaitForResponse = sendWithNoSendLicenseAndWaitForResponse(it.channel(), Syn(inetConnection.localNodeAddr, createdTs, randomSeed))
+                    val sendAndWaitForResponse = sendWithNoSendLicenseAndWaitForResponse(it.channel(), Syn(inetConnection.localNodeAddr, createdTs, randomSeed), SynResponse::class.java)
                     if (sendAndWaitForResponse != null) {
                         this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.PIN, it)
                     }
@@ -128,7 +128,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                     logger.trace("allowing remote node ${syn.getAddr()} establish to local ")
                     sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr).asResp(syn))
                     if (this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.SOCKET, ctx)) {
-                        sendWithNoSendLicenseAndWaitForResponse(ctx.channel(), SendLicense(inetConnection.localNodeAddr))
+                        sendWithNoSendLicenseAndWaitForResponse(ctx.channel(), SendLicense(inetConnection.localNodeAddr), SendLicenseResponse::class.java)
                                 ?.also { this.sendLicense() }
                                 ?: let {
                                     logger.error("establish to remote node ${syn.getAddr()} but remote node did not publish send license")
@@ -160,7 +160,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         doSend(channel, struct);
     }
 
-    private fun sendWithNoSendLicenseAndWaitForResponse(channel: Channel, struct: AbstractStruct, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): ByteBuffer? {
+    private fun <T> sendWithNoSendLicenseAndWaitForResponse(channel: Channel, struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): T? {
         struct.raiseResp()
         val resIdentifier = struct.getRespIdentifier()
         val cdl = CountDownLatch(1)
@@ -174,7 +174,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
             } else {
                 logger.trace("receive response for res identifier $resIdentifier")
             }
-            return response[resIdentifier]
+            return response[resIdentifier]?.let { expect.getConstructor(ByteBuffer::class.java).newInstance(it) }
         } finally {
             response.remove(resIdentifier)
             waitDeck.remove(resIdentifier)
@@ -192,7 +192,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         }
     }
 
-    private fun sendAndWaitForResponse(struct: AbstractStruct, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): ByteBuffer? {
+    private fun <T> sendAndWaitForResponse(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): T? {
         struct.raiseResp()
         val resIdentifier = struct.getRespIdentifier()
         val cdl = CountDownLatch(1)
@@ -206,16 +206,16 @@ class Connection(private val host: String, private val port: Int) : Runnable {
             } else {
                 logger.trace("receive response for res identifier $resIdentifier")
             }
-            return response[resIdentifier]
+            return response[resIdentifier]?.let { expect.getConstructor(ByteBuffer::class.java).newInstance(it) }
         } finally {
             response.remove(resIdentifier)
             waitDeck.remove(resIdentifier)
         }
     }
 
-    private fun sendAndWaitForResponseErrorCaught(struct: AbstractStruct): ByteBuffer? {
+    private fun <T> sendAndWaitForResponseErrorCaught(struct: AbstractStruct, expect: Class<T>): T? {
         return try {
-            sendAndWaitForResponse(struct, 3000, TimeUnit.MILLISECONDS)
+            sendAndWaitForResponse(struct, expect, 3000, TimeUnit.MILLISECONDS)
         } catch (t: Throwable) {
             logger.trace(t.stackTrace.toString())
             null
@@ -330,10 +330,8 @@ class Connection(private val host: String, private val port: Int) : Runnable {
          *
          * caution: may disconnect when sending
          */
-        fun <T> RepublicNode.sendAndWaitingResponse(struct: AbstractStruct, timeout: Long = 3000, expect: Class<T>, unit: TimeUnit = TimeUnit.MILLISECONDS): T {
-            return expect.getConstructor(ByteBuffer::class.java).newInstance(
-                    getConnection().sendAndWaitForResponse(struct, timeout, unit)
-            )
+        fun <T> RepublicNode.sendAndWaitingResponse(struct: AbstractStruct, timeout: Long = 3000, expect: Class<T>, unit: TimeUnit = TimeUnit.MILLISECONDS): T? {
+            return getConnection().sendAndWaitForResponse(struct, expect, timeout, unit)
         }
 
         /* * receive * */
