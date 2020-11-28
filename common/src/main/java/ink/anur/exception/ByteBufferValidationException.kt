@@ -6,4 +6,4 @@ package ink.anur.exception
  *
  * byteBuffer 没有通过校验
  */
-class ByteBufferValidationException() : KanashiException("Message is corrupt")
+class ByteBufferValidationException(msg: String = "Message is corrupt") : KanashiException(msg)

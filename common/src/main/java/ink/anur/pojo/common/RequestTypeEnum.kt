@@ -62,7 +62,8 @@ enum class RequestTypeEnum(val byteSign: Int) {
             }
         }
 
-        fun parseByByteSign(byteSign: Int): RequestTypeEnum = byteSignMap[byteSign]
-                ?: throw UnsupportedOperationException()
+        fun parseByByteSign(byteSign: Int): RequestTypeEnum =
+                byteSignMap[byteSign]
+                        ?: throw UnsupportedOperationException("can not receive byte sign $byteSign")
     }
 }

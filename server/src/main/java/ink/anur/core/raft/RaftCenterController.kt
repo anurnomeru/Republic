@@ -5,6 +5,7 @@ import ink.anur.common.struct.RepublicNode
 import ink.anur.config.ElectConfiguration
 import ink.anur.config.InetConfiguration
 import ink.anur.debug.Debugger
+import ink.anur.debug.DebuggerLevel
 import ink.anur.exception.NotLeaderException
 import ink.anur.inject.bean.NigateBean
 import ink.anur.inject.bean.NigateInject
@@ -107,10 +108,9 @@ class RaftCenterController : KanashiRunnable() {
         reentrantLocker.lockSupplier {
             // The election timeout is randomized to be between 150ms and 300ms.
             val electionTimeout = electionTimeoutMs + (electionTimeoutMs * random.nextFloat()).toLong()
-            logger.debug("become candidate task will be trigger after $electionTimeout ms")
+            logger.trace("become candidate task will be trigger after $electionTimeout ms")
             val timedTask = TimedTask(electionTimeout, Runnable { this.beginElect(generation) })
             Timer.addTask(timedTask)
-
             addTask(TaskEnum.BECOME_CANDIDATE, timedTask)
         }
     }
@@ -227,7 +227,7 @@ class RaftCenterController : KanashiRunnable() {
                     logger.debug("refuse canvass from $republicNode with generation ${canvass.generation}, local generation is ${electionMetaService.generation}")
                     return@lockSupplier
                 }
-                electionMetaService.voteRecord != null -> logger.trace("refuse canvass from $republicNode, because local server has been vote for ${electionMetaService.voteRecord} on generation ${electionMetaService.generation}")
+                electionMetaService.voteRecord != null -> logger.debug("refuse canvass from $republicNode, because local server has been vote for ${electionMetaService.voteRecord} on generation ${electionMetaService.generation}")
                 else -> electionMetaService.voteRecord = republicNode// 代表投票成功了
             }
 
@@ -281,7 +281,7 @@ class RaftCenterController : KanashiRunnable() {
                 val cluster = electionMetaService.clusters!!
                 val voteCount = electionMetaService.box.values.filter { it }.count()
 
-                logger.debug("there is ${cluster.size} node in cluster，elect process ${voteCount}/${electionMetaService.quorum}")
+                logger.debug("there are ${cluster.size} node in cluster，elect process ${voteCount}/${electionMetaService.quorum}")
 
                 // 如果获得的选票已经大于了集群数量的一半以上，则成为leader
                 if (voteCount == electionMetaService.quorum) {
@@ -303,15 +303,12 @@ class RaftCenterController : KanashiRunnable() {
 
                 if (electionMetaService.getLeader() == null) {
                     eden(generation, "receive higher generation [${generation}] request from $leaderRepublicNode")
-                    logger.info("node $leaderRepublicNode become leader on generation $generation")
+                    logger.info("node $leaderRepublicNode is the leader on generation $generation")
 
                     // 如果是leader。则先触发集群无效
                     if (electionMetaService.isLeader()) {
                         electionMetaService.electionStateChanged(false)
                     }
-
-                    // 成为follower
-                    electionMetaService.becomeFollower()
 
                     // 将那个节点设为leader节点
                     electionMetaService.setLeader(leaderRepublicNode)
@@ -353,7 +350,7 @@ class RaftCenterController : KanashiRunnable() {
     private fun canvassingTask(canvass: Canvass) {
         if (electionMetaService.isCandidate()) {
             if (electionMetaService.clusters!!.size == electionMetaService.box.size) {
-                logger.info("all node on generation ${electionMetaService.generation} already response for canvass")
+                logger.debug("all node on generation ${electionMetaService.generation} already response for canvass")
             }
 
             reentrantLocker.lockSupplier {
@@ -364,6 +361,7 @@ class RaftCenterController : KanashiRunnable() {
 
                                 // 如果还没收到这个节点的选票，就继续发
                                 if (!republicNode.isLocal() && electionMetaService.box[republicNode] == null) {
+                                    logger.debug("sending canvass to $republicNode on generation ${electionMetaService.generation}...")
                                     republicNode.sendAsync(Canvass(electionMetaService.generation))
                                 }
                             }

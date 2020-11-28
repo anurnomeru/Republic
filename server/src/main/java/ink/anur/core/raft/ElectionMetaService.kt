@@ -194,8 +194,9 @@ class ElectionMetaService {
         val becomeLeaderCostTime = TimeUtil.getTime() - beginElectTime
         beginElectTime = 0L
 
-        logger.info("local server become leader, start sending heart beat......",
-                inetConfiguration.localNode, generation, raftRole, RaftRole.LEADER, becomeLeaderCostTime)
+        generationIncr()
+        logger.info("local server {} become leader, incr generation to {}, cost {}ms start sending heart beat and  ......",
+                inetConfiguration.localNode, generation, becomeLeaderCostTime)
 
         leader = inetConfiguration.localNode
         raftRole = RaftRole.LEADER

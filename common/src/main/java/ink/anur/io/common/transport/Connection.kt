@@ -7,6 +7,7 @@ import ink.anur.config.InetConfiguration
 import ink.anur.core.common.License
 import ink.anur.core.common.RequestMapping
 import ink.anur.debug.Debugger
+import ink.anur.exception.UnableToFindIdentifierException
 import ink.anur.inject.bean.Nigate
 import ink.anur.inject.bean.NigateInject
 import ink.anur.io.client.ReConnectableClient
@@ -16,8 +17,11 @@ import ink.anur.pojo.SendLicenseResponse
 import ink.anur.pojo.Syn
 import ink.anur.pojo.SynResponse
 import ink.anur.pojo.common.AbstractStruct
+import ink.anur.pojo.common.AbstractStruct.Companion.ensureValid
+import ink.anur.pojo.common.AbstractStruct.Companion.getIdentifier
+import ink.anur.pojo.common.AbstractStruct.Companion.getRequestType
+import ink.anur.pojo.common.AbstractStruct.Companion.isResp
 import ink.anur.pojo.common.RequestTypeEnum
-import ink.anur.util.ByteBufferUtil
 import ink.anur.util.TimeUtil
 import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
@@ -127,7 +131,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                         sendWithNoSendLicenseAndWaitForResponse(ctx.channel(), SendLicense(inetConnection.localNodeAddr))
                                 ?.also { this.sendLicense() }
                                 ?: let {
-                                    logger.error("establish to remote node ${syn.getAddr()} but ")
+                                    logger.error("establish to remote node ${syn.getAddr()} but remote node did not publish send license")
                                     ctx.close()
                                 }
                     }
@@ -157,20 +161,23 @@ class Connection(private val host: String, private val port: Int) : Runnable {
     }
 
     private fun sendWithNoSendLicenseAndWaitForResponse(channel: Channel, struct: AbstractStruct, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): ByteBuffer? {
-        val identifier = struct.getIdentifier()
+        struct.raiseResp()
+        val resIdentifier = struct.getRespIdentifier()
         val cdl = CountDownLatch(1)
 
         try {
-            logger.trace("waiting response for identifier $identifier")
-            waitDeck[identifier] = cdl
+            logger.trace("waiting response for res identifier $resIdentifier")
+            waitDeck[resIdentifier] = cdl
             sendWithNoSendLicense(channel, struct)
             if (!cdl.await(timeout, unit)) {
-                logger.trace("waiting response for identifier $identifier fail")
+                logger.trace("waiting response for res identifier $resIdentifier fail")
+            } else {
+                logger.trace("receive response for res identifier $resIdentifier")
             }
-            return response[identifier]
+            return response[resIdentifier]
         } finally {
-            response.remove(identifier)
-            waitDeck.remove(identifier)
+            response.remove(resIdentifier)
+            waitDeck.remove(resIdentifier)
         }
     }
 
@@ -186,17 +193,23 @@ class Connection(private val host: String, private val port: Int) : Runnable {
     }
 
     private fun sendAndWaitForResponse(struct: AbstractStruct, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): ByteBuffer? {
-        val respIdentifier = struct.getRespIdentifier()
+        struct.raiseResp()
+        val resIdentifier = struct.getRespIdentifier()
         val cdl = CountDownLatch(1)
 
         try {
+            logger.trace("waiting response for res identifier $resIdentifier")
+            waitDeck[resIdentifier] = cdl
             send(struct)
-            logger.trace("waiting for response [resp identifier] $respIdentifier")
-            cdl.await(timeout, unit)
-            return response[respIdentifier]
+            if (!cdl.await(timeout, unit)) {
+                logger.trace("waiting response for res identifier $resIdentifier fail")
+            } else {
+                logger.trace("receive response for res identifier $resIdentifier")
+            }
+            return response[resIdentifier]
         } finally {
-            response.remove(respIdentifier)
-            waitDeck.remove(respIdentifier)
+            response.remove(resIdentifier)
+            waitDeck.remove(resIdentifier)
         }
     }
 
@@ -215,8 +228,12 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         asyncSendingQueue[struct.getRequestType()] = struct
     }
 
-    private fun sendIfHasLicense(struct: AbstractStruct) {
-        if (sendLicense.hasLicense()) send(struct)
+    private fun sendIfHasLicense(struct: AbstractStruct): Boolean {
+        if (sendLicense.hasLicense()) {
+            send(struct)
+            return true
+        }
+        return false
     }
 
     override fun toString(): String {
@@ -243,7 +260,9 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                     while (iterable.hasNext()) {
                         val (requestTypeEnum, abstractStruct) = iterable.next()
                         try {
-                            conn.sendIfHasLicense(abstractStruct)
+                            if (conn.sendIfHasLicense(abstractStruct)) {
+                                iterable.remove()
+                            }
                         } catch (t: Throwable) {
                             // ignore
                             logger.error("Async sending struct type:[$requestTypeEnum] to $conn error occur!")
@@ -263,11 +282,14 @@ class Connection(private val host: String, private val port: Int) : Runnable {
 
         private fun doSend(channel: Channel, struct: AbstractStruct) {
             synchronized(channel) {
+                struct.computeChecksum()
                 channel.write(Unpooled.copyInt(struct.totalSize()))
-                ByteBufferUtil.writeUnsignedInt(struct.buffer, 0, struct.computeChecksum())
                 struct.writeIntoChannel(channel)
                 channel.flush()
-                logger.debug("==> send msg type:{} and identifier:{}", struct.getRequestType(), struct.getIdentifier())
+                struct.getRequestType().takeIf { it != RequestTypeEnum.HEAT_BEAT }?.also {
+                    logger.debug("==> send msg [type:{}]", it)
+                }
+
             }
         }
 
@@ -319,32 +341,36 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         /**
          * receive a msg and signal cdl
          */
-        fun ChannelHandlerConte
+        fun ChannelHandlerContext.receive(msg: ByteBuffer) {
+            msg.ensureValid()
 
-        // todo
-        xt.receive(msg: ByteBuffer)
-        {
             val requestType = msg.getRequestType()
             val identifier = msg.getIdentifier()
+            val resp = msg.isResp()
 
-            logger.debug("<== receive msg type:{} and identifier:{}", requestType, identifier)
+            requestType.takeIf { it != RequestTypeEnum.HEAT_BEAT }?.also {
+                logger.debug("<== receive msg [type:{}]", it)
+            }
             val republicNode = this.tsubasa()
 
-            val requestMapping = requestMappingRegister[requestType]
-            when (requestType) {
+            if (resp) {
+                waitDeck[identifier]?.let {
+                    response[identifier] = msg
+                    it.countDown()
+                }
+                        ?: throw UnableToFindIdentifierException("cant not find wait deck that wait for type:${requestType} and identifier:${identifier}")
+            } else {
+                val requestMapping = requestMappingRegister[requestType]
+                when (requestType) {
 
-                /* establishing */
-                RequestTypeEnum.SYN -> this.mayConnectByRemote(Syn(msg))
+                    /* establishing */
+                    RequestTypeEnum.SYN -> this.mayConnectByRemote(Syn(msg))
 
-                /* send licensing */
-                RequestTypeEnum.SEND_LICENSE -> this.sendLicense(SendLicense(msg))
+                    /* send licensing */
+                    RequestTypeEnum.SEND_LICENSE -> this.sendLicense(SendLicense(msg))
 
-                /* handling */
-                else -> {
-                    waitDeck[identifier]?.let {
-                        response[identifier] = msg
-                        it.countDown()
-                    } ?: also {
+                    /* handling */
+                    else -> {
                         when {
                             republicNode == null -> {
                                 logger.error("haven't established but receive msg type:[$requestType] from channel ${this.channel().remoteAddress()}")
@@ -490,7 +516,16 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         fun getSocket(): ChannelHandlerContext? = socket
 
         @Synchronized
-        fun getPinUnEstablished(): ChannelHandlerContext? = takeIf { !established() }?.let { pin }
+        fun getPinUnEstablished(): ChannelHandlerContext? {
+            if (!established()) {
+                if (pin?.channel()?.isOpen == true) {
+                    return pin
+                } else {
+                    pin = null
+                }
+            }
+            return null
+        }
 
         @Synchronized
         fun settingPin(it: ChannelHandlerContext) {

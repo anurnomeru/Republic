@@ -32,6 +32,6 @@ class _KanashiExecutors(val logger: Logger, corePoolSize: Int, maximumPoolSize: 
             }
         }
 
-        thr?.printStackTrace()
+        thr?.let { logger.error("Error occur: ", it) }
     }
 }

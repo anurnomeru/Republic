@@ -37,7 +37,7 @@ abstract class AbstractStruct {
         private const val noneIdentifier: Int = 0
         private const val respIdentifierMask: Int = 1.shl(31)
 
-        val identifierBoxer = AtomicInteger(Int.MIN_VALUE)
+        val identifierBoxer = AtomicInteger(0)
 
         fun translateToByte(boolean: Boolean): Byte {
             return if (boolean) {
@@ -54,6 +54,30 @@ abstract class AbstractStruct {
         fun ByteBuffer.getRequestType(): RequestTypeEnum = RequestTypeEnum.parseByByteSign(this.getInt(RequestTypeOffset))
 
         fun ByteBuffer.getIdentifier(): Int = this.getInt(IdentifierOffset)
+
+        fun ByteBuffer.ensureValid() {
+            val stored = this.checksumStored()
+            val compute = this.checksumCompute()
+            if (stored != compute) {
+                throw ByteBufferValidationException("msg type ${getRequestType()} checksum invalid")
+            }
+        }
+
+        fun ByteBuffer.checksumStored(): Long {
+            return ByteBufferUtil.readUnsignedInt(this, CrcOffset)
+        }
+
+        fun ByteBuffer.checksumCompute(): Long {
+            return ByteBufferUtil.crc32(this.array(), this.arrayOffset() + RequestTypeOffset, this.limit() - RequestTypeOffset)
+        }
+
+        fun ByteBuffer.computeChecksum() {
+            ByteBufferUtil.writeUnsignedInt(this, 0, this.checksumCompute())
+        }
+
+        fun ByteBuffer.isResp(): Boolean {
+            return this.getInt(IdentifierOffset).and(respIdentifierMask) == respIdentifierMask
+        }
     }
 
     lateinit var buffer: ByteBuffer
@@ -70,54 +94,46 @@ abstract class AbstractStruct {
         buffer = bf
     }
 
-    fun size(): Int {
-        return buffer.limit()
-    }
+    fun size(): Int = buffer.limit()
 
     fun getRequestType(): RequestTypeEnum {
         return RequestTypeEnum.parseByByteSign(buffer.getInt(RequestTypeOffset))
     }
+    /* checksum */
 
-    fun ensureValid() {
-        val stored = checkSum()
-        val compute = computeChecksum()
-        if (stored != compute) {
-            throw ByteBufferValidationException()
-        }
-    }
+    fun checksumCompute(): Long = buffer.checksumCompute()
 
-    private fun checkSum(): Long {
-        return ByteBufferUtil.readUnsignedInt(buffer, CrcOffset)
-    }
+    fun computeChecksum() = buffer.computeChecksum()
 
-    fun computeChecksum(): Long {
-        return ByteBufferUtil.crc32(buffer.array(), buffer.arrayOffset() + RequestTypeOffset, buffer.limit() - RequestTypeOffset)
-    }
+    fun ensureValid() = buffer.ensureValid()
 
-    fun getIdentifier(): Int {
-        return buffer.getInt(IdentifierOffset)
-    }
+    /* identifier */
+
+    fun getIdentifier(): Int = buffer.getInt(IdentifierOffset)
 
     fun getRespIdentifier(): Int {
         return getIdentifier().or(respIdentifierMask)
     }
 
+    fun raiseResp() {
+        var id = identifierBoxer.getAndIncrement()
+        if (id < 0) {
+            id = id.xor(respIdentifierMask)
+        }
+
+        buffer.putInt(IdentifierOffset, id)
+    }
+
     fun isResp(): Boolean {
-        return buffer.getInt(IdentifierOffset).and(respIdentifierMask) == respIdentifierMask
+        return buffer.isResp()
     }
 
     fun asResp(request: AbstractStruct): AbstractStruct {
-        buffer.putInt(getRespIdentifier())
+        buffer.putInt(IdentifierOffset, request.getRespIdentifier())
         return this
     }
 
-    /**
-     * 如何写入 Channel
-     */
     abstract fun writeIntoChannel(channel: Channel)
 
-    /**
-     * 真正的 size，并不局限于维护的 buffer
-     */
     abstract fun totalSize(): Int
 }
