@@ -8,7 +8,6 @@
 //import ink.anur.inject.bean.NigateInject
 //import ink.anur.inject.bean.NigatePostConstruct
 //import ink.anur.io.common.transport.Connection.Companion.getConnection
-//import ink.anur.io.common.transport.Connection.Companion.send
 //import ink.anur.pojo.rpc.meta.RpcRegistrationMeta
 //import java.util.concurrent.CountDownLatch
 //import java.util.concurrent.TimeUnit

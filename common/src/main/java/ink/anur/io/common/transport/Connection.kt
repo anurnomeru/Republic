@@ -41,7 +41,7 @@ class Connection(private val host: String, private val port: Int,
                   *
                   * TODO switching mode for now is un supported
                   */
-                 private val clientMode: Boolean = false) : Runnable {
+                 clientMode: Boolean = false) : Runnable {
 
     @NigateInject
     private lateinit var inetConnection: InetConfiguration
@@ -72,6 +72,9 @@ class Connection(private val host: String, private val port: Int,
 
     private val connectionThread = Thread(this).also { it.name = "$republicNode Connection Thread" }
 
+    @Volatile
+    private var running: Boolean = true
+
     /* * initial * */
 
     /**
@@ -89,6 +92,13 @@ class Connection(private val host: String, private val port: Int,
         }
     }
 
+    /* * destroy * */
+    private fun destroy() {
+        running = false
+        shutDownHooker.shutdown()
+        contextHandler.disConnect()
+    }
+
     /* * syn * */
 
     private fun tryEstablishLicense() {
@@ -98,7 +108,7 @@ class Connection(private val host: String, private val port: Int,
     override fun run() {
         logger.info("connection [Pin] mode to node $republicNode start to work")
 
-        while (true) {
+        while (running) {
             pinLicense.license()
 
             if (contextHandler.established()) {
@@ -120,6 +130,8 @@ class Connection(private val host: String, private val port: Int,
                 }
             }
         }
+
+        logger.info("connection [Pin] mode to node $republicNode is destroy")
     }
 
     /* * syn response * */
@@ -137,10 +149,14 @@ class Connection(private val host: String, private val port: Int,
                     sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr).asResp(syn))
                     if (this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.SOCKET, ctx)) {
                         sendWithNoSendLicenseAndWaitForResponseAsync(ctx.channel(), SendLicense(inetConnection.localNodeAddr), SendLicenseResponse::class.java) {
-                            it?.also { this.sendLicense() } ?: let {
+                            it?.also {
+                                this.sendLicense()
+                            } ?: let {
                                 logger.error("establish to remote node ${syn.getAddr()} but remote node did not publish send license")
                                 ctx.close()
                             }
+
+
                         }
                     }
                 } else {
@@ -517,7 +533,7 @@ class Connection(private val host: String, private val port: Int,
                     true
                 } catch (e: Exception) {
                     logger.error("error occur while establish with $republicNode!", e)
-                    ctx.close()
+                    disConnect()
                     false
                 }
             }
@@ -529,6 +545,12 @@ class Connection(private val host: String, private val port: Int,
                 false
             } else {
                 logger.error("remote node $republicNode using [$mode] is disconnect")
+
+                when (mode) {
+                    ChchMode.PIN -> pin?.channel()?.close()
+                    ChchMode.SOCKET -> socket?.channel()?.close()
+                }
+
                 this.mode = ChchMode.UN_CONNECTED
                 this.sendLicense.disable()
                 this.pinLicense.enable()
