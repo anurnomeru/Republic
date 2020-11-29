@@ -124,7 +124,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         } else {
             logger.trace("remote node ${syn.getAddr()} attempt to establish with local server")
             try {
-                if (syn.allowConnect(createdTs, randomSeed)) {
+                if (syn.allowConnect(createdTs, randomSeed, republicNode.addr)) {
                     logger.trace("allowing remote node ${syn.getAddr()} establish to local ")
                     sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr).asResp(syn))
                     if (this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.SOCKET, ctx)) {

@@ -44,9 +44,14 @@ enum class RequestTypeEnum(val byteSign: Int) {
     VOTING(10003),
 
     /**
-     * 进行rpc请求
+     * 进行 rpc 请求
      */
-    RPC(99999)
+    RPC_REQUEST(99999),
+
+    /**
+     * rpc resp
+     */
+    RPC_RESPONSE(99998)
     ;
 
     companion object {

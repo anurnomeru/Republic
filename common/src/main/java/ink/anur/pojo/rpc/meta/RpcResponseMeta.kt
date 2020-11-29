@@ -1,6 +1,6 @@
-package ink.anur.pojo.rpc
+package ink.anur.pojo.rpc.meta
 
-import java.io.Serializable
+import ink.anur.pojo.rpc.core.SerializableMeta
 
 /**
  * Created by Anur IjuoKaruKas on 2020/4/7
@@ -17,4 +17,4 @@ class RpcResponseMeta(
     /**
      * 是否产生了错误
      */
-    error: Boolean = false) : Serializable
+    error: Boolean = false) : SerializableMeta

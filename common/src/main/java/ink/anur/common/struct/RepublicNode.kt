@@ -10,6 +10,8 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class RepublicNode private constructor(val host: String, val port: Int) {
 
+    val addr = "$host:$port"
+
     companion object {
 
         private val constructor = RepublicNode::class.java.getDeclaredConstructor(String::class.java, Int::class.java)
