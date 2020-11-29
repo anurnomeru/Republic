@@ -78,7 +78,7 @@ class Syn : AbstractStruct {
         return size()
     }
 
-    fun connectByClient() = clientMode
+    fun clientMode() = clientMode
 
     fun allowConnect(createdTs: Long, randomSeed: Long, addr: String): Boolean {
         return compare(this.createdTs, createdTs) {

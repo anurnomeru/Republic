@@ -2,14 +2,14 @@
 //
 //import ink.anur.common.KanashiExecutors
 //import ink.anur.config.InetConfiguration
-//import ink.anur.core.client.ClientOperateHandler
 //import ink.anur.core.common.License
 //import ink.anur.debug.Debugger
 //import ink.anur.inject.bean.NigateBean
 //import ink.anur.inject.bean.NigateInject
 //import ink.anur.inject.bean.NigatePostConstruct
+//import ink.anur.io.common.transport.Connection.Companion.getConnection
+//import ink.anur.io.common.transport.Connection.Companion.send
 //import ink.anur.pojo.rpc.meta.RpcRegistrationMeta
-//import java.util.concurrent.ArrayBlockingQueue
 //import java.util.concurrent.CountDownLatch
 //import java.util.concurrent.TimeUnit
 //import kotlin.random.Random
@@ -31,9 +31,6 @@
 //     * 避免每次连接都从 0 开始
 //     */
 //    private var nowConnectCounting = Random(1).nextInt()
-//
-//    @Volatile
-//    private var connection: ClientOperateHandler? = null
 //
 //    private val random = Random(1)
 //
@@ -64,6 +61,8 @@
 //                    nowConnectCounting++
 //                    val connectLatch = CountDownLatch(1)
 //                    val nowConnectNode = cluster[nowIndex]
+//
+//                    nowConnectNode.getConnection()
 //
 //                    debugger.info("正在向服务器 $nowConnectNode 发起连接")
 //                    val connect = ClientOperateHandler(nowConnectNode,

@@ -7,7 +7,6 @@ import ink.anur.config.InetConfiguration
 import ink.anur.core.common.License
 import ink.anur.core.common.RequestMapping
 import ink.anur.debug.Debugger
-import ink.anur.exception.UnableToFindIdentifierException
 import ink.anur.inject.bean.Nigate
 import ink.anur.inject.bean.NigateInject
 import ink.anur.io.client.ReConnectableClient
@@ -133,7 +132,7 @@ class Connection(private val host: String, private val port: Int,
         } else {
             logger.trace("remote node ${syn.getAddr()} attempt to establish with local server")
             try {
-                if (syn.allowConnect(createdTs, randomSeed, republicNode.addr) || syn.connectByClient()) {
+                if (syn.allowConnect(createdTs, randomSeed, republicNode.addr) || syn.clientMode()) {
                     logger.trace("allowing remote node ${syn.getAddr()} establish to local ")
                     sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr).asResp(syn))
                     if (this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.SOCKET, ctx)) {
@@ -339,11 +338,11 @@ class Connection(private val host: String, private val port: Int,
          * if connection is first created, then try connect to the remote node
          * until connection establish
          */
-        private fun RepublicNode.getConnection(): Connection {
+        fun RepublicNode.getConnection(clientMode: Boolean = false): Connection {
             if (!uniqueConnection.containsKey(this)) {
                 synchronized(Connection::class.java) {
                     if (!uniqueConnection.containsKey(this)) {
-                        uniqueConnection[this] = Connection(this.host, this.port).also { it.tryEstablishLicense() }
+                        uniqueConnection[this] = Connection(this.host, this.port, clientMode).also { it.tryEstablishLicense() }
                     }
                 }
             }
@@ -436,7 +435,7 @@ class Connection(private val host: String, private val port: Int,
 
         private fun ChannelHandlerContext.mayConnectByRemote(syn: Syn) {
             val republicNode = RepublicNode.construct(syn.getAddr())
-            republicNode.getConnection().mayConnectByRemote(this, syn)
+            republicNode.getConnection(syn.clientMode()).mayConnectByRemote(this, syn)
         }
 
         /**
