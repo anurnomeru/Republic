@@ -22,6 +22,8 @@ import ink.anur.pojo.common.AbstractStruct.Companion.getIdentifier
 import ink.anur.pojo.common.AbstractStruct.Companion.getRequestType
 import ink.anur.pojo.common.AbstractStruct.Companion.isResp
 import ink.anur.pojo.common.RequestTypeEnum
+import ink.anur.timewheel.TimedTask
+import ink.anur.timewheel.Timer
 import ink.anur.util.TimeUtil
 import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
@@ -34,7 +36,13 @@ import kotlin.system.exitProcess
 /**
  * Created by Anur on 2020/10/3
  */
-class Connection(private val host: String, private val port: Int) : Runnable {
+class Connection(private val host: String, private val port: Int,
+                 /**
+                  * client Mode will never try to establish positive to remote node
+                  *
+                  * TODO switching mode for now is un supported
+                  */
+                 private val clientMode: Boolean = false) : Runnable {
 
     @NigateInject
     private lateinit var inetConnection: InetConfiguration
@@ -59,7 +67,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
 
     private val sendLicense = License()
 
-    private val contextHandler = ChannelHandlerContextHandler(republicNode, sendLicense, pinLicense)
+    private val contextHandler = ChannelHandlerContextHandler(republicNode, sendLicense, pinLicense, clientMode)
 
     private val asyncSendingQueue = ConcurrentHashMap<RequestTypeEnum, AbstractStruct>()
 
@@ -76,8 +84,10 @@ class Connection(private val host: String, private val port: Int) : Runnable {
     })
 
     init {
-        KanashiIOExecutors.execute(client)
-        KanashiIOExecutors.execute(connectionThread)
+        if (!clientMode) {
+            KanashiIOExecutors.execute(client)
+            KanashiIOExecutors.execute(connectionThread)
+        }
     }
 
     /* * syn * */
@@ -116,7 +126,6 @@ class Connection(private val host: String, private val port: Int) : Runnable {
     /* * syn response * */
 
     private fun mayConnectByRemote(ctx: ChannelHandlerContext, syn: Syn) {
-
         if (contextHandler.established() && contextHandler.getSocket() != null && contextHandler.getSocket() != ctx) {
             // if is already establish then close the remote channel
             logger.trace("local node already establish and syn ctx from ${syn.getAddr()} will be close")
@@ -124,16 +133,16 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         } else {
             logger.trace("remote node ${syn.getAddr()} attempt to establish with local server")
             try {
-                if (syn.allowConnect(createdTs, randomSeed, republicNode.addr)) {
+                if (syn.allowConnect(createdTs, randomSeed, republicNode.addr) || syn.connectByClient()) {
                     logger.trace("allowing remote node ${syn.getAddr()} establish to local ")
                     sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr).asResp(syn))
                     if (this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.SOCKET, ctx)) {
-                        sendWithNoSendLicenseAndWaitForResponse(ctx.channel(), SendLicense(inetConnection.localNodeAddr), SendLicenseResponse::class.java)
-                                ?.also { this.sendLicense() }
-                                ?: let {
-                                    logger.error("establish to remote node ${syn.getAddr()} but remote node did not publish send license")
-                                    ctx.close()
-                                }
+                        sendWithNoSendLicenseAndWaitForResponseAsync(ctx.channel(), SendLicense(inetConnection.localNodeAddr), SendLicenseResponse::class.java) {
+                            it?.also { this.sendLicense() } ?: let {
+                                logger.error("establish to remote node ${syn.getAddr()} but remote node did not publish send license")
+                                ctx.close()
+                            }
+                        }
                     }
                 } else {
                     logger.trace("remote node $republicNode attempt to established with local node but refused. try to establish initiative.")
@@ -153,65 +162,21 @@ class Connection(private val host: String, private val port: Int) : Runnable {
 
     /* * send with no send license * */
 
-    /**
-     * while the connection is not established, using this method for sending msg
-     */
-    private fun sendWithNoSendLicense(channel: Channel, struct: AbstractStruct) {
-        doSend(channel, struct);
-    }
+    private fun <T> sendWithNoSendLicenseAndWaitForResponse(channel: Channel, struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): T? =
+            doSendAndWaitForResponse(struct, expect, timeout, unit) { sendWithNoSendLicense(channel, it) }
 
-    private fun <T> sendWithNoSendLicenseAndWaitForResponse(channel: Channel, struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): T? {
-        struct.raiseResp()
-        val resIdentifier = struct.getRespIdentifier()
-        val cdl = CountDownLatch(1)
-
-        try {
-            logger.trace("waiting response for res identifier $resIdentifier")
-            waitDeck[resIdentifier] = cdl
-            sendWithNoSendLicense(channel, struct)
-            if (!cdl.await(timeout, unit)) {
-                logger.trace("waiting response for res identifier $resIdentifier fail")
-            } else {
-                logger.trace("receive response for res identifier $resIdentifier")
-            }
-            return response[resIdentifier]?.let { expect.getConstructor(ByteBuffer::class.java).newInstance(it) }
-        } finally {
-            response.remove(resIdentifier)
-            waitDeck.remove(resIdentifier)
-        }
-    }
+    private fun <T> sendWithNoSendLicenseAndWaitForResponseAsync(channel: Channel, struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS,
+                                                                 consumer: (T?) -> Unit) =
+            doSendAndWaitForResponseAsync(struct, expect, timeout, unit, { sendWithNoSendLicense(channel, it) }, consumer)
 
     /* * normal sending * */
 
-    private fun send(struct: AbstractStruct) {
-        sendLicense.license()
-        contextHandler.getChannelHandlerContext()?.channel()?.also {
-            this.sendWithNoSendLicense(it, struct)
-        } ?: also {
-            logger.error("sending struct with license but can not find channel!")
-        }
-    }
+    private fun <T> sendAndWaitForResponse(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): T? =
+            doSendAndWaitForResponse(struct, expect, timeout, unit) { send(it) }
 
-    private fun <T> sendAndWaitForResponse(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): T? {
-        struct.raiseResp()
-        val resIdentifier = struct.getRespIdentifier()
-        val cdl = CountDownLatch(1)
-
-        try {
-            logger.trace("waiting response for res identifier $resIdentifier")
-            waitDeck[resIdentifier] = cdl
-            send(struct)
-            if (!cdl.await(timeout, unit)) {
-                logger.trace("waiting response for res identifier $resIdentifier fail")
-            } else {
-                logger.trace("receive response for res identifier $resIdentifier")
-            }
-            return response[resIdentifier]?.let { expect.getConstructor(ByteBuffer::class.java).newInstance(it) }
-        } finally {
-            response.remove(resIdentifier)
-            waitDeck.remove(resIdentifier)
-        }
-    }
+    private fun <T> sendAndWaitForResponse(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS,
+                                           consumer: (T?) -> Unit) =
+            doSendAndWaitForResponseAsync(struct, expect, timeout, unit, { send(it) }, consumer)
 
     private fun <T> sendAndWaitForResponseErrorCaught(struct: AbstractStruct, expect: Class<T>): T? {
         return try {
@@ -236,13 +201,81 @@ class Connection(private val host: String, private val port: Int) : Runnable {
         return false
     }
 
+    /* * sender * */
+
+    /**
+     * while the connection is not established, using this method for sending msg
+     */
+    private fun sendWithNoSendLicense(channel: Channel, struct: AbstractStruct) {
+        doSend(channel, struct)
+    }
+
+    /**
+     * synchronized
+     */
+    private fun send(struct: AbstractStruct) {
+        sendLicense.license()
+        contextHandler.getChannelHandlerContext()?.channel()?.also {
+            this.sendWithNoSendLicense(it, struct)
+        } ?: also {
+            logger.error("sending struct with license but can not find channel!")
+        }
+    }
+
+    /**
+     * lock free sender
+     */
+    private fun <T> doSendAndWaitForResponseAsync(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS,
+                                                  howToSend: (AbstractStruct) -> Unit, consumer: (T?) -> Unit) {
+        struct.raiseResp()
+        val resIdentifier = struct.getRespIdentifier()
+
+        logger.trace("waiting response for res identifier $resIdentifier")
+        asyncWaitDeck[resIdentifier] = {
+            val t = response[resIdentifier]?.let { expect.getConstructor(ByteBuffer::class.java).newInstance(it) }
+            consumer.invoke(t)
+        }
+
+        Timer.addTask(TimedTask(unit.toMillis(timeout), Runnable {
+            asyncWaitDeck.remove(resIdentifier)
+            response.remove(resIdentifier)
+        }))
+        howToSend.invoke(struct)
+    }
+
+    /**
+     * synchronized and wait for response
+     */
+    private fun <T> doSendAndWaitForResponse(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS, howToSend: (AbstractStruct) -> Unit): T? {
+        struct.raiseResp()
+        val resIdentifier = struct.getRespIdentifier()
+        val cdl = CountDownLatch(1)
+
+        try {
+            logger.trace("waiting response for res identifier $resIdentifier")
+            waitDeck[resIdentifier] = cdl
+            howToSend.invoke(struct)
+            if (!cdl.await(timeout, unit)) {
+                logger.trace("waiting response for res identifier $resIdentifier fail")
+            } else {
+                logger.trace("receive response for res identifier $resIdentifier")
+            }
+            return response[resIdentifier]?.let { expect.getConstructor(ByteBuffer::class.java).newInstance(it) }
+        } finally {
+            response.remove(resIdentifier)
+            waitDeck.remove(resIdentifier)
+        }
+    }
+
     override fun toString(): String {
         return "RepublicNode(host='$host', port=$port)"
     }
 
     companion object {
-        private val waitDeck = ConcurrentHashMap<Int /* sign */, CountDownLatch>()
-        private val response = ConcurrentHashMap<Int /* sign */, ByteBuffer>()
+        private val validClientConnection = ConcurrentSkipListSet<RepublicNode>()
+        private val asyncWaitDeck = ConcurrentHashMap<Int /* identifier */, () -> Unit>()
+        private val waitDeck = ConcurrentHashMap<Int /* identifier */, CountDownLatch>()
+        private val response = ConcurrentHashMap<Int /* identifier */, ByteBuffer>()
         private val uniqueConnection = ConcurrentHashMap<RepublicNode, Connection>()
         private val requestMappingRegister = mutableMapOf<RequestTypeEnum, RequestMapping>()
         private val logger = Debugger(this::class.java)
@@ -347,16 +380,22 @@ class Connection(private val host: String, private val port: Int) : Runnable {
             val resp = msg.isResp()
 
             requestType.takeIf { it != RequestTypeEnum.HEAT_BEAT }?.also {
-                logger.debug("<== receive msg [type:{}]", it)
+                logger.debug("<== receive msg [type:${it}]")
             }
             val republicNode = this.tsubasa()
 
             if (resp) {
-                waitDeck[identifier]?.let {
+                val wd = waitDeck[identifier]?.also {
                     response[identifier] = msg
                     it.countDown()
                 }
-                        ?: throw UnableToFindIdentifierException("cant not find wait deck that wait for type:${requestType} and identifier:${identifier}")
+                val awd = asyncWaitDeck[identifier]?.also {
+                    response[identifier] = msg
+                    KanashiIOExecutors.execute(Runnable { it.invoke() })
+                }
+                if (wd == null && awd == null) {
+                    logger.error("receive un deck msg [type:${requestType}] [identifier:${identifier}], may timeout or error occur!")
+                }
             } else {
                 val requestMapping = requestMappingRegister[requestType]
                 when (requestType) {
@@ -428,7 +467,8 @@ class Connection(private val host: String, private val port: Int) : Runnable {
     private class ChannelHandlerContextHandler(
             private val republicNode: RepublicNode,
             private val sendLicense: License,
-            private val pinLicense: License) {
+            private val pinLicense: License,
+            private val clientMode: Boolean) {
 
         @Volatile
         private var pin: ChannelHandlerContext? = null
@@ -470,6 +510,11 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                     this.pinLicense.disable()
                     logger.info("connection establish with $republicNode using [$mode] mode with channel: ${ctx.channel().remoteAddress()}")
                     ctx.tsubasa(republicNode)
+
+                    if (clientMode) {
+                        validClientConnection.add(republicNode)
+                    }
+
                     true
                 } catch (e: Exception) {
                     logger.error("error occur while establish with $republicNode!", e)
@@ -489,6 +534,7 @@ class Connection(private val host: String, private val port: Int) : Runnable {
                 this.sendLicense.disable()
                 this.pinLicense.enable()
                 republicNode.wakare()
+                validClientConnection.remove(republicNode)
                 true
             }
         }

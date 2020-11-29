@@ -14,21 +14,15 @@ class RepublicNode private constructor(val host: String, val port: Int) {
 
     companion object {
 
-        private val constructor = RepublicNode::class.java.getDeclaredConstructor(String::class.java, Int::class.java)
-
-        init {
-            constructor.isAccessible = true
-        }
-
         private val unique = ConcurrentHashMap<String /* addr */, RepublicNode>()
 
         fun construct(addr: String): RepublicNode {
             val split: Array<String> = addr.split(":").toTypedArray()
-            return constructor.newInstance(split[0], split[1].toInt())
+            return construct(split[0], split[1].toInt())
         }
 
         fun construct(inetSocketAddress: InetSocketAddress): RepublicNode {
-            return constructor.newInstance(inetSocketAddress.hostName, inetSocketAddress.port)
+            return construct(inetSocketAddress.hostName, inetSocketAddress.port)
         }
 
         fun construct(host: String, port: Int): RepublicNode {
