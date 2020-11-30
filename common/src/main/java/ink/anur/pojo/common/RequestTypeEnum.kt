@@ -8,50 +8,27 @@ import java.util.*
  */
 enum class RequestTypeEnum(val byteSign: Int) {
 
-    /**
-     * 颁发发送许可
-     */
     SEND_LICENSE(8000),
 
-    /**
-     * 颁发发送许可
-     */
     SEND_LICENSE_RESPONSE(8001),
 
-    /**
-     * 心跳
-     */
     HEAT_BEAT(9999),
 
-    /**
-     * 向其他 server 进行注册
-     */
     SYN(10000),
 
-    /**
-     * 拿到其他 server 的注册回复
-     */
     SYN_RESPONSE(10001),
 
-    /**
-     * 进行拉票
-     */
     CANVASS(10002),
 
-    /**
-     * 进行投票
-     */
     VOTING(10003),
 
-    /**
-     * 进行 rpc 请求
-     */
-    RPC_REQUEST(99999),
+    RPC_REGISTRATION(99999),
 
-    /**
-     * rpc resp
-     */
-    RPC_RESPONSE(99998)
+    RPC_PROVIDER_MAPPING(99998),
+
+    RPC_REQUEST(98999),
+
+    RPC_RESPONSE(98998)
     ;
 
     companion object {

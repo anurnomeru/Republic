@@ -15,6 +15,8 @@ class License : AbstractQueuedSynchronizer() {
 
     fun license() = acquireShared(1)
 
+    fun license(nanos: Long) = tryAcquireSharedNanos(1, nanos)
+
     fun disable() {
         while (!compareAndSetState(state, 1)) {
         }

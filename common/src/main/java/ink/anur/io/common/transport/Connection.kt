@@ -66,6 +66,8 @@ class Connection(private val host: String, private val port: Int,
 
     private val sendLicense = License()
 
+    val destroyLicense = License()
+
     private val contextHandler = ChannelHandlerContextHandler(republicNode, sendLicense, pinLicense, clientMode)
 
     private val asyncSendingQueue = ConcurrentHashMap<RequestTypeEnum, AbstractStruct>()
@@ -93,10 +95,13 @@ class Connection(private val host: String, private val port: Int,
     }
 
     /* * destroy * */
+
     private fun destroy() {
         running = false
         shutDownHooker.shutdown()
         contextHandler.disConnect()
+        uniqueConnection.remove(republicNode)
+        destroyLicense.enable()
     }
 
     /* * syn * */
@@ -177,23 +182,23 @@ class Connection(private val host: String, private val port: Int,
 
     /* * send with no send license * */
 
-    private fun <T> sendWithNoSendLicenseAndWaitForResponse(channel: Channel, struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): T? =
+    fun <T> sendWithNoSendLicenseAndWaitForResponse(channel: Channel, struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): T? =
             doSendAndWaitForResponse(struct, expect, timeout, unit) { sendWithNoSendLicense(channel, it) }
 
-    private fun <T> sendWithNoSendLicenseAndWaitForResponseAsync(channel: Channel, struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS,
-                                                                 consumer: (T?) -> Unit) =
+    fun <T> sendWithNoSendLicenseAndWaitForResponseAsync(channel: Channel, struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS,
+                                                         consumer: (T?) -> Unit) =
             doSendAndWaitForResponseAsync(struct, expect, timeout, unit, { sendWithNoSendLicense(channel, it) }, consumer)
 
     /* * normal sending * */
 
-    private fun <T> sendAndWaitForResponse(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): T? =
+    fun <T> sendAndWaitForResponse(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): T? =
             doSendAndWaitForResponse(struct, expect, timeout, unit) { send(it) }
 
-    private fun <T> sendAndWaitForResponse(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS,
-                                           consumer: (T?) -> Unit) =
+    fun <T> sendAndWaitForResponse(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS,
+                                   consumer: (T?) -> Unit) =
             doSendAndWaitForResponseAsync(struct, expect, timeout, unit, { send(it) }, consumer)
 
-    private fun <T> sendAndWaitForResponseErrorCaught(struct: AbstractStruct, expect: Class<T>): T? {
+    fun <T> sendAndWaitForResponseErrorCaught(struct: AbstractStruct, expect: Class<T>): T? {
         return try {
             sendAndWaitForResponse(struct, expect, 3000, TimeUnit.MILLISECONDS)
         } catch (t: Throwable) {
@@ -204,11 +209,11 @@ class Connection(private val host: String, private val port: Int,
 
     /* * send async * */
 
-    private fun sendToQueue(struct: AbstractStruct) {
+    fun sendAsync(struct: AbstractStruct) {
         asyncSendingQueue[struct.getRequestType()] = struct
     }
 
-    private fun sendIfHasLicense(struct: AbstractStruct): Boolean {
+    fun sendIfHasLicense(struct: AbstractStruct): Boolean {
         if (sendLicense.hasLicense()) {
             send(struct)
             return true
@@ -221,14 +226,14 @@ class Connection(private val host: String, private val port: Int,
     /**
      * while the connection is not established, using this method for sending msg
      */
-    private fun sendWithNoSendLicense(channel: Channel, struct: AbstractStruct) {
+    fun sendWithNoSendLicense(channel: Channel, struct: AbstractStruct) {
         doSend(channel, struct)
     }
 
     /**
      * synchronized
      */
-    private fun send(struct: AbstractStruct) {
+    fun send(struct: AbstractStruct) {
         sendLicense.license()
         contextHandler.getChannelHandlerContext()?.channel()?.also {
             this.sendWithNoSendLicense(it, struct)
@@ -284,6 +289,10 @@ class Connection(private val host: String, private val port: Int,
 
     override fun toString(): String {
         return "RepublicNode(host='$host', port=$port)"
+    }
+
+    fun waitForEstablished(long: Long, tu: TimeUnit): Boolean {
+        return sendLicense.license(tu.toNanos(long))
     }
 
     companion object {
@@ -354,7 +363,7 @@ class Connection(private val host: String, private val port: Int,
          * if connection is first created, then try connect to the remote node
          * until connection establish
          */
-        fun RepublicNode.getConnection(clientMode: Boolean = false): Connection {
+        fun RepublicNode.getOrCreateConnection(clientMode: Boolean = false): Connection {
             if (!uniqueConnection.containsKey(this)) {
                 synchronized(Connection::class.java) {
                     if (!uniqueConnection.containsKey(this)) {
@@ -365,12 +374,14 @@ class Connection(private val host: String, private val port: Int,
             return uniqueConnection[this]!!
         }
 
+        fun RepublicNode.getConnection(): Connection? = uniqueConnection[this]
+
         fun RepublicNode.sendAsync(struct: AbstractStruct) {
-            getConnection().sendToQueue(struct)
+            getOrCreateConnection().sendAsync(struct)
         }
 
         fun RepublicNode.send(struct: AbstractStruct) {
-            getConnection().send(struct)
+            getOrCreateConnection().send(struct)
         }
 
         /**
@@ -379,7 +390,7 @@ class Connection(private val host: String, private val port: Int,
          * caution: may disconnect when sending
          */
         fun <T> RepublicNode.sendAndWaitingResponse(struct: AbstractStruct, timeout: Long = 3000, expect: Class<T>, unit: TimeUnit = TimeUnit.MILLISECONDS): T? {
-            return getConnection().sendAndWaitForResponse(struct, expect, timeout, unit)
+            return getOrCreateConnection().sendAndWaitForResponse(struct, expect, timeout, unit)
         }
 
         /* * receive * */
@@ -445,13 +456,13 @@ class Connection(private val host: String, private val port: Int,
 
         private fun ChannelHandlerContext.sendLicense(sendLicense: SendLicense) {
             val republicNode = RepublicNode.construct(sendLicense.getAddr())
-            republicNode.getConnection().sendLicense()
+            republicNode.getOrCreateConnection().sendLicense()
             doSend(this.channel(), SendLicenseResponse().asResp(sendLicense))
         }
 
         private fun ChannelHandlerContext.mayConnectByRemote(syn: Syn) {
             val republicNode = RepublicNode.construct(syn.getAddr())
-            republicNode.getConnection(syn.clientMode()).mayConnectByRemote(this, syn)
+            republicNode.getOrCreateConnection(syn.clientMode()).mayConnectByRemote(this, syn)
         }
 
         /**
@@ -555,7 +566,13 @@ class Connection(private val host: String, private val port: Int,
                 this.sendLicense.disable()
                 this.pinLicense.enable()
                 republicNode.wakare()
-                validClientConnection.remove(republicNode)
+
+                if (clientMode) {
+                    // todo may bug
+                    republicNode.getConnection()?.destroy()
+                    validClientConnection.remove(republicNode)
+                }
+
                 true
             }
         }

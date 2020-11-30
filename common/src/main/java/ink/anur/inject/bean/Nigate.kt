@@ -34,8 +34,6 @@ import kotlin.system.exitProcess
 @Suppress("UNCHECKED_CAST")
 object Nigate {
 
-    /// ==================================
-
     private val vmArgs = ConcurrentHashMap<String, String>()
 
     fun start(args: Array<String>) {
