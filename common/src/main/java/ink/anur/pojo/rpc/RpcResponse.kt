@@ -9,15 +9,15 @@ import java.nio.ByteBuffer
 /**
  * Created by Anur IjuoKaruKas on 2020/4/7
  */
-class RpcResponse : MetaStruct {
-    constructor(serializableMeta: SerializableMeta) : super(serializableMeta)
+class RpcResponse : MetaStruct<RpcResponseMeta> {
+    constructor(serializableMeta: RpcResponseMeta) : super(serializableMeta)
     constructor(byteBuffer: ByteBuffer) : super(byteBuffer)
 
     override fun requestTypeEnum(): RequestTypeEnum {
         return RequestTypeEnum.RPC_RESPONSE
     }
 
-    override fun metaClazz(): Class<out SerializableMeta> {
+    override fun metaClazz(): Class<RpcResponseMeta> {
         return RpcResponseMeta::class.java
     }
 }

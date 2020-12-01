@@ -43,7 +43,7 @@ class KanashiClientConnector {
                     val nowConnectNode = cluster[nowIndex]
                     try {
                         val connection = nowConnectNode.getOrCreateConnection()
-                        if (connection.waitForEstablished(5, TimeUnit.SECONDS)) {
+                        if (connection.waitForLicense(5, TimeUnit.SECONDS)) {
                             logger.info("successful connect to server node $nowConnectNode, sending RPC registration...")
 
                             val sendAndWaitForResponse = connection.sendAndWaitForResponse(RpcRegistration(

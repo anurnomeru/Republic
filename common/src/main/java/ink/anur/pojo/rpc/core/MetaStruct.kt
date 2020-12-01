@@ -7,15 +7,15 @@ import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
 import java.nio.ByteBuffer
 
-abstract class MetaStruct : AbstractStruct {
+abstract class MetaStruct<T : SerializableMeta> : AbstractStruct {
 
-    val serializableMeta: SerializableMeta
+    val serializableMeta: T
 
     abstract fun requestTypeEnum(): RequestTypeEnum
 
-    abstract fun metaClazz(): Class<out SerializableMeta>
+    abstract fun metaClazz(): Class<T>
 
-    constructor(serializableMeta: SerializableMeta) {
+    constructor(serializableMeta: T) {
         this.serializableMeta = serializableMeta
         val ser = HessianUtil.ser(serializableMeta)
         init(OriginMessageOverhead + ser.size, requestTypeEnum()) {

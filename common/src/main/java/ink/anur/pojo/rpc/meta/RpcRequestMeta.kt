@@ -23,8 +23,4 @@ class RpcRequestMeta(
         /**
          * 此请求的参数
          */
-        val requestParams: Array<out Any>?,
-        /**
-         * 此请求的请求标志，用于区分回复
-         */
-        val msgSign: Long) : SerializableMeta
+        val requestParams: Array<out Any>?) : SerializableMeta

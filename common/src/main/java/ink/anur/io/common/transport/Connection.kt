@@ -41,7 +41,7 @@ class Connection(private val host: String, private val port: Int,
                   *
                   * TODO switching mode for now is un supported
                   */
-                 clientMode: Boolean = false) : Runnable {
+                 private val clientMode: Boolean = false) : Runnable {
 
     @NigateInject
     private lateinit var inetConnection: InetConfiguration
@@ -66,9 +66,9 @@ class Connection(private val host: String, private val port: Int,
 
     private val sendLicense = License()
 
-    val destroyLicense = License()
+    private var currentWaitDeck = ConcurrentSkipListSet<Int>()
 
-    private val contextHandler = ChannelHandlerContextHandler(republicNode, sendLicense, pinLicense, clientMode)
+    private val contextHandler = ChannelHandlerContextHandler(republicNode, sendLicense, pinLicense, clientMode, currentWaitDeck)
 
     private val asyncSendingQueue = ConcurrentHashMap<RequestTypeEnum, AbstractStruct>()
 
@@ -76,6 +76,8 @@ class Connection(private val host: String, private val port: Int,
 
     @Volatile
     private var running: Boolean = true
+
+    val destroyLicense = License()
 
     /* * initial * */
 
@@ -115,28 +117,31 @@ class Connection(private val host: String, private val port: Int,
 
         while (running) {
             pinLicense.license()
-
-            if (contextHandler.established()) {
-                logger.trace("connection is already established, so disable [ConnectLicense]")
-                pinLicense.disable()
-            }
-
-            contextHandler.getPinUnEstablished()?.let {
-                logger.trace("now try to establish")
-
-                try {
-                    val sendAndWaitForResponse = sendWithNoSendLicenseAndWaitForResponse(it.channel(), Syn(inetConnection.localNodeAddr, createdTs, randomSeed), SynResponse::class.java)
-                    if (sendAndWaitForResponse != null) {
-                        this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.PIN, it)
-                    }
-                } catch (e: Throwable) {
-                    logger.trace("sending [Syn] to the remote node but can't get response, retrying...")
-                    return@let
-                }
-            }
+            doEstablish()
         }
 
         logger.info("connection [Pin] mode to node $republicNode is destroy")
+    }
+
+    private fun doEstablish() {
+        if (contextHandler.established()) {
+            logger.trace("connection is already established, so disable [ConnectLicense]")
+            pinLicense.disable()
+        }
+
+        contextHandler.getPinUnEstablished()?.let {
+            logger.trace("now try to establish")
+
+            try {
+                val sendAndWaitForResponse = sendWithNoSendLicenseAndWaitForResponse(it.channel(), Syn(inetConnection.localNodeAddr, createdTs, randomSeed, clientMode), SynResponse::class.java)
+                if (sendAndWaitForResponse != null) {
+                    this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.PIN, it)
+                }
+            } catch (e: Throwable) {
+                logger.trace("sending [Syn] to the remote node but can't get response, retrying...")
+                return@let
+            }
+        }
     }
 
     /* * syn response * */
@@ -251,6 +256,8 @@ class Connection(private val host: String, private val port: Int,
         val resIdentifier = struct.getRespIdentifier()
 
         logger.trace("waiting response for res identifier $resIdentifier")
+
+        currentWaitDeck.add(resIdentifier)
         asyncWaitDeck[resIdentifier] = {
             val t = response[resIdentifier]?.let { expect.getConstructor(ByteBuffer::class.java).newInstance(it) }
             consumer.invoke(t)
@@ -273,6 +280,8 @@ class Connection(private val host: String, private val port: Int,
 
         try {
             logger.trace("waiting response for res identifier $resIdentifier")
+
+            currentWaitDeck.add(resIdentifier)
             waitDeck[resIdentifier] = cdl
             howToSend.invoke(struct)
             if (!cdl.await(timeout, unit)) {
@@ -282,6 +291,7 @@ class Connection(private val host: String, private val port: Int,
             }
             return response[resIdentifier]?.let { expect.getConstructor(ByteBuffer::class.java).newInstance(it) }
         } finally {
+            currentWaitDeck.remove(resIdentifier)
             response.remove(resIdentifier)
             waitDeck.remove(resIdentifier)
         }
@@ -291,8 +301,12 @@ class Connection(private val host: String, private val port: Int,
         return "RepublicNode(host='$host', port=$port)"
     }
 
-    fun waitForEstablished(long: Long, tu: TimeUnit): Boolean {
+    fun waitForLicense(long: Long, tu: TimeUnit): Boolean {
         return sendLicense.license(tu.toNanos(long))
+    }
+
+    fun established(): Boolean {
+        return contextHandler.established()
     }
 
     companion object {
@@ -494,7 +508,8 @@ class Connection(private val host: String, private val port: Int,
             private val republicNode: RepublicNode,
             private val sendLicense: License,
             private val pinLicense: License,
-            private val clientMode: Boolean) {
+            private val clientMode: Boolean,
+            private val currentWaitDeck: ConcurrentSkipListSet<Int>) {
 
         @Volatile
         private var pin: ChannelHandlerContext? = null
@@ -556,6 +571,12 @@ class Connection(private val host: String, private val port: Int,
                 false
             } else {
                 logger.error("remote node $republicNode using [$mode] is disconnect")
+
+                // while disconnect to remote node, wake up sleeping thread
+                // this is a 'fast recovery' mode, it is unnecessary to wait the response from disconnected node
+                for (identifier in currentWaitDeck.iterator()) {
+                    waitDeck[identifier]?.countDown()
+                }
 
                 when (mode) {
                     ChchMode.PIN -> pin?.channel()?.close()
