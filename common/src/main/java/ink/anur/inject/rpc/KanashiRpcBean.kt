@@ -33,6 +33,8 @@ class KanashiRpcBean(private val bean: Any) {
         }
     }
 
+    fun getMethodMapping() = methodSignMapping
+
     @Throws(InvocationTargetException::class, IllegalAccessException::class)
     fun invokeMethod(methodSign: String, vararg args: Any): Any? {
         val method = methodSignMapping[methodSign] ?: throw RPCNotSuchMethodException("不存在此方法")

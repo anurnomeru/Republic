@@ -204,6 +204,16 @@ object Nigate {
         private val duplicateCleaner = mutableSetOf<String>()
 
         /**
+         * TODO 懒得做 read only
+         */
+        fun getRpcInterfaces() = rpcInterfaceBean
+
+        /**
+         * TODO 懒得做 read only
+         */
+        fun getRpcBeans() = rpcBean
+
+        /**
          * register bean to beanDefinitionMapping
          */
         private fun autoRegister(path: String, clazz: Class<*>, fromJar: Boolean) {
@@ -526,6 +536,20 @@ object Nigate {
 
             val path: String
     )
+
+    /**
+     * 获取当前 Provider 下所有提供服务的 bean 的方法定义 methodSign
+     */
+    fun getRpcBeanPath(): Map<String/* bean */, HashSet<String /* method */>> {
+        return beanContainer.getRpcBeans().mapValues { HashSet(it.value.getMethodMapping().keys) }
+    }
+
+    /**
+     * 获取当前 Provider 下所有提供服务的 接口 的方法定义 methodSign
+     */
+    fun getRpcInterfacePath(): Map<String/* bean */, List<HashSet<String /* method */>>> {
+        return beanContainer.getRpcInterfaces().mapValues { it.value.map { bean -> HashSet(bean.getMethodMapping().keys) } }
+    }
 
     class RpcRequestInvocation(interfaces: Class<out Any>, private val alias: String?) : InvocationHandler {
 

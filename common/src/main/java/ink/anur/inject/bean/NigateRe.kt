@@ -1,12 +1,13 @@
 //package ink.anur.inject
 //
 //import com.google.common.collect.Lists
+//import ink.anur.common.KanashiExecutors
 //import ink.anur.exception.DuplicateBeanException
 //import ink.anur.exception.KanashiException
 //import ink.anur.exception.NigateException
 //import ink.anur.exception.NoSuchBeanException
 //import ink.anur.exception.RPCInjectUnSupportException
-//import ink.anur.rpc.RpcSenderService
+//import ink.anur.rpc.RpcSender
 //import ink.anur.util.ClassMetaUtil
 //import org.slf4j.LoggerFactory
 //import java.io.File
@@ -16,6 +17,9 @@
 //import java.lang.reflect.Proxy
 //import java.net.JarURLConnection
 //import java.net.URL
+//import java.util.function.Function
+//import java.util.stream.Collectors
+//import java.util.stream.Stream
 //import kotlin.reflect.full.declaredMemberProperties
 //import kotlin.reflect.full.memberFunctions
 //import kotlin.reflect.jvm.isAccessible
@@ -28,7 +32,7 @@
 // *
 // * 扫描系列
 // */
-//object NigateRe {
+//object Nigate {
 //
 //    /**
 //     * bean 容器
@@ -41,14 +45,13 @@
 //
 //    init {
 //        try {
-//            logger.info("\n __  _   ____  ____    ____  _____ __ __  ____ \n" +
-//                    "|  |/ ] /    ||    \\  /    |/ ___/|  |  ||    |\n" +
-//                    "|  ' / |  o  ||  _  ||  o  (   \\_ |  |  | |  | \n" +
-//                    "|    \\ |     ||  |  ||     |\\__  ||  _  | |  | \n" +
-//                    "|     ||  _  ||  |  ||  _  |/  \\ ||  |  | |  | \n" +
-//                    "|  .  ||  |  ||  |  ||  |  |\\    ||  |  | |  | \n" +
-//                    "|__|\\_||__|__||__|__||__|__| \\___||__|__||____|\n\n" +
-//                    "                                          Ver: 0.0.1 Alpha\n")
+//            logger.info("\n" +
+//                " ▄    ▄   ▄▄   ▄▄   ▄   ▄▄    ▄▄▄▄  ▄    ▄ ▄▄▄▄▄         ▄▄▄▄▄  ▄▄▄▄▄    ▄▄▄ \n" +
+//                " █  ▄▀    ██   █▀▄  █   ██   █▀   ▀ █    █   █           █   ▀█ █   ▀█ ▄▀   ▀\n" +
+//                " █▄█     █  █  █ █▄ █  █  █  ▀█▄▄▄  █▄▄▄▄█   █           █▄▄▄▄▀ █▄▄▄█▀ █     \n" +
+//                " █  █▄   █▄▄█  █  █ █  █▄▄█      ▀█ █    █   █     ▀▀▀   █   ▀▄ █      █     \n" +
+//                " █   ▀▄ █    █ █   ██ █    █ ▀▄▄▄█▀ █    █ ▄▄█▄▄         █    ▀ █       ▀▄▄▄▀\n" +
+//                "                                          Ver: 0.0.1 Alpha\n")
 //
 //            val start = System.currentTimeMillis()
 //            logger.info("Nigate ==> Registering..")
@@ -84,6 +87,20 @@
 //        }
 //    }
 //
+//    /**
+//     * 获取当前 Provider 下所有提供服务的 bean 的方法定义 methodSign
+//     */
+//    fun getRpcBeanPath(): Map<String/* bean */, HashSet<String /* method */>> {
+//        return beanContainer.RPC_BEAN.mapValues { HashSet(it.value.methodSignMapping.keys) }
+//    }
+//
+//    /**
+//     * 获取当前 Provider 下所有提供服务的 接口 的方法定义 methodSign
+//     */
+//    fun getRpcInterfacePath(): Map<String/* bean */, List<HashSet<String /* method */>>> {
+//        return beanContainer.RPC_INTERFACE_BEAN.mapValues { it.value.map { bean -> HashSet(bean.methodSignMapping.keys) } }
+//    }
+//
 //    fun getRPCBeanByName(name: String): KanashiRpcBean? {
 //        return beanContainer.getRPCBeanByName(name)
 //    }
@@ -93,6 +110,8 @@
 //    }
 //
 //    fun <T> getBeanByClass(clazz: Class<T>): T = beanContainer.getBeanByClass(clazz)
+//
+//    fun <T> getBeanByInterface(clazz: Class<T>): T = beanContainer.getBeanByInterface(clazz, true) as T
 //
 //    fun getBeanByName(name: String): Any = beanContainer.getBeanByName(name)
 //
@@ -130,12 +149,12 @@
 //        /**
 //         * 专门为远程调用准备的映射
 //         */
-//        private val RPC_BEAN = mutableMapOf<String, KanashiRpcBean>()
+//        val RPC_BEAN = mutableMapOf<String, KanashiRpcBean>()
 //
 //        /**
 //         * 远程调用下，接口下的实现
 //         */
-//        private val RPC_INTERFACE_BEAN = mutableMapOf<String, MutableList<KanashiRpcBean>>()
+//        val RPC_INTERFACE_BEAN = mutableMapOf<String, MutableList<KanashiRpcBean>>()
 //
 //        /**
 //         * bean 名字与 bean 的映射，只能一对一
@@ -235,7 +254,7 @@
 //                try {
 //                    result = getBeanByClass(clazz)
 //                } catch (t: Throwable) {
-//                    result = NigateRe.getBeanByName(clazz.simpleName) as T
+//                    result = Nigate.getBeanByName(clazz.simpleName) as T
 //                }
 //            } catch (t: Throwable) {
 //                throw NoSuchBeanException("无法根据类 ${clazz.simpleName} 找到唯一的 Bean 或 无法根据名字 ${clazz.simpleName} 找到指定的 Bean ")
@@ -254,7 +273,36 @@
 //        }
 //
 //        /**
-//         * 为某个bean注入成员变量，如果注入的接口是一个 RPC 接口，则会为接口创建一个动态代理
+//         * todo 代码从下面copy过来的，其实抛的异常不太对
+//         */
+//        fun <T> getBeanByInterface(clazz: Class<T>, useLocalFirst: Boolean): Any {
+//            return if (clazz.isInterface) {
+//                val mutableSet = INTERFACE_MAPPING[clazz]
+//                if (mutableSet == null) {
+//                    throw NoSuchBeanException("不存在接口类型为 $clazz 的 Bean！")
+//                } else {
+//                    if (mutableSet.size == 1) {// 如果只有一个实现，则注入此实现
+//                        return getBeanByClassFirstThenName(mutableSet.first())
+//                    } else if (useLocalFirst) {// 如果优先使用本地写的类
+//                        val localBean = mutableSet.takeIf { BEAN_DEFINITION_MAPPING[it.javaClass.simpleName]?.fromJar == false }
+//                        when {
+//                            localBean == null -> throw DuplicateBeanException("bean ${clazz.javaClass} " +
+//                                " 将注入的属性 $clazz 为接口类型，且存在多个来自【依赖】的子类实现，请改用 @NigateInject(name) 来指定别名注入")
+//                            localBean.size > 1 -> throw DuplicateBeanException("bean ${clazz.javaClass} " +
+//                                " 将注入的属性 $clazz 为接口类型，且存在多个来自【本地】的子类实现，请改用 @NigateInject(name) 来指定别名注入")
+//                            else -> return getBeanByClassFirstThenName(mutableSet.first())
+//                        }
+//                    } else {
+//                        throw DuplicateBeanException("将注入的属性 $clazz 为接口类型，且存在多个来自【依赖】的子类实现，请改用 @NigateInject(name) 来指定别名注入")
+//                    }
+//                }
+//            } else {
+//                throw KanashiException("$clazz 不是接口！")
+//            }
+//        }
+//
+//        /**
+//         * 为某个bean注入成员变量，如果注入的接口是一个 RPC_REQUEST 接口，则会为接口创建一个动态代理
 //         */
 //        fun inject(injected: Any) {
 //            for (kProperty in injected::class.declaredMemberProperties) {
@@ -278,9 +326,9 @@
 //                                        val localBean = mutableSet.takeIf { BEAN_DEFINITION_MAPPING[it.javaClass.simpleName]?.fromJar == false }
 //                                        when {
 //                                            localBean == null -> throw DuplicateBeanException("bean ${injected.javaClass} " +
-//                                                    " 将注入的属性 $fieldName 为接口类型，且存在多个来自【依赖】的子类实现，请改用 @NigateInject(name) 来指定别名注入")
+//                                                " 将注入的属性 $fieldName 为接口类型，且存在多个来自【依赖】的子类实现，请改用 @NigateInject(name) 来指定别名注入")
 //                                            localBean.size > 1 -> throw DuplicateBeanException("bean ${injected.javaClass} " +
-//                                                    " 将注入的属性 $fieldName 为接口类型，且存在多个来自【本地】的子类实现，请改用 @NigateInject(name) 来指定别名注入")
+//                                                " 将注入的属性 $fieldName 为接口类型，且存在多个来自【本地】的子类实现，请改用 @NigateInject(name) 来指定别名注入")
 //                                            else -> injection = getBeanByClassFirstThenName(mutableSet.first())
 //                                        }
 //                                    }
@@ -309,7 +357,7 @@
 //                        val javaField = kProperty.javaField!!
 //                        val fieldClass = kProperty.returnType.javaType as Class<*>
 //
-//                        val alias = if (annotation.alias == UNDEFINE_ALIAS) annotation.alias else null
+//                        val alias = if (annotation.alias == UNDEFINE_ALIAS) null else annotation.alias
 //
 //                        javaField.isAccessible = true
 //                        javaField.set(injected, RpcRequestInvocation(fieldClass, alias).proxyBean)
@@ -333,7 +381,7 @@
 //                            val dependsOn = NAME_TO_BEAN_MAPPING[annotation.dependsOn]
 //                            if (annotation.dependsOn != "-NONE-" && !HAS_BEEN_POSTCONTROL.contains(dependsOn)) {
 //                                dependsOn
-//                                        ?: throw NoSuchBeanException("$bean 依赖的 bean ${annotation.dependsOn} 不存在")
+//                                    ?: throw NoSuchBeanException("$bean 依赖的 bean ${annotation.dependsOn} 不存在")
 //                                LAZY_POSTCONTROL_BEAN[bean] = dependsOn
 //                                if (LAZY_POSTCONTROL_BEAN[dependsOn] != null && LAZY_POSTCONTROL_BEAN[dependsOn] == bean) {
 //                                    throw NigateException("bean ${BEAN_TO_NAME_MAPPING[dependsOn]} 与 ${BEAN_TO_NAME_MAPPING[bean]} 的 @NigatePostConstruct 构成了循环依赖！")
@@ -342,7 +390,7 @@
 //
 //                                HAS_BEEN_POSTCONTROL.add(bean)
 //                                removes.add(
-//                                        bean
+//                                    bean
 //                                )
 //
 //                                try {
@@ -377,13 +425,16 @@
 //                    for (annotation in memberFunction.annotations) {
 //                        if (annotation.annotationClass == NigateAfterBootStrap::class) {
 //                            annotation as NigateAfterBootStrap
-//                            try {
-//                                memberFunction.isAccessible = true
-//                                memberFunction.call(bean)
-//                            } catch (e: Exception) {
-//                                logger.error("class [${bean::class}] invoke after bootstrap method [${memberFunction.name}] error : ${e.message}")
-//                                e.printStackTrace()
-//                            }
+//                            KanashiExecutors.execute(Runnable {
+//                                try {
+//                                    memberFunction.isAccessible = true
+//                                    memberFunction.call(bean)
+//                                } catch (e: Exception) {
+//                                    logger.error("class [${bean::class}] invoke after bootstrap method [${memberFunction.name}] error : ${e.message}")
+//                                    e.printStackTrace()
+//                                }
+//
+//                            })
 //                            val name = BEAN_TO_NAME_MAPPING[bean] ?: throw NoSuchBeanException("无法根据类 ${bean.javaClass.simpleName} 找到唯一的 Bean 找到指定的 BeanName")
 //                            hasBeanPostConstruct.add(name)
 //                        }
@@ -474,12 +525,12 @@
 //    }
 //
 //    class NigateBeanDefinition(
-//            /**
-//             * fromJar 代表此实现是有默认的实现而且实现在继承的maven里就已经写好
-//             */
-//            val fromJar: Boolean,
+//        /**
+//         * fromJar 代表此实现是有默认的实现而且实现在继承的maven里就已经写好
+//         */
+//        val fromJar: Boolean,
 //
-//            val path: String
+//        val path: String
 //    )
 //
 //    class RpcRequestInvocation(interfaces: Class<out Any>, val alias: String?) : InvocationHandler {
@@ -489,7 +540,7 @@
 //        val proxyBean: Any = Proxy.newProxyInstance(interfaces.classLoader, arrayOf(interfaces), this)
 //
 //        override fun invoke(proxy: Any?, method: Method, args: Array<out Any>?): Any? {
-//            val rpcSenderService = getBeanByClass(RpcSenderService::class.java)
+//            val rpcSenderService = getBeanByInterface(RpcSender::class.java)
 //            return rpcSenderService.sendRpcRequest(method, interfaceName, alias, args)
 //        }
 //    }
