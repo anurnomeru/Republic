@@ -1,6 +1,5 @@
 package ink.anur.rpc
 
-import ink.anur.common.KanashiExecutors
 import ink.anur.common.struct.RepublicNode
 import ink.anur.core.common.AbstractRequestMapping
 import ink.anur.inject.bean.Nigate
@@ -9,8 +8,8 @@ import ink.anur.io.common.transport.Connection.Companion.send
 import ink.anur.pojo.common.RequestTypeEnum
 import ink.anur.pojo.rpc.RpcRequest
 import ink.anur.pojo.rpc.RpcResponse
-import ink.anur.pojo.rpc.meta.RpcRequestMeta
 import ink.anur.pojo.rpc.meta.RpcResponseMeta
+import ink.anur.rpc.common.RPCError
 import java.nio.ByteBuffer
 
 /**
@@ -37,10 +36,10 @@ class RpcHandlerService : AbstractRequestMapping() {
             val rpcBeanByInterfaces = nigate.getRPCBeanByInterface(requestMeta.requestInterface)
             when {
                 rpcBeanByInterfaces == null -> {
-                    republicNode.send(RpcResponse(RpcResponseMeta("ERR1", error = true)))
+                    republicNode.send(RpcResponse(RpcResponseMeta(RPCError.A.name, error = true)))
                 }
                 rpcBeanByInterfaces.size > 1 -> {
-                    republicNode.send(RpcResponse(RpcResponseMeta("ERR2", error = true)))
+                    republicNode.send(RpcResponse(RpcResponseMeta(RPCError.B.name, error = true)))
                 }
                 else -> {
                     val rpcBean = rpcBeanByInterfaces[0]
@@ -53,11 +52,15 @@ class RpcHandlerService : AbstractRequestMapping() {
         } else {
             when (val rpcBean = nigate.getRPCBeanByName(requestMeta.requestBean)) {
                 null -> {
-                    republicNode.send(RpcResponse(RpcResponseMeta("ERR3", error = true)))
+                    republicNode.send(RpcResponse(RpcResponseMeta(RPCError.C.name, error = true)))
                 }
                 else -> {
-                    val result = requestMeta.requestParams?.let { rpcBean.invokeMethod(requestMeta.requestMethodSign, *it) }
-                            ?: rpcBean.invokeMethod(requestMeta.requestMethodSign)
+                    val result = try {
+                        requestMeta.requestParams?.let { rpcBean.invokeMethod(requestMeta.requestMethodSign, *it) }
+                                ?: rpcBean.invokeMethod(requestMeta.requestMethodSign)
+                    } catch (e: Exception) {
+                        republicNode.send(RpcResponse(RpcResponseMeta(e.cause, error = true)))
+                    }
                     republicNode.send(RpcResponse(RpcResponseMeta(result)))
                 }
             }

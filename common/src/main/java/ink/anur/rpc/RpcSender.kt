@@ -7,5 +7,5 @@ import java.lang.reflect.Method
  */
 interface RpcSender {
 
-    fun sendRpcRequest(method: Method, interfaceName: String, alias: String?, args: Array<out Any>?, retryTimes: Int): Any?
+    fun sendRpcRequest(method: Method, interfaceName: String, alias: String?, args: Array<out Any>?): Any?
 }

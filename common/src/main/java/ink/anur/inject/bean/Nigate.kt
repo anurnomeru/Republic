@@ -8,6 +8,7 @@ import ink.anur.inject.event.NigateListenerService
 import ink.anur.inject.rpc.KanashiRpc
 import ink.anur.inject.rpc.KanashiRpcBean
 import ink.anur.inject.rpc.KanashiRpcInject
+import ink.anur.rpc.RpcSenderService
 import ink.anur.util.ClassMetaUtil
 import ink.anur.util.TimeUtil
 import org.slf4j.LoggerFactory
@@ -43,7 +44,7 @@ object Nigate {
 
         }
 
-          try {
+        try {
             logger.info("\n __  _   ____  ____    ____  _____ __ __  ____ \n" +
                     "|  |/ ] /    ||    \\  /    |/ ___/|  |  ||    |\n" +
                     "|  ' / |  o  ||  _  ||  o  (   \\_ |  |  | |  | \n" +
@@ -533,10 +534,8 @@ object Nigate {
         val proxyBean: Any = Proxy.newProxyInstance(interfaces.classLoader, arrayOf(interfaces), this)
 
         override fun invoke(proxy: Any?, method: Method, args: Array<out Any>?): Any? {
-//            val rpcSenderService = getBeanByClass(RpcSenderService::class.java)
-//            return rpcSenderService.sendRpcRequest(method, interfaceName, alias, args)
-
-            return proxy
+            val rpcSenderService = getBeanByClass(RpcSenderService::class.java)
+            return rpcSenderService.sendRpcRequest(method, interfaceName, alias, args)
         }
     }
 }

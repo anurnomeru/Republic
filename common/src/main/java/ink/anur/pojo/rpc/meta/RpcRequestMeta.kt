@@ -23,4 +23,8 @@ class RpcRequestMeta(
         /**
          * 此请求的参数
          */
-        val requestParams: Array<out Any>?) : SerializableMeta
+        val requestParams: Array<out Any>?) : SerializableMeta{
+        override fun toString(): String {
+                return "RpcRequestMeta(requestBean=$requestBean, requestInterface='$requestInterface', requestMethodSign='$requestMethodSign', requestParams=${requestParams?.contentToString()})"
+        }
+}

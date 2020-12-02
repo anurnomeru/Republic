@@ -199,7 +199,7 @@ class Connection(private val host: String, private val port: Int,
     fun <T> sendAndWaitForResponse(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): T? =
             doSendAndWaitForResponse(struct, expect, timeout, unit) { send(it) }
 
-    fun <T> sendAndWaitForResponse(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS,
+    fun <T> sendAndWaitForResponseAsync(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS,
                                    consumer: (T?) -> Unit) =
             doSendAndWaitForResponseAsync(struct, expect, timeout, unit, { send(it) }, consumer)
 
