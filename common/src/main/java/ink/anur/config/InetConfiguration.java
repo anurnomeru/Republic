@@ -33,6 +33,13 @@ public class InetConfiguration {
                     allCache = Stream.of(clientAddr.split(";"))
                                      .map(RepublicNode.Companion::construct)
                                      .collect(Collectors.toList());
+//
+//                    allCache = Optional.ofNullable(clientAddr)
+//                                       .map(s -> s.split(";"))
+//                                       .map(it -> Stream.of(it)
+//                                                        .map(RepublicNode.Companion::construct)
+//                                                        .collect(Collectors.toList()))
+//                                       .orElse(Lists.newArrayList());
                 }
             }
         }

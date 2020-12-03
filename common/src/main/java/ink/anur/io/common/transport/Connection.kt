@@ -133,9 +133,18 @@ class Connection(private val host: String, private val port: Int,
             logger.trace("now try to establish")
 
             try {
-                val sendAndWaitForResponse = sendWithNoSendLicenseAndWaitForResponse(it.channel(), Syn(inetConnection.localNodeAddr, createdTs, randomSeed, clientMode), SynResponse::class.java)
+                val channel = it.channel()
+                val sendAndWaitForResponse = sendWithNoSendLicenseAndWaitForResponse(channel, Syn(inetConnection.localNodeAddr, createdTs, randomSeed, clientMode), SynResponse::class.java)
                 if (sendAndWaitForResponse != null) {
                     this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.PIN, it)
+                    sendWithNoSendLicenseAndWaitForResponseAsync(channel, SendLicense(inetConnection.localNodeAddr), SendLicenseResponse::class.java) { resp ->
+                        resp?.also {
+                            this.sendLicense()
+                        } ?: let {
+                            logger.error("establish to remote node ${sendAndWaitForResponse.getAddr()} but remote node did not publish send license")
+                            channel.close()
+                        }
+                    }
                 }
             } catch (e: Throwable) {
                 logger.trace("sending [Syn] to the remote node but can't get response, retrying...")
@@ -156,18 +165,8 @@ class Connection(private val host: String, private val port: Int,
             try {
                 if (syn.allowConnect(createdTs, randomSeed, republicNode.addr) || syn.clientMode()) {
                     logger.trace("allowing remote node ${syn.getAddr()} establish to local ")
-                    sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr).asResp(syn))
                     if (this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.SOCKET, ctx)) {
-                        sendWithNoSendLicenseAndWaitForResponseAsync(ctx.channel(), SendLicense(inetConnection.localNodeAddr), SendLicenseResponse::class.java) {
-                            it?.also {
-                                this.sendLicense()
-                            } ?: let {
-                                logger.error("establish to remote node ${syn.getAddr()} but remote node did not publish send license")
-                                ctx.close()
-                            }
-
-
-                        }
+                        sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr).asResp(syn))
                     }
                 } else {
                     logger.trace("remote node $republicNode attempt to established with local node but refused. try to establish initiative.")
@@ -200,7 +199,7 @@ class Connection(private val host: String, private val port: Int,
             doSendAndWaitForResponse(struct, expect, timeout, unit) { send(it) }
 
     fun <T> sendAndWaitForResponseAsync(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS,
-                                   consumer: (T?) -> Unit) =
+                                        consumer: (T?) -> Unit) =
             doSendAndWaitForResponseAsync(struct, expect, timeout, unit, { send(it) }, consumer)
 
     fun <T> sendAndWaitForResponseErrorCaught(struct: AbstractStruct, expect: Class<T>): T? {

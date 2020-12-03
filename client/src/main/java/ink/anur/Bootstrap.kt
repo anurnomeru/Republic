@@ -15,7 +15,7 @@ object Bootstrap {
     fun main(args: Array<String>) {
 
         // 初始化 bean管理
-        Nigate
+        Nigate.start(args)
 
         while (RUNNING) {
             Thread.sleep(1000)
