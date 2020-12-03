@@ -21,5 +21,4 @@ object Bootstrap {
             Thread.sleep(1000)
         }
     }
-
 }

@@ -11,7 +11,7 @@ class RpcRegistration : MetaStruct<RpcRegistrationMeta> {
     constructor(byteBuffer: ByteBuffer) : super(byteBuffer)
 
     override fun requestTypeEnum(): RequestTypeEnum {
-        return RequestTypeEnum.RPC_REQUEST
+        return RequestTypeEnum.RPC_REGISTRATION
     }
 
     override fun metaClazz(): Class<RpcRegistrationMeta> {

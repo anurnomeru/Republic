@@ -17,6 +17,8 @@ class Debugger(clazz: Class<*>) {
         return level
     }
 
+    fun isDebugEnable() = h.isDebugEnabled || level == DebuggerLevel.DEBUG
+
     fun switch(level: DebuggerLevel): Debugger {
         this.level = level
         return this

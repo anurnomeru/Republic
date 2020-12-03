@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit
 class RpcSenderService : RpcSender {
 
     @NigateInject
-    private lateinit var rpcProviderMappingHolderService: RpcProviderMappingHolderService
+    private lateinit var rpcPouteInfoHandlerService: RpcPouteInfoHandlerService
 
     private val openConnections = ConcurrentHashMap<String, Connection>()
 
@@ -37,7 +37,7 @@ class RpcSenderService : RpcSender {
     override fun sendRpcRequest(method: Method, interfaceName: String, alias: String?, args: Array<out Any>?): Any? {
         val rpcRequest = RpcRequest(RpcRequestMeta(alias, interfaceName, ClassMetaUtil.methodSignGen(method), args))
 
-        val searchValidProvider = rpcProviderMappingHolderService.searchValidProvider(rpcRequest)
+        val searchValidProvider = rpcPouteInfoHandlerService.searchValidProvider(rpcRequest)
 
         if (searchValidProvider == null || searchValidProvider.isEmpty()) {
             throw RPCNoMatchProviderException("can not find provider for request ${rpcRequest.serializableMeta}")
@@ -84,7 +84,7 @@ class RpcSenderService : RpcSender {
                 val connection = RepublicNode.construct(entry.value.host, entry.value.port)
                         .getOrCreateConnection(true)
 
-                if (connection.established() && connection.waitForLicense(1L, TimeUnit.SECONDS)) {
+                if (connection.established() && connection.waitForSendLicense(1L, TimeUnit.SECONDS)) {
                     openConnections[serverName] = connection
                     return connection
                 }

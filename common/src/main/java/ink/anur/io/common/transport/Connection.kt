@@ -54,7 +54,7 @@ class Connection(private val host: String, private val port: Int,
         }
     }
 
-    private val republicNode = RepublicNode.construct(host, port)
+    val republicNode = RepublicNode.construct(host, port)
 
     private val createdTs = TimeUtil.getTime()
 
@@ -98,7 +98,7 @@ class Connection(private val host: String, private val port: Int,
 
     /* * destroy * */
 
-    private fun destroy() {
+    fun destroy() {
         running = false
         shutDownHooker.shutdown()
         contextHandler.disConnect()
@@ -300,7 +300,7 @@ class Connection(private val host: String, private val port: Int,
         return "RepublicNode(host='$host', port=$port)"
     }
 
-    fun waitForLicense(long: Long, tu: TimeUnit): Boolean {
+    fun waitForSendLicense(long: Long, tu: TimeUnit): Boolean {
         return sendLicense.license(tu.toNanos(long))
     }
 
