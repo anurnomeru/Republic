@@ -5,7 +5,7 @@ package ink.anur.common
  *
  * 调用 start 方法，自动在线程池注册此任务
  */
-abstract class KanashiRunnable : Runnable {
+abstract class KanashiRunnable :Runnable {
 
     var name: String? = null
 
