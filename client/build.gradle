@@ -13,7 +13,6 @@ buildscript {
 plugins {
     id 'org.jetbrains.kotlin.jvm' version '1.4.20'
     id 'java-library'
-    id 'java'
 }
 
 allprojects {

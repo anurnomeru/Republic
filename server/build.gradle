@@ -13,7 +13,6 @@ buildscript {
 plugins {
     id 'org.jetbrains.kotlin.jvm' version '1.4.20'
     id 'java-library'
-    id 'java'
 }
 
 allprojects {
@@ -46,10 +45,3 @@ dependencies {
 }
 
 description = 'server'
-
-jar {
-    manifest {
-        attributes 'Main-Class': 'ink.anur.Bootstrap'
-    }
-   from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
-}
