@@ -1,6 +1,3 @@
-.DS_Store
-.gradle
-
 HELP.md
 target/
 !.mvn/wrapper/maven-wrapper.jar
