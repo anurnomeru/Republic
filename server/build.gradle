@@ -12,8 +12,8 @@ buildscript {
 
 plugins {
     id 'org.jetbrains.kotlin.jvm' version '1.4.20'
+    id 'java-library'
     id 'java'
-    id 'application'
 }
 
 allprojects {
@@ -24,29 +24,7 @@ allprojects {
     }
 }
 
-sourceCompatibility = 1.8
-compileKotlin {
-    kotlinOptions.jvmTarget = "1.8"
-}
-
-compileTestKotlin {
-    kotlinOptions.jvmTarget = "1.8"
-}
-
 task prepareKotlinBuildScriptModel {
-}
-
-sourceSets {
-    main.kotlin.srcDirs += 'src/main/java'
-}
-
-mainClassName = 'ink.anur.Bootstrap'
-
-jar {
-    manifest {
-        attributes 'Main-Class': mainClassName
-    }
-   from { configurations.compileClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
 }
 
 dependencies {
@@ -68,3 +46,10 @@ dependencies {
 }
 
 description = 'server'
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'ink.anur.Bootstrap'
+    }
+   from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+}
