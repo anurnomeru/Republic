@@ -45,7 +45,7 @@ class KanashiClientConnector {
                     nowConnectCounting++
                     val nowConnectNode = cluster[nowIndex]
                     try {
-                        val connection = nowConnectNode.getOrCreateConnection()
+                        val connection = nowConnectNode.getOrCreateConnection(true)
                         if (connection.waitForSendLicense(5, TimeUnit.SECONDS)) {
                             logger.info("successful connect to server node $nowConnectNode, sending RPC registration...")
 
@@ -69,7 +69,6 @@ class KanashiClientConnector {
                         } else {
                             logger.error("fail to connect with server node $nowConnectNode")
                         }
-
 
                         logger.error("disconnected with server node $nowConnectNode:")
                     } catch (e: Exception) {

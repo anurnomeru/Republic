@@ -61,7 +61,6 @@ class RpcPouteInfoHandlerService : AbstractRequestMapping() {
     }
 
     fun searchValidProvider(rpcRequest: RpcRequest): Map<String, RpcInetSocketAddress>? {
-//        enableCDL.await() // 没有收到任何一个服务端应答之前，不做任何响应也没法响应
         return lk.readLockSupplier {
             val requestMeta = rpcRequest.serializableMeta
             val bean = requestMeta.requestBean ?: requestMeta.requestInterface

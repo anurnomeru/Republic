@@ -109,7 +109,9 @@ class Connection(private val host: String, private val port: Int,
     /* * syn * */
 
     private fun tryEstablishLicense() {
-        this.pinLicense.enable()
+        if (!contextHandler.established()) {
+            this.pinLicense.enable()
+        }
     }
 
     override fun run() {
@@ -118,6 +120,7 @@ class Connection(private val host: String, private val port: Int,
         while (running) {
             pinLicense.license()
             doEstablish()
+            Thread.sleep(1000)
         }
 
         logger.info("connection [Pin] mode to node $republicNode is destroy")
@@ -380,6 +383,7 @@ class Connection(private val host: String, private val port: Int,
             if (!uniqueConnection.containsKey(this)) {
                 synchronized(Connection::class.java) {
                     if (!uniqueConnection.containsKey(this)) {
+                        logger.debug("init connection to ${this.host}:${this.port} ${clientMode.takeIf { it }?.let { "with client mode." }}")
                         uniqueConnection[this] = Connection(this.host, this.port, clientMode).also { it.tryEstablishLicense() }
                     }
                 }
