@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit
 class RpcSenderService : RpcSender {
 
     @NigateInject
-    private lateinit var rpcPouteInfoHandlerService: RpcPouteInfoHandlerService
+    private lateinit var rpcRouteInfoHandlerService: RpcPouteInfoHandlerService
 
     private val openConnections = ConcurrentHashMap<String, Connection>()
 
@@ -37,7 +37,7 @@ class RpcSenderService : RpcSender {
     override fun sendRpcRequest(method: Method, interfaceName: String, alias: String?, args: Array<out Any>?): Any? {
         val rpcRequest = RpcRequest(RpcRequestMeta(alias, interfaceName, ClassMetaUtil.methodSignGen(method), args))
 
-        val searchValidProvider = rpcPouteInfoHandlerService.searchValidProvider(rpcRequest)
+        val searchValidProvider = rpcRouteInfoHandlerService.searchValidProvider(rpcRequest)
 
         if (searchValidProvider == null || searchValidProvider.isEmpty()) {
             throw RPCNoMatchProviderException("can not find provider for request ${rpcRequest.serializableMeta}")

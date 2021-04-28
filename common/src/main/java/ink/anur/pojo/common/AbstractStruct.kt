@@ -11,8 +11,8 @@ import java.util.concurrent.atomic.AtomicInteger
  *
  * 一个 基础的数据 由以下部分组成：
  *
- * 　4　   +   4    + ...（子类自由扩展）
- * CRC32  +  type  + ...（子类自由扩展）
+ * 　4　   +   4    +    4   + ...（子类自由扩展）
+ * CRC32  +  type  +  ident + ...（子类自由扩展）
  *
  * 所有的指令都满足 4位CRC + 4位类型
  */

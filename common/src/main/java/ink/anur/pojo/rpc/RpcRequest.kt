@@ -1,8 +1,7 @@
 package ink.anur.pojo.rpc
 
 import ink.anur.pojo.common.RequestTypeEnum
-import ink.anur.pojo.rpc.core.MetaStruct
-import ink.anur.pojo.rpc.core.SerializableMeta
+import ink.anur.pojo.metastruct.MetaStruct
 import ink.anur.pojo.rpc.meta.RpcRequestMeta
 import java.nio.ByteBuffer
 
