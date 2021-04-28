@@ -140,7 +140,9 @@ class Connection(private val host: String, private val port: Int,
                 val sendAndWaitForResponse = sendWithNoSendLicenseAndWaitForResponse(channel, Syn(inetConnection.localNodeAddr, createdTs, randomSeed, clientMode), SynResponse::class.java)
                 if (sendAndWaitForResponse != null) {
                     this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.PIN, it)
+
                     sendWithNoSendLicenseAndWaitForResponseAsync(channel, SendLicense(inetConnection.localNodeAddr), SendLicenseResponse::class.java) { resp ->
+
                         resp?.also {
                             this.sendLicense()
                         } ?: let {
@@ -362,7 +364,6 @@ class Connection(private val host: String, private val port: Int,
                 struct.getRequestType().takeIf { it != RequestTypeEnum.HEAT_BEAT }?.also {
                     logger.debug("==> send msg [type:{}]", it)
                 }
-
             }
         }
 

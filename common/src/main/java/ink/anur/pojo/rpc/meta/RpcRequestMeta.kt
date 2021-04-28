@@ -1,6 +1,6 @@
 package ink.anur.pojo.rpc.meta
 
-import ink.anur.pojo.rpc.core.SerializableMeta
+import ink.anur.pojo.metastruct.SerializableMeta
 
 /**
  * Created by Anur IjuoKaruKas on 2020/4/7
@@ -23,7 +23,7 @@ class RpcRequestMeta(
         /**
          * 此请求的参数
          */
-        val requestParams: Array<out Any>?) : SerializableMeta{
+        val requestParams: Array<out Any>?) : SerializableMeta {
         override fun toString(): String {
                 return "RpcRequestMeta(requestBean=$requestBean, requestInterface='$requestInterface', requestMethodSign='$requestMethodSign', requestParams=${requestParams?.contentToString()})"
         }

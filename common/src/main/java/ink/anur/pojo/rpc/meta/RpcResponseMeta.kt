@@ -1,6 +1,6 @@
 package ink.anur.pojo.rpc.meta
 
-import ink.anur.pojo.rpc.core.SerializableMeta
+import ink.anur.pojo.metastruct.SerializableMeta
 
 /**
  * Created by Anur IjuoKaruKas on 2020/4/7

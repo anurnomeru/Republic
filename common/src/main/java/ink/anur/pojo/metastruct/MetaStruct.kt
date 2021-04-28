@@ -1,4 +1,4 @@
-package ink.anur.pojo.rpc.core
+package ink.anur.pojo.metastruct
 
 import ink.anur.pojo.common.AbstractStruct
 import ink.anur.pojo.common.RequestTypeEnum
@@ -8,6 +8,10 @@ import io.netty.channel.Channel
 import java.nio.ByteBuffer
 
 abstract class MetaStruct<T : SerializableMeta> : AbstractStruct {
+
+    companion object {
+        const val MinMessageOverhead = OriginMessageOverhead + 1
+    }
 
     val serializableMeta: T
 

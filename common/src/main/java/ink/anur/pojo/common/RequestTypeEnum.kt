@@ -28,7 +28,7 @@ enum class RequestTypeEnum(val byteSign: Int) {
 
     RPC_REQUEST(98999),
 
-    RPC_RESPONSE(98998)
+    RPC_RESPONSE(98998),
     ;
 
     companion object {

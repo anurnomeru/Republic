@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit
 class RpcSenderService : RpcSender {
 
     @NigateInject
-    private lateinit var rpcPouteInfoHandlerService: RpcPouteInfoHandlerService
+    private lateinit var rpcRouteInfoHandlerService: RpcPouteInfoHandlerService
 
     private val openConnections = ConcurrentHashMap<String, Connection>()
 
@@ -37,7 +37,7 @@ class RpcSenderService : RpcSender {
     override fun sendRpcRequest(method: Method, interfaceName: String, alias: String?, args: Array<out Any>?): Any? {
         val rpcRequest = RpcRequest(RpcRequestMeta(alias, interfaceName, ClassMetaUtil.methodSignGen(method), args))
 
-        val searchValidProvider = rpcPouteInfoHandlerService.searchValidProvider(rpcRequest)
+        val searchValidProvider = rpcRouteInfoHandlerService.searchValidProvider(rpcRequest)
 
         if (searchValidProvider == null || searchValidProvider.isEmpty()) {
             throw RPCNoMatchProviderException("can not find provider for request ${rpcRequest.serializableMeta}")
@@ -45,23 +45,22 @@ class RpcSenderService : RpcSender {
 
         val connection = getConnection(searchValidProvider)
         val resp = connection.sendAndWaitForResponse(rpcRequest, RpcResponse::class.java)
+                ?: throw  RPCOverTimeException("RPC request ${rpcRequest.serializableMeta} to $connection is timeout")
+        
+        val respMeta: RpcResponseMeta = resp.serializableMeta
 
-        if (resp == null) {
-            throw RPCOverTimeException("RPC request ${rpcRequest.serializableMeta} to $connection is timeout")
-        } else {
-            val respMeta: RpcResponseMeta = resp.serializableMeta
-
-            if (respMeta.error) {
-                val rpcError = respMeta.result?.let { it.toString() }?.let { RPCError.valueOfNullable(it) }
-                if (rpcError == null) {
-                    throw RPCErrorException("RPC request ${rpcRequest.serializableMeta} to $connection throw an service exception: $rpcError")
-                } else {
-                    throw RPCErrorException("RPC request ${rpcRequest.serializableMeta} to $connection fail, cause by : ${rpcError.cause}")
-                }
+        if (respMeta.error) {
+            val rpcError = respMeta.result?.toString()?.let { RPCError.valueOfNullable(it) }
+            if (rpcError == null) {
+                throw RPCErrorException("RPC request ${rpcRequest.serializableMeta} to $connection throw an empty" +
+                        " service exception.")
             } else {
-                return respMeta.result
+                throw RPCErrorException("RPC request ${rpcRequest.serializableMeta} to $connection fail, cause by : ${rpcError.cause}")
             }
+        } else {
+            return respMeta.result
         }
+
     }
 
     private fun getConnection(providers: Map<String, RpcInetSocketAddress>): Connection {
