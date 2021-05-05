@@ -11,6 +11,7 @@ import ink.anur.inject.rpc.KanashiRpcInject
 import ink.anur.rpc.RpcSenderService
 import ink.anur.util.ClassMetaUtil
 import ink.anur.util.TimeUtil
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
@@ -46,14 +47,15 @@ object Nigate {
 
         try {
             logger.info(
-                    "      \n\n  _____           _____            _       _   _    _____ \n" +
-                            " |  __ \\         |  __ \\          | |     | | (_)  / ____|\n" +
-                            " | |__) |   ___  | |__) |  _   _  | |__   | |  _  | |     \n" +
-                            " |  _  /   / _ \\ |  ___/  | | | | | '_ \\  | | | | | |     \n" +
-                            " | | \\ \\  |  __/ | |      | |_| | | |_) | | | | | | |____ \n" +
-                            " |_|  \\_\\  \\___| |_|       \\__,_| |_.__/  |_| |_|  \\_____|\n" +
-                            "                                                          \n" +
-                            "                                                          ")
+                "      \n\n  _____           _____            _       _   _    _____ \n" +
+                        " |  __ \\         |  __ \\          | |     | | (_)  / ____|\n" +
+                        " | |__) |   ___  | |__) |  _   _  | |__   | |  _  | |     \n" +
+                        " |  _  /   / _ \\ |  ___/  | | | | | '_ \\  | | | | | |     \n" +
+                        " | | \\ \\  |  __/ | |      | |_| | | |_) | | | | | | |____ \n" +
+                        " |_|  \\_\\  \\___| |_|       \\__,_| |_.__/  |_| |_|  \\_____|\n" +
+                        "                                                          \n" +
+                        "                                                          "
+            )
 
 
             val start = TimeUtil.getTime()
@@ -223,12 +225,18 @@ object Nigate {
                 when {
                     annotations.containsKey(Configuration::class) -> {
                         val annotation = annotations[Configuration::class] as Configuration
-                        ConfigurationFactory.genOrGetByType(ConfigurationFactory.PrefixAndClass(annotation.prefix, clazz))
-                                ?.also {
-                                    val name = register(
-                                            it, null, false)
-                                    beanDefinitionMapping[name] = NigateBeanDefinition(fromJar, path)
-                                }
+                        ConfigurationFactory.genOrGetByType(
+                            ConfigurationFactory.PrefixAndClass(
+                                annotation.prefix,
+                                clazz
+                            )
+                        )
+                            ?.also {
+                                val name = register(
+                                    it, null, false
+                                )
+                                beanDefinitionMapping[name] = NigateBeanDefinition(fromJar, path)
+                            }
                         logger.debug("$clazz register as Configuration")
                         return
                     }
@@ -309,11 +317,11 @@ object Nigate {
         }
 
         fun getBeanByName(name: String): Any = nameToBeanMapping[name]
-                ?: throw NoSuchBeanException("bean named $name is not managed")
+            ?: throw NoSuchBeanException("bean named $name is not managed")
 
         fun <T> getBeanByClass(clazz: Class<T>): T {
             val l = beanClassMapping[clazz]
-                    ?: throw NoSuchBeanException("bean with type $clazz is not managed")
+                ?: throw NoSuchBeanException("bean with type $clazz is not managed")
             if (l.size > 1) {
                 throw DuplicateBeanException("bean $clazz 存在多实例的情况，请使用 @NigateInject(name = alias) 选择注入其中的某个 bean")
             }
@@ -333,29 +341,34 @@ object Nigate {
                         val fieldName = kProperty.name
                         val fieldClass = kProperty.returnType.javaType as Class<*>
                         var injection: Any? = null
-                        if (annotation.name == UndefineAlias) {// 如果没有指定别名注入
-                            if (fieldClass.isInterface) {// 如果是 接口类型
+                        if (annotation.name == UndefineAlias) { // 如果没有指定别名注入
+                            if (fieldClass.isInterface) { // 如果是 接口类型
                                 val mutableSet = interfaceMapping[fieldClass]
                                 if (mutableSet == null) {
                                     throw NoSuchBeanException("不存在接口类型为 $fieldClass 的 Bean！")
                                 } else {
-                                    if (mutableSet.size == 1) {// 如果只有一个实现，则注入此实现
+                                    if (mutableSet.size == 1) { // 如果只有一个实现，则注入此实现
                                         injection = getBeanByClassFirstThenName(mutableSet.first())
-                                    } else if (annotation.useLocalFirst) {// 如果优先使用本地写的类
-                                        val localBean = mutableSet.takeIf { beanDefinitionMapping[it.javaClass.simpleName]?.fromJar == false }
+                                    } else if (annotation.useLocalFirst) { // 如果优先使用本地写的类
+                                        val localBean =
+                                            mutableSet.takeIf { beanDefinitionMapping[it.javaClass.simpleName]?.fromJar == false }
                                         when {
-                                            localBean == null -> throw DuplicateBeanException("bean ${injected.javaClass} " +
-                                                    " 将注入的属性 $fieldName 为接口类型，且存在多个来自【依赖】的子类实现，请改用 @NigateInject(name) 来指定别名注入")
-                                            localBean.size > 1 -> throw DuplicateBeanException("bean ${injected.javaClass} " +
-                                                    " 将注入的属性 $fieldName 为接口类型，且存在多个来自【本地】的子类实现，请改用 @NigateInject(name) 来指定别名注入")
+                                            localBean == null -> throw DuplicateBeanException(
+                                                "bean ${injected.javaClass} " +
+                                                        " 将注入的属性 $fieldName 为接口类型，且存在多个来自【依赖】的子类实现，请改用 @NigateInject(name) 来指定别名注入"
+                                            )
+                                            localBean.size > 1 -> throw DuplicateBeanException(
+                                                "bean ${injected.javaClass} " +
+                                                        " 将注入的属性 $fieldName 为接口类型，且存在多个来自【本地】的子类实现，请改用 @NigateInject(name) 来指定别名注入"
+                                            )
                                             else -> injection = getBeanByClassFirstThenName(mutableSet.first())
                                         }
                                     }
                                 }
-                            } else {// 如果不是接口类型，直接根据类来注入
+                            } else { // 如果不是接口类型，直接根据类来注入
                                 injection = getBeanByClass(fieldClass)
                             }
-                        } else {// 如果指定了别名，直接根据别名注入
+                        } else { // 如果指定了别名，直接根据别名注入
                             injection = getBeanByName(annotation.name)
                             if (!fieldClass.isInterface) {
                                 throw RPCInjectUnSupportException()
@@ -393,7 +406,7 @@ object Nigate {
                             val dependsOn = nameToBeanMapping[annotation.dependsOn]
                             if (annotation.dependsOn != "-NONE-" && !hasBeenPostConstruct.contains(dependsOn)) {
                                 dependsOn
-                                        ?: throw NoSuchBeanException("$bean 依赖的 bean ${annotation.dependsOn} 不存在")
+                                    ?: throw NoSuchBeanException("$bean 依赖的 bean ${annotation.dependsOn} 不存在")
                                 lazyPostConstructBean[bean] = dependsOn
                                 if (lazyPostConstructBean[dependsOn] != null && lazyPostConstructBean[dependsOn] == bean) {
                                     throw NigateException("bean ${beanToNameMapping[dependsOn]} 与 ${beanToNameMapping[bean]} 的 @NigatePostConstruct 构成了循环依赖！")
@@ -402,7 +415,7 @@ object Nigate {
 
                                 hasBeenPostConstruct.add(bean)
                                 removes.add(
-                                        bean
+                                    bean
                                 )
 
                                 try {
@@ -416,7 +429,7 @@ object Nigate {
                                     }
                                 }
                                 val name = beanToNameMapping[bean]
-                                        ?: throw NoSuchBeanException("无法根据类 ${bean.javaClass.simpleName} 找到唯一的 Bean 找到指定的 BeanName")
+                                    ?: throw NoSuchBeanException("无法根据类 ${bean.javaClass.simpleName} 找到唯一的 Bean 找到指定的 BeanName")
                                 hasBeanPostConstruct.add(name)
                             }
                         }
@@ -446,7 +459,7 @@ object Nigate {
                                 e.printStackTrace()
                             }
                             val name = beanToNameMapping[bean]
-                                    ?: throw NoSuchBeanException("无法根据类 ${bean.javaClass.simpleName} 找到唯一的 Bean 找到指定的 BeanName")
+                                ?: throw NoSuchBeanException("无法根据类 ${bean.javaClass.simpleName} 找到唯一的 Bean 找到指定的 BeanName")
                             hasBeanPostConstruct.add(name)
                         }
                     }
@@ -530,12 +543,12 @@ object Nigate {
     }
 
     class NigateBeanDefinition(
-            /**
-             * fromJar 代表此实现是有默认的实现而且实现在继承的maven里就已经写好
-             */
-            val fromJar: Boolean,
+        /**
+         * fromJar 代表此实现是有默认的实现而且实现在继承的maven里就已经写好
+         */
+        val fromJar: Boolean,
 
-            val path: String
+        val path: String
     )
 
     /**
@@ -549,7 +562,8 @@ object Nigate {
      * 获取当前 Provider 下所有提供服务的 接口 的方法定义 methodSign
      */
     fun getRpcInterfacePath(): Map<String/* bean */, List<HashSet<String /* method */>>> {
-        return beanContainer.getRpcInterfaces().mapValues { it.value.map { bean -> HashSet(bean.getMethodMapping().keys) } }
+        return beanContainer.getRpcInterfaces()
+            .mapValues { it.value.map { bean -> HashSet(bean.getMethodMapping().keys) } }
     }
 
     class RpcRequestInvocation(interfaces: Class<out Any>, private val alias: String?) : InvocationHandler {
@@ -560,7 +574,9 @@ object Nigate {
 
         override fun invoke(proxy: Any?, method: Method, args: Array<out Any>?): Any? {
             val rpcSenderService = getBeanByClass(RpcSenderService::class.java)
-            return rpcSenderService.sendRpcRequest(method, interfaceName, alias, args)
+            return runBlocking {
+                return@runBlocking rpcSenderService.sendRpcRequest(method, interfaceName, alias, args)
+            }
         }
     }
 }

@@ -11,7 +11,8 @@ import ink.anur.io.common.transport.Connection.Companion.getOrCreateConnection
 import ink.anur.pojo.rpc.RpcRouteInfo
 import ink.anur.pojo.rpc.RpcRegistration
 import ink.anur.pojo.rpc.meta.RpcRegistrationMeta
-import ink.anur.rpc.RpcPouteInfoHandlerService
+import ink.anur.rpc.RpcRouteInfoHandlerService
+import kotlinx.coroutines.runBlocking
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
@@ -27,7 +28,7 @@ class KanashiClientConnector {
     private lateinit var inetConfiguration: InetConfiguration
 
     @NigateInject
-    private lateinit var rpcRouteInfoHandlerService: RpcPouteInfoHandlerService
+    private lateinit var rpcRouteInfoHandlerService: RpcRouteInfoHandlerService
 
     private val logger = Debugger(this::class.java)
 
@@ -49,22 +50,23 @@ class KanashiClientConnector {
                         if (connection.waitForSendLicense(5, TimeUnit.SECONDS)) {
                             logger.info("successful connect to server node $nowConnectNode, sending RPC registration...")
 
-                            val rpcRouteInfo = connection.sendAndWaitForResponse(RpcRegistration(
-                                    RpcRegistrationMeta(
+                            val rpcRouteInfo = runBlocking {
+                                connection.sendAndWaitForResponse(
+                                    RpcRegistration(
+                                        RpcRegistrationMeta(
                                             inetConfiguration.localNodeAddr,
                                             Nigate.getRpcBeanPath(),
                                             Nigate.getRpcInterfacePath()
-                                    )
-                            ), RpcRouteInfo::class.java)
-
-                            if (rpcRouteInfo == null) {
-                                connection.destroy()
-                            } else {
-                                logger.info("rpc successful registry to server node $nowConnectNode and getting latest route info")
-                                rpcRouteInfoHandlerService.handlerRouteInfo(rpcRouteInfo)
+                                        )
+                                    ), RpcRouteInfo::class.java
+                                )
+                                    .await()
+                                    .ExceptionHandler { connection.destroy() }
+                                    .Resp()
                             }
 
-                            connection.destroyLicense.license()
+                            logger.info("rpc successful registry to server node $nowConnectNode and getting latest route info")
+                            rpcRouteInfoHandlerService.handlerRouteInfo(rpcRouteInfo)
 
                         } else {
                             logger.error("fail to connect with server node $nowConnectNode")
@@ -72,7 +74,7 @@ class KanashiClientConnector {
 
                         logger.error("disconnected with server node $nowConnectNode:")
                     } catch (e: Exception) {
-                        logger.error("error while contact with server node $nowConnectNode:", e)
+                        logger.error("error while contact with server node $nowConnectNode", e)
                     }
                 }
 

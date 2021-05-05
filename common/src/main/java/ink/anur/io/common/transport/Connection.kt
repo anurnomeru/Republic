@@ -7,9 +7,11 @@ import ink.anur.config.InetConfiguration
 import ink.anur.core.common.License
 import ink.anur.core.common.RequestMapping
 import ink.anur.debug.Debugger
+import ink.anur.exception.io.RequestTimeoutException
 import ink.anur.inject.bean.Nigate
 import ink.anur.inject.bean.NigateInject
 import ink.anur.io.client.ReConnectableClient
+import ink.anur.io.common.RepublicResponse
 import ink.anur.io.common.handler.ChannelInactiveHandler
 import ink.anur.pojo.SendLicense
 import ink.anur.pojo.SendLicenseResponse
@@ -27,21 +29,26 @@ import ink.anur.util.TimeUtil
 import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext
+import kotlinx.coroutines.*
+import java.lang.Runnable
 import java.lang.UnsupportedOperationException
 import java.nio.ByteBuffer
 import java.util.concurrent.*
+import kotlin.coroutines.CoroutineContext
 import kotlin.system.exitProcess
 
 /**
  * Created by Anur on 2020/10/3
  */
-class Connection(private val host: String, private val port: Int,
-                 /**
-                  * client Mode will never try to establish positive to remote node
-                  *
-                  * TODO switching mode for now is un supported
-                  */
-                 private val clientMode: Boolean = false) : Runnable {
+class Connection(
+    private val host: String, private val port: Int,
+    /**
+     * client Mode will never try to establish positive to remote node
+     *
+     * TODO switching mode for now is un supported
+     */
+    private val clientMode: Boolean = false
+) : Runnable {
 
     @NigateInject
     private lateinit var inetConnection: InetConfiguration
@@ -68,7 +75,8 @@ class Connection(private val host: String, private val port: Int,
 
     private var currentWaitDeck = ConcurrentSkipListSet<Int>()
 
-    private val contextHandler = ChannelHandlerContextHandler(republicNode, sendLicense, pinLicense, clientMode, currentWaitDeck)
+    private val contextHandler =
+        ChannelHandlerContextHandler(republicNode, sendLicense, pinLicense, clientMode, currentWaitDeck)
 
     private val asyncSendingQueue = ConcurrentHashMap<RequestTypeEnum, AbstractStruct>()
 
@@ -137,22 +145,39 @@ class Connection(private val host: String, private val port: Int,
 
             try {
                 val channel = it.channel()
-                val sendAndWaitForResponse = sendWithNoSendLicenseAndWaitForResponse(channel, Syn(inetConnection.localNodeAddr, createdTs, randomSeed, clientMode), SynResponse::class.java)
-                if (sendAndWaitForResponse != null) {
-                    this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.PIN, it)
+                val deferred = sendWithNoSendLicenseAndWaitForResponse(
+                    channel,
+                    Syn(inetConnection.localNodeAddr, createdTs, randomSeed, clientMode),
+                    SynResponse::class.java
+                )
 
-                    sendWithNoSendLicenseAndWaitForResponseAsync(channel, SendLicense(inetConnection.localNodeAddr), SendLicenseResponse::class.java) { resp ->
-
-                        resp?.also {
-                            this.sendLicense()
-                        } ?: let {
-                            logger.error("establish to remote node ${sendAndWaitForResponse.getAddr()} but remote node did not publish send license")
-                            channel.close()
-                        }
-                    }
+                val result = runBlocking {
+                    deferred
+                        .await()
+                        .Resp()
                 }
+
+                this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.PIN, it)
+
+                sendWithNoSendLicenseAndWaitForResponseAsync(
+                    channel,
+                    SendLicense(inetConnection.localNodeAddr),
+                    SendLicenseResponse::class.java,
+                    consumer = { resp ->
+                        resp.also {
+                            this.sendLicense()
+                        }
+                    },
+                    handler = CoroutineExceptionHandler { _, e ->
+                        logger.error(
+                            "establish to remote node ${result.getAddr()} but remote node did not publish send license",
+                            e
+                        )
+                        channel.close()
+                    }
+                )
             } catch (e: Throwable) {
-                logger.trace("sending [Syn] to the remote node but can't get response, retrying...")
+                logger.trace("sending [Syn] to the remote node but can't get response, retrying...", e)
                 return@let
             }
         }
@@ -161,8 +186,7 @@ class Connection(private val host: String, private val port: Int,
     /* * syn response * */
 
     private fun mayConnectByRemote(ctx: ChannelHandlerContext, syn: Syn) {
-        if (contextHandler.established() && contextHandler.getSocket() != null && contextHandler.getSocket() != ctx) {
-            // if is already establish then close the remote channel
+        if (contextHandler.established() && contextHandler.getSocket() != null && contextHandler.getSocket() != ctx) { // if is already establish then close the remote channel
             logger.trace("local node already establish and syn ctx from ${syn.getAddr()} will be close")
             ctx.close()
         } else {
@@ -191,29 +215,59 @@ class Connection(private val host: String, private val port: Int,
 
     /* * send with no send license * */
 
-    fun <T> sendWithNoSendLicenseAndWaitForResponse(channel: Channel, struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): T? =
-            doSendAndWaitForResponse(struct, expect, timeout, unit) { sendWithNoSendLicense(channel, it) }
+    fun <T> sendWithNoSendLicenseAndWaitForResponse(
+        channel: Channel,
+        struct: AbstractStruct,
+        expect: Class<T>,
+        timeout: Long = 3000,
+        unit: TimeUnit = TimeUnit.MILLISECONDS
+    ): Deferred<RepublicResponse<T>> = GlobalScope.async {
+        doSendAndWaitForResponse(struct, expect, timeout, unit) {
+            sendWithNoSendLicense(channel, it)
+        }
+    }
 
-    fun <T> sendWithNoSendLicenseAndWaitForResponseAsync(channel: Channel, struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS,
-                                                         consumer: (T?) -> Unit) =
-            doSendAndWaitForResponseAsync(struct, expect, timeout, unit, { sendWithNoSendLicense(channel, it) }, consumer)
+
+    fun <T> sendWithNoSendLicenseAndWaitForResponseAsync(
+        channel: Channel,
+        struct: AbstractStruct,
+        expect: Class<T>,
+        timeout: Long = 3000,
+        unit: TimeUnit = TimeUnit.MILLISECONDS,
+        consumer: (T) -> Unit,
+        handler: CoroutineExceptionHandler,
+    ) = GlobalScope.launch(handler) {
+        val response = doSendAndWaitForResponse(struct, expect, timeout, unit) {
+            sendWithNoSendLicense(channel, it)
+        }
+        consumer.invoke(response.Resp())
+    }
 
     /* * normal sending * */
 
-    fun <T> sendAndWaitForResponse(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS): T? =
-            doSendAndWaitForResponse(struct, expect, timeout, unit) { send(it) }
-
-    fun <T> sendAndWaitForResponseAsync(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS,
-                                        consumer: (T?) -> Unit) =
-            doSendAndWaitForResponseAsync(struct, expect, timeout, unit, { send(it) }, consumer)
-
-    fun <T> sendAndWaitForResponseErrorCaught(struct: AbstractStruct, expect: Class<T>): T? {
-        return try {
-            sendAndWaitForResponse(struct, expect, 3000, TimeUnit.MILLISECONDS)
-        } catch (t: Throwable) {
-            logger.trace(t.stackTrace.toString())
-            null
+    fun <T> sendAndWaitForResponse(
+        struct: AbstractStruct,
+        expect: Class<T>,
+        timeout: Long = 3000,
+        unit: TimeUnit = TimeUnit.MILLISECONDS
+    ): Deferred<RepublicResponse<T>> = GlobalScope.async {
+        doSendAndWaitForResponse(struct, expect, timeout, unit) {
+            send(it)
         }
+    }
+
+    fun <T> sendAndWaitForResponseAsync(
+        struct: AbstractStruct,
+        expect: Class<T>,
+        timeout: Long = 3000,
+        unit: TimeUnit = TimeUnit.MILLISECONDS,
+        consumer: (T) -> Unit,
+        handler: CoroutineExceptionHandler
+    ) = GlobalScope.launch(handler) {
+        val response = doSendAndWaitForResponse(struct, expect, timeout, unit) {
+            send(it)
+        }
+        consumer.invoke(response.Resp())
     }
 
     /* * send async * */
@@ -252,32 +306,13 @@ class Connection(private val host: String, private val port: Int,
     }
 
     /**
-     * lock free sender
-     */
-    private fun <T> doSendAndWaitForResponseAsync(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS,
-                                                  howToSend: (AbstractStruct) -> Unit, consumer: (T?) -> Unit) {
-        struct.raiseResp()
-        val resIdentifier = struct.getRespIdentifier()
-
-        logger.trace("waiting response for res identifier $resIdentifier")
-
-        currentWaitDeck.add(resIdentifier)
-        asyncWaitDeck[resIdentifier] = {
-            val t = response[resIdentifier]?.let { expect.getConstructor(ByteBuffer::class.java).newInstance(it) }
-            consumer.invoke(t)
-        }
-
-        Timer.addTask(TimedTask(unit.toMillis(timeout), Runnable {
-            asyncWaitDeck.remove(resIdentifier)
-            response.remove(resIdentifier)
-        }))
-        howToSend.invoke(struct)
-    }
-
-    /**
      * synchronized and wait for response
      */
-    private fun <T> doSendAndWaitForResponse(struct: AbstractStruct, expect: Class<T>, timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS, howToSend: (AbstractStruct) -> Unit): T? {
+    private fun <T> doSendAndWaitForResponse(
+        struct: AbstractStruct, expect: Class<T>,
+        timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS,
+        howToSend: (AbstractStruct) -> Unit
+    ): RepublicResponse<T> {
         struct.raiseResp()
         val resIdentifier = struct.getRespIdentifier()
         val cdl = CountDownLatch(1)
@@ -288,12 +323,17 @@ class Connection(private val host: String, private val port: Int,
             currentWaitDeck.add(resIdentifier)
             waitDeck[resIdentifier] = cdl
             howToSend.invoke(struct)
-            if (!cdl.await(timeout, unit)) {
+
+            @Suppress("BlockingMethodInNonBlockingContext") if (!cdl.await(timeout, unit)) {
                 logger.trace("waiting response for res identifier $resIdentifier fail")
             } else {
                 logger.trace("receive response for res identifier $resIdentifier")
             }
-            return response[resIdentifier]?.let { expect.getConstructor(ByteBuffer::class.java).newInstance(it) }
+
+            return ((response[resIdentifier]
+                ?.let { RepublicResponse(expect.getDeclaredConstructor(ByteBuffer::class.java).newInstance(it)) }
+                ?: RepublicResponse.ExceptionWith(RequestTimeoutException("Request timeout after ${timeout}ms of waiting for response from $republicNode"))))
+
         } finally {
             currentWaitDeck.remove(resIdentifier)
             response.remove(resIdentifier)
@@ -338,8 +378,7 @@ class Connection(private val host: String, private val port: Int,
                             if (conn.sendIfHasLicense(abstractStruct)) {
                                 iterable.remove()
                             }
-                        } catch (t: Throwable) {
-                            // ignore
+                        } catch (t: Throwable) { // ignore
                             logger.error("Async sending struct type:[$requestTypeEnum] to $conn error occur!")
 
                             conn.asyncSendingQueue.putIfAbsent(requestTypeEnum, abstractStruct)
@@ -384,8 +423,13 @@ class Connection(private val host: String, private val port: Int,
             if (!uniqueConnection.containsKey(this)) {
                 synchronized(Connection::class.java) {
                     if (!uniqueConnection.containsKey(this)) {
-                        logger.debug("init connection to ${this.host}:${this.port} ${clientMode.takeIf { it }?.let { "with client mode." }}")
-                        uniqueConnection[this] = Connection(this.host, this.port, clientMode).also { it.tryEstablishLicense() }
+                        logger.debug(
+                            "init connection to ${this.host}:${this.port} ${
+                                clientMode.takeIf { it }?.let { "with client mode." }
+                            }"
+                        )
+                        uniqueConnection[this] =
+                            Connection(this.host, this.port, clientMode).also { it.tryEstablishLicense() }
                     }
                 }
             }
@@ -407,7 +451,12 @@ class Connection(private val host: String, private val port: Int,
          *
          * caution: may disconnect when sending
          */
-        fun <T> RepublicNode.sendAndWaitingResponse(struct: AbstractStruct, timeout: Long = 3000, expect: Class<T>, unit: TimeUnit = TimeUnit.MILLISECONDS): T? {
+        fun <T> RepublicNode.sendAndWaitingResponse(
+            struct: AbstractStruct,
+            timeout: Long = 3000,
+            expect: Class<T>,
+            unit: TimeUnit = TimeUnit.MILLISECONDS
+        ): Deferred<RepublicResponse<T>> {
             return getOrCreateConnection().sendAndWaitForResponse(struct, expect, timeout, unit)
         }
 
@@ -454,16 +503,23 @@ class Connection(private val host: String, private val port: Int,
                     else -> {
                         when {
                             republicNode == null -> {
-                                logger.error("haven't established but receive msg type:[$requestType] from channel ${this.channel().remoteAddress()}")
+                                logger.error(
+                                    "haven't established but receive msg type:[$requestType] from channel ${
+                                        this.channel().remoteAddress()
+                                    }"
+                                )
                             }
                             requestMapping == null -> {
                                 logger.error("msg type:[$requestType] from $republicNode has not custom requestMapping !!!")
                             }
                             else -> {
                                 try {
-                                    requestMapping.handleRequest(republicNode, msg)// 收到正常的请求
+                                    requestMapping.handleRequest(republicNode, msg) // 收到正常的请求
                                 } catch (e: Exception) {
-                                    logger.error("Error occur while process msg type:[$requestType] from $republicNode", e)
+                                    logger.error(
+                                        "Error occur while process msg type:[$requestType] from $republicNode",
+                                        e
+                                    )
                                 }
                             }
                         }
@@ -509,11 +565,12 @@ class Connection(private val host: String, private val port: Int,
      * manage the channelHandlerContext that shield pin mode and socket mode
      */
     private class ChannelHandlerContextHandler(
-            private val republicNode: RepublicNode,
-            private val sendLicense: License,
-            private val pinLicense: License,
-            private val clientMode: Boolean,
-            private val currentWaitDeck: ConcurrentSkipListSet<Int>) {
+        private val republicNode: RepublicNode,
+        private val sendLicense: License,
+        private val pinLicense: License,
+        private val clientMode: Boolean,
+        private val currentWaitDeck: ConcurrentSkipListSet<Int>
+    ) {
 
         @Volatile
         private var pin: ChannelHandlerContext? = null
@@ -553,7 +610,11 @@ class Connection(private val host: String, private val port: Int,
                     }
                     this.mode = mode
                     this.pinLicense.disable()
-                    logger.info("connection establish with $republicNode using [$mode] mode with channel: ${ctx.channel().remoteAddress()}")
+                    logger.info(
+                        "connection establish with $republicNode using [$mode] mode with channel: ${
+                            ctx.channel().remoteAddress()
+                        }"
+                    )
                     ctx.tsubasa(republicNode)
 
                     if (clientMode) {
@@ -592,8 +653,7 @@ class Connection(private val host: String, private val port: Int,
                 this.pinLicense.enable()
                 republicNode.wakare()
 
-                if (clientMode) {
-                    // todo may bug
+                if (clientMode) { // todo may bug
                     republicNode.getConnection()?.destroy()
                     validClientConnection.remove(republicNode)
                 }

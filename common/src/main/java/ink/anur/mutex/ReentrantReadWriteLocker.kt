@@ -1,5 +1,6 @@
 package ink.anur.mutex
 
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
 /**
@@ -87,15 +88,32 @@ open class ReentrantReadWriteLocker : ReentrantReadWriteLock() {
         return t
     }
 
-
     /**
      * 提供一个统一的锁入口
      */
+    fun <T> readLockSupplier(supplier: () -> T, timeout: Long, unit: TimeUnit): T? {
+        val t: T
+
+        val tryLock = readLock.tryLock(timeout, unit)
+        try {
+            if (switcher > 0) {
+                switch.await()
+            }
+
+            t = supplier.invoke()
+        } finally {
+            if (tryLock) {
+                readLock.unlock()
+            }
+        }
+        return t
+    }
+
     fun <T> readLockSupplier(supplier: () -> T): T? {
         val t: T
-        try {
-            readLock.lock()
 
+        readLock.lock()
+        try {
             if (switcher > 0) {
                 switch.await()
             }

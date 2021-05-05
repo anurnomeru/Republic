@@ -73,7 +73,7 @@ class ReConnectableClient(private val host: String, private val port: Int,
             channelFuture.addListener { future ->
                 if (!future.isSuccess) {
                     if (reconnectLatch.count == 1L) {
-                        logger.debug("try connect to node $this but failed, try to re connect...")
+                        logger.trace("try connect to node $this but failed, try to re connect...")
                     }
                     reconnectLatch.countDown()
                 }

@@ -21,20 +21,23 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Created by Anur IjuoKaruKas on 2020/4/7
- *
- * 负责发送 rcp 请求
  */
 @NigateBean
 class RpcSenderService : RpcSender {
 
     @NigateInject
-    private lateinit var rpcRouteInfoHandlerService: RpcPouteInfoHandlerService
+    private lateinit var rpcRouteInfoHandlerService: RpcRouteInfoHandlerService
 
     private val openConnections = ConcurrentHashMap<String, Connection>()
 
     private var index = 0
 
-    override fun sendRpcRequest(method: Method, interfaceName: String, alias: String?, args: Array<out Any>?): Any? {
+    override suspend fun sendRpcRequest(
+        method: Method,
+        interfaceName: String,
+        alias: String?,
+        args: Array<out Any>?
+    ): Any? {
         val rpcRequest = RpcRequest(RpcRequestMeta(alias, interfaceName, ClassMetaUtil.methodSignGen(method), args))
 
         val searchValidProvider = rpcRouteInfoHandlerService.searchValidProvider(rpcRequest)
@@ -44,16 +47,17 @@ class RpcSenderService : RpcSender {
         }
 
         val connection = getConnection(searchValidProvider)
-        val resp = connection.sendAndWaitForResponse(rpcRequest, RpcResponse::class.java)
-                ?: throw  RPCOverTimeException("RPC request ${rpcRequest.serializableMeta} to $connection is timeout")
-        
+        val resp = connection.sendAndWaitForResponse(rpcRequest, RpcResponse::class.java).await().Resp()
+
         val respMeta: RpcResponseMeta = resp.serializableMeta
 
         if (respMeta.error) {
             val rpcError = respMeta.result?.toString()?.let { RPCError.valueOfNullable(it) }
             if (rpcError == null) {
-                throw RPCErrorException("RPC request ${rpcRequest.serializableMeta} to $connection throw an empty" +
-                        " service exception.")
+                throw RPCErrorException(
+                    "RPC request ${rpcRequest.serializableMeta} to $connection throw an empty" +
+                            " service exception."
+                )
             } else {
                 throw RPCErrorException("RPC request ${rpcRequest.serializableMeta} to $connection fail, cause by : ${rpcError.cause}")
             }
@@ -76,12 +80,12 @@ class RpcSenderService : RpcSender {
         } else {
             val entries = ArrayList(providers.entries)
             for (i in 0 until entries.size) {
-                val entry = entries[index % entries.size]// 用余数是避免每次连接都连到第一个元素
+                val entry = entries[index % entries.size] // use the remainder to avoid each connect refer to one node
                 val serverName = entry.key
 
                 index++
                 val connection = RepublicNode.construct(entry.value.host, entry.value.port)
-                        .getOrCreateConnection(true)
+                    .getOrCreateConnection(true)
 
                 if (connection.established() && connection.waitForSendLicense(1L, TimeUnit.SECONDS)) {
                     openConnections[serverName] = connection
@@ -89,7 +93,7 @@ class RpcSenderService : RpcSender {
                 }
             }
 
-            throw  RPCNoMatchProviderException("无法连接上目前已经注册到注册中心的所有服务！")
+            throw  RPCNoMatchProviderException("Can't not connect to any activate service")
         }
     }
 }

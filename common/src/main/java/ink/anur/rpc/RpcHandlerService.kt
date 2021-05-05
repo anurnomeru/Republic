@@ -14,10 +14,6 @@ import java.nio.ByteBuffer
 
 /**
  * Created by Anur IjuoKaruKas on 2020/4/7
- *
- * 负责接收并处理 rpc 请求的 bean
- *
- * TODO : 与 handler 在线程上解耦，先同一线程没事，做出来再说
  */
 @NigateBean
 class RpcHandlerService : AbstractRequestMapping() {

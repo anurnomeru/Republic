@@ -5,13 +5,7 @@ package ink.anur.inject.event
  */
 enum class Event {
 
-    /**
-     * 选举成功
-     */
     CLUSTER_VALID,
 
-    /**
-     * 当节点没有 leader 时
-     */
     CLUSTER_INVALID,
 }

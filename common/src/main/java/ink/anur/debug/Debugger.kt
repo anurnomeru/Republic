@@ -35,6 +35,7 @@ class Debugger(clazz: Class<*>) {
     fun debug(s: String) = invoke(s) { h.debug(s) }
     fun trace(s: String) = invoke(s) { h.trace(s) }
     fun error(s: String) = h.error(s)
+    fun error(s: String, throwable: Throwable) = h.error(s, throwable)
 
     private fun invoke(s: String, honlai: () -> Unit) {
         when (level) {
