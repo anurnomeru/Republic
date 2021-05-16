@@ -57,14 +57,19 @@ object ConfigurationFactory {
                 val declaredFields = clazz.declaredFields
 
                 for (field in declaredFields) {
-                    if (Modifier.isAbstract(field.modifiers) || Modifier.isStatic(field.modifiers) || Modifier.isFinal(field.modifiers)
-                            || field.isAnnotationPresent(ConfigurationIgnore::class.java)) {
+                    if (Modifier.isAbstract(field.modifiers) || Modifier.isStatic(field.modifiers) || Modifier.isFinal(
+                            field.modifiers
+                        )
+                        || field.isAnnotationPresent(ConfigurationIgnore::class.java)
+                    ) {
                         continue
                     }
 
                     val fieldName = field.name
-                    genOrGetByType(PrefixAndClass(prefix?.let { it + SPLITTER + fieldName }
-                            ?: fieldName, field.type))?.also {
+                    genOrGetByType(
+                        PrefixAndClass(prefix?.let { it + SPLITTER + fieldName } ?: fieldName,
+                            field.type))
+                        ?.also {
                         field.isAccessible = true
                         field.set(result, it)
                     }

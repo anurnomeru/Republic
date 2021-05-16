@@ -36,7 +36,7 @@ class RpcRouteInfoHandlerService : AbstractRequestMapping() {
     }
 
     fun handlerRouteInfo(routeInfo: RpcRouteInfo) {
-        val rpcProviderMappingMeta = routeInfo.serializableMeta
+        val rpcProviderMappingMeta = routeInfo.GetMeta()
         lk.writeLockSupplier {
             providerMapping = rpcProviderMappingMeta.providerMapping
             providerAddressMapping = rpcProviderMappingMeta.addressMapping
@@ -50,7 +50,7 @@ class RpcRouteInfoHandlerService : AbstractRequestMapping() {
 
     fun searchValidProvider(rpcRequest: RpcRequest): Map<String, RpcInetSocketAddress>? {
         return lk.readLockSupplier {
-            val requestMeta = rpcRequest.serializableMeta
+            val requestMeta = rpcRequest.GetMeta()
             val bean = requestMeta.requestBean ?: requestMeta.requestInterface
 
             val validProvider = providerMapping[bean]?.let { it[requestMeta.requestMethodSign] }

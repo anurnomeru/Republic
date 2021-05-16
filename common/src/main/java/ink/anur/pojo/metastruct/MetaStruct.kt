@@ -1,5 +1,7 @@
 package ink.anur.pojo.metastruct
 
+import ink.anur.exception.KanashiException
+import ink.anur.exception.codeabel_exception.CodeableException
 import ink.anur.pojo.common.AbstractStruct
 import ink.anur.pojo.common.RequestTypeEnum
 import ink.anur.util.HessianUtil
@@ -10,35 +12,67 @@ import java.nio.ByteBuffer
 abstract class MetaStruct<T : SerializableMeta> : AbstractStruct {
 
     companion object {
-        const val MinMessageOverhead = OriginMessageOverhead + 1
+        private const val ErrorCodeLength = 4
     }
 
-    val serializableMeta: T
+    private val serializableMeta: T?
+    private val errorCode: Int
 
     abstract fun requestTypeEnum(): RequestTypeEnum
 
     abstract fun metaClazz(): Class<T>
 
+    fun GetMeta(): T {
+        if (errorCode == 0) {
+            return serializableMeta!!
+        }
+        throw CodeableException.Error(errorCode)
+    }
+
+    constructor(exception: Exception) {
+        this.serializableMeta = null
+
+        if (exception is CodeableException) {
+            this.errorCode = exception.errorCode()
+        } else {
+            this.errorCode = 0
+        }
+
+        init(OriginMessageOverhead + ErrorCodeLength, requestTypeEnum()) {
+            it.putInt(errorCode)
+        }
+    }
+
     constructor(serializableMeta: T) {
         this.serializableMeta = serializableMeta
+        this.errorCode = 0
+
         val ser = HessianUtil.ser(serializableMeta)
-        init(OriginMessageOverhead + ser.size, requestTypeEnum()) {
+        init(OriginMessageOverhead + ErrorCodeLength + ser.size, requestTypeEnum()) {
+            it.putInt(errorCode)
             it.put(ser)
         }
     }
 
     constructor(byteBuffer: ByteBuffer) {
-        val limit = byteBuffer.limit()
-        val position = OriginMessageOverhead
-
-        this.buffer = byteBuffer
-        val ba = ByteArray(limit - position)
         byteBuffer.mark()
 
-        byteBuffer.position(position)
-        byteBuffer.get(ba)
+        val limit = byteBuffer.limit()
+        this.buffer = byteBuffer
+        this.errorCode = buffer.int
 
-        serializableMeta = HessianUtil.des(ba, metaClazz())
+        if (errorCode == 0) {
+            val position = OriginMessageOverhead + ErrorCodeLength
+            val ba = ByteArray(limit - position)
+
+            byteBuffer.position(position)
+            byteBuffer.get(ba)
+
+            this.serializableMeta = HessianUtil.des(ba, metaClazz())
+        } else {
+            this.serializableMeta = null
+        }
+
         byteBuffer.reset()
     }
 

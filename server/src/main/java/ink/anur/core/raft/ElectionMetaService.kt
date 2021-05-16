@@ -195,8 +195,10 @@ class ElectionMetaService {
         beginElectTime = 0L
 
         generationIncr()
-        logger.info("local server {} become leader, incr generation to {}, cost {}ms. start sending heart beat......",
-                inetConfiguration.localNode, generation, becomeLeaderCostTime)
+        logger.info(
+            "local server {} become leader, incr generation to {}, cost {}ms. start sending heart beat......",
+            inetConfiguration.localNode, generation, becomeLeaderCostTime
+        )
 
         leader = inetConfiguration.localNode
         raftRole = RaftRole.LEADER

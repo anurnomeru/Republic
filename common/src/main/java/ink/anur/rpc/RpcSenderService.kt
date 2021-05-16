@@ -43,23 +43,23 @@ class RpcSenderService : RpcSender {
         val searchValidProvider = rpcRouteInfoHandlerService.searchValidProvider(rpcRequest)
 
         if (searchValidProvider == null || searchValidProvider.isEmpty()) {
-            throw RPCNoMatchProviderException("can not find provider for request ${rpcRequest.serializableMeta}")
+            throw RPCNoMatchProviderException("can not find provider for request ${rpcRequest.GetMeta()}")
         }
 
         val connection = getConnection(searchValidProvider)
         val resp = connection.sendAndWaitForResponse(rpcRequest, RpcResponse::class.java).await().Resp()
 
-        val respMeta: RpcResponseMeta = resp.serializableMeta
+        val respMeta: RpcResponseMeta = resp.GetMeta()
 
         if (respMeta.error) {
             val rpcError = respMeta.result?.toString()?.let { RPCError.valueOfNullable(it) }
             if (rpcError == null) {
                 throw RPCErrorException(
-                    "RPC request ${rpcRequest.serializableMeta} to $connection throw an empty" +
+                    "RPC request ${rpcRequest.GetMeta()} to $connection throw an empty" +
                             " service exception."
                 )
             } else {
-                throw RPCErrorException("RPC request ${rpcRequest.serializableMeta} to $connection fail, cause by : ${rpcError.cause}")
+                throw RPCErrorException("RPC request ${rpcRequest.GetMeta()} to $connection fail, cause by : ${rpcError.cause}")
             }
         } else {
             return respMeta.result

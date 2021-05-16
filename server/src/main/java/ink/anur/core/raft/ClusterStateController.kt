@@ -1,5 +1,6 @@
 package ink.anur.core.raft
 
+import ink.anur.exception.codeabel_exception.ClusterInvalidException
 import ink.anur.inject.bean.NigateBean
 import ink.anur.inject.event.Event
 import ink.anur.inject.event.NigateListener
@@ -28,7 +29,14 @@ class ClusterStateController {
         validLock.switchOff()
     }
 
-    private fun acquire(timeout: Long, unit: TimeUnit) {
-        validLock.readLockSupplier({}, timeout, unit)
+    fun Acquire(timeout: Long = 3, unit: TimeUnit = TimeUnit.SECONDS): Boolean {
+        return validLock.readLockSupplier({ true }, timeout, unit) ?: false
+    }
+
+    @Throws
+    fun AcquireCompel(timeout: Long = 3, unit: TimeUnit = TimeUnit.SECONDS) {
+        if (!Acquire(timeout, unit)) {
+            throw ClusterInvalidException()
+        }
     }
 }

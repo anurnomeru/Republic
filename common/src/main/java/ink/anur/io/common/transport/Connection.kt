@@ -104,6 +104,8 @@ class Connection(
         }
     }
 
+    fun Channel(): Channel? = contextHandler.getChannelHandlerContext()?.channel()
+
     /* * destroy * */
 
     fun destroy() {
@@ -298,7 +300,7 @@ class Connection(
      */
     fun send(struct: AbstractStruct) {
         sendLicense.license()
-        contextHandler.getChannelHandlerContext()?.channel()?.also {
+        Channel()?.also {
             this.sendWithNoSendLicense(it, struct)
         } ?: also {
             logger.error("sending struct with license but can not find channel!")
@@ -453,8 +455,8 @@ class Connection(
          */
         fun <T> RepublicNode.sendAndWaitingResponse(
             struct: AbstractStruct,
-            timeout: Long = 3000,
             expect: Class<T>,
+            timeout: Long = 3000,
             unit: TimeUnit = TimeUnit.MILLISECONDS
         ): Deferred<RepublicResponse<T>> {
             return getOrCreateConnection().sendAndWaitForResponse(struct, expect, timeout, unit)

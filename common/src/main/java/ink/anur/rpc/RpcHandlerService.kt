@@ -26,7 +26,7 @@ class RpcHandlerService : AbstractRequestMapping() {
 
     override fun handleRequest(republicNode: RepublicNode, msg: ByteBuffer) {
         val rpcRequestMeta = RpcRequest(msg)
-        val requestMeta = rpcRequestMeta.serializableMeta
+        val requestMeta = rpcRequestMeta.GetMeta()
 
         if (requestMeta.requestBean == null) {
             val rpcBeanByInterfaces = nigate.getRPCBeanByInterface(requestMeta.requestInterface)
