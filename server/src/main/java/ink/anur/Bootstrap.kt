@@ -1,6 +1,7 @@
 package ink.anur
 
 import ink.anur.inject.bean.Nigate
+import kotlinx.coroutines.runBlocking
 
 
 /**
@@ -9,6 +10,5 @@ import ink.anur.inject.bean.Nigate
 object Bootstrap {
 
     @JvmStatic
-    fun main(args: Array<String>) = Nigate.start(args)
-
+    fun main(args: Array<String>) = runBlocking { Nigate.start(args) }
 }

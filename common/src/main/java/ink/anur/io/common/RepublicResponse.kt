@@ -5,7 +5,7 @@ import ink.anur.exception.UnKnownException
 
 class RepublicResponse<T>(private val result: T?, private val ke: KanashiException?) {
 
-    private lateinit var handler: (Throwable) -> Unit
+    private var handler: ((Throwable) -> Unit)? = null
 
     constructor(result: T) : this(result, null)
 
@@ -20,6 +20,14 @@ class RepublicResponse<T>(private val result: T?, private val ke: KanashiExcepti
         return this
     }
 
-    fun Resp(): T = result ?: throw (ke ?: UnKnownException("Do not receive any response and Exception not defined"))
+    fun Resp(): T {
+        if (result != null) {
+            return result
+        }
+
+        val exception = (ke ?: UnKnownException("Do not receive any response and Exception not defined"))
+        handler?.let { it(exception) }
+        throw exception
+    }
 }
 

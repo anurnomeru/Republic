@@ -11,6 +11,7 @@ import ink.anur.inject.rpc.KanashiRpcInject
 import ink.anur.rpc.RpcSenderService
 import ink.anur.util.ClassMetaUtil
 import ink.anur.util.TimeUtil
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -38,7 +39,9 @@ object Nigate {
 
     private val vmArgs = ConcurrentHashMap<String, String>()
 
-    fun start(args: Array<String>) {
+    private val quitCh = Channel<Any>(0)
+
+    suspend fun start(args: Array<String>) {
         for (arg in args) {
             val splitter = arg.indexOf("=")
             vmArgs[arg.substring(0, splitter)] = arg.substring(splitter + 1)
@@ -91,9 +94,7 @@ object Nigate {
             exitProcess(1)
         }
 
-        while (true) {
-            Thread.sleep(10000)
-        }
+        quitCh.receive()
     }
 
     fun getFromVm(key: String): String? {

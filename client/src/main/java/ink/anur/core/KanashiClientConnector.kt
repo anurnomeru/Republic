@@ -1,12 +1,11 @@
 package ink.anur.core
 
-import ink.anur.common.KanashiExecutors
+import ink.anur.common.struct.RepublicNode
 import ink.anur.config.InetConfiguration
 import ink.anur.debug.Debugger
 import ink.anur.inject.bean.Nigate
 import ink.anur.inject.bean.NigateBean
 import ink.anur.inject.bean.NigateInject
-import ink.anur.inject.bean.NigatePostConstruct
 import ink.anur.io.common.transport.Connection.Companion.getOrCreateConnection
 import ink.anur.pojo.rpc.RpcRouteInfo
 import ink.anur.pojo.rpc.RpcRegistration
@@ -18,8 +17,6 @@ import kotlin.random.Random
 
 /**
  * Created by Anur IjuoKaruKas on 2020/4/8
- *
- * 客户端连接获取者
  */
 @NigateBean
 class KanashiClientConnector {
@@ -34,53 +31,73 @@ class KanashiClientConnector {
 
     private var nowConnectCounting = Random(1).nextInt()
 
-    @NigatePostConstruct
-    fun connectTask() {
-        val t = Thread {
-            while (true) {
-                val cluster = inetConfiguration.cluster
-                val size = cluster.size
+    @Volatile
+    private var nowActiveNode: RepublicNode? = null
 
-                while (true) {
-                    val nowIndex = nowConnectCounting % size
-                    nowConnectCounting++
-                    val nowConnectNode = cluster[nowIndex]
-                    try {
-                        val connection = nowConnectNode.getOrCreateConnection(true)
-                        if (connection.waitForSendLicense(5, TimeUnit.SECONDS)) {
-                            logger.info("successful connect to server node $nowConnectNode, sending RPC registration...")
+    fun ReportAndAcquireRpcRouteInfo() {
+        if (nowActiveNode != null) {
+            return
+        }
 
-                            val rpcRouteInfo = runBlocking {
-                                connection.sendAndWaitForResponse(
-                                    RpcRegistration(
-                                        RpcRegistrationMeta(
-                                            inetConfiguration.localNodeAddr,
-                                            Nigate.getRpcBeanPath(),
-                                            Nigate.getRpcInterfacePath()
-                                        )
-                                    ), RpcRouteInfo::class.java
+        val cluster = inetConfiguration.cluster
+        val size = cluster.size
+
+        // when cluster valid, we should connect to one of server
+        // after connect register to the server, when routeInfo change
+        // the server will notify the changes
+        //
+        // we should send heart beat to server, if server get wrong,
+        // there should be re connect a new server
+        //
+        // todo disconnect register
+        while (true) {
+            val nowIndex = nowConnectCounting % size
+            nowConnectCounting++
+            val nowConnectNode = cluster[nowIndex]
+            try {
+
+                /**
+                 * 1. get or create a connection from server
+                 * 2. send local RpcRegistration to server
+                 * 3. start to handle route info from server
+                 */
+
+                val connection = nowConnectNode.getOrCreateConnection(false)
+                if (connection.waitForSendLicense(5, TimeUnit.SECONDS)) {
+                    logger.info("successful connect to server node $nowConnectNode, sending RPC registration...")
+
+                    val rpcRouteInfo = runBlocking {
+                        connection.sendAndWaitForResponse(
+                            RpcRegistration(
+                                RpcRegistrationMeta(
+                                    inetConfiguration.localNodeAddr,
+                                    Nigate.getRpcBeanPath(),
+                                    Nigate.getRpcInterfacePath()
                                 )
-                                    .await()
-                                    .ExceptionHandler { connection.destroy() }
-                                    .Resp()
-                            }
-
-                            logger.info("rpc successful registry to server node $nowConnectNode and getting latest route info")
-                            rpcRouteInfoHandlerService.handlerRouteInfo(rpcRouteInfo)
-
-                        } else {
-                            logger.error("fail to connect with server node $nowConnectNode")
-                        }
-
-                        logger.error("disconnected with server node $nowConnectNode:")
-                    } catch (e: Exception) {
-                        logger.error("error while contact with server node $nowConnectNode", e)
+                            ), RpcRouteInfo::class.java
+                        )
+                            .await()
+                            .ExceptionHandler { connection.destroy() }
+                            .Resp()
                     }
+
+                    logger.info("rpc successful registry to server node $nowConnectNode and getting latest route info")
+                    rpcRouteInfoHandlerService.handlerRouteInfo(rpcRouteInfo)
+                    nowActiveNode = nowConnectNode
+
+                    connection.registerDestroyHandler {
+                        logger.info("the connection from $nowConnectNode is destroy")
+                        nowActiveNode = null
+                    }
+                    break
+                } else {
+                    logger.error("fail to connect with server node $nowConnectNode")
                 }
 
+                logger.error("disconnected with server node $nowConnectNode:")
+            } catch (e: Exception) {
+                logger.error("error while contact with server node $nowConnectNode", e)
             }
         }
-        t.name = "Server Connector"
-        KanashiExecutors.execute(t)
     }
 }

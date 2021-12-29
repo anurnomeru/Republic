@@ -29,6 +29,7 @@ class ClusterStateController {
         validLock.switchOff()
     }
 
+    // Acquire make sure the func is running while cluster valid
     fun Acquire(timeout: Long = 3, unit: TimeUnit = TimeUnit.SECONDS): Boolean {
         return validLock.readLockSupplier({ true }, timeout, unit) ?: false
     }

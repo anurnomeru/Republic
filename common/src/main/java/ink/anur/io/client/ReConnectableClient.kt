@@ -11,6 +11,7 @@ import io.netty.channel.ChannelInitializer
 import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioSocketChannel
+import io.netty.util.AttributeKey
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Semaphore
 import javax.annotation.concurrent.ThreadSafe
@@ -20,10 +21,12 @@ import javax.annotation.concurrent.ThreadSafe
  *
  * 可重连的客户端
  */
-class ReConnectableClient(private val host: String, private val port: Int,
-                          private val shutDownHooker: ShutDownHooker,
-                          private val channelActiveHook: ((ChannelHandlerContext) -> Unit)? = null,
-                          private val channelInactiveHook: ((ChannelHandlerContext) -> Unit)? = null) : Runnable {
+class ReConnectableClient(
+    private val host: String, private val port: Int,
+    private val shutDownHooker: ShutDownHooker,
+    private val channelActiveHook: ((ChannelHandlerContext?) -> Unit)? = null,
+    private val channelInactiveHook: ((ChannelHandlerContext?) -> Unit)? = null
+) : Runnable {
 
     private val logger = Debugger(this::class.java)
 
@@ -43,7 +46,15 @@ class ReConnectableClient(private val host: String, private val port: Int,
 
                 // todo 暂时这么写，后续需要创建一个类将 ReConnectableClient 包起来，屏蔽一些细节
                 Thread.sleep(20000)
-                KanashiIOExecutors.execute(ReConnectableClient(host, port, shutDownHooker, channelActiveHook, channelInactiveHook))
+                KanashiIOExecutors.execute(
+                    ReConnectableClient(
+                        host,
+                        port,
+                        shutDownHooker,
+                        channelActiveHook,
+                        channelInactiveHook
+                    )
+                )
             }
         }
 
@@ -55,19 +66,21 @@ class ReConnectableClient(private val host: String, private val port: Int,
         try {
             val bootstrap = Bootstrap()
             bootstrap.group(group)
-                    .channel(NioSocketChannel::class.java)
-                    .handler(object : ChannelInitializer<SocketChannel>() {
+                .channel(NioSocketChannel::class.java)
+                .handler(object : ChannelInitializer<SocketChannel>() {
 
-                        @Throws(Exception::class)
-                        override fun initChannel(socketChannel: SocketChannel) {
-                            socketChannel.pipeline()
-                                    .addLast(KanashiDecoder())// 解码处理器
-                                    .addLast(ChannelActiveHandler(channelActiveHook, channelInactiveHook))
-                                    .addLast(ReconnectHandler(reconnectLatch))// 重连控制器
-                                    .addLast(RequestMappingHandler())
-                                    .addLast(ErrorHandler())// 错误处理
-                        }
-                    })
+                    @Throws(Exception::class)
+                    override fun initChannel(socketChannel: SocketChannel) {
+                        socketChannel.attr(AttributeKey.newInstance<String>("「$host:$port」"))
+
+                        socketChannel.pipeline()
+                            .addLast(KanashiDecoder())
+                            .addLast(ChannelActiveHandler(channelActiveHook, channelInactiveHook))
+                            .addLast(ReconnectHandler(reconnectLatch))
+                            .addLast(RequestMappingHandler())
+                            .addLast(ErrorHandler())
+                    }
+                })
 
             val channelFuture = bootstrap.connect(host, port)
             channelFuture.addListener { future ->
@@ -82,14 +95,14 @@ class ReConnectableClient(private val host: String, private val port: Int,
             shutDownHooker.shutDownRegister { group.shutdownGracefully() }
 
             channelFuture.channel()
-                    .closeFuture()
-                    .sync()
+                .closeFuture()
+                .sync()
         } catch (e: Throwable) {
             throw e
         } finally {
             try {
                 group.shutdownGracefully()
-                        .sync()
+                    .sync()
             } catch (e: InterruptedException) {
                 e.printStackTrace()
             }

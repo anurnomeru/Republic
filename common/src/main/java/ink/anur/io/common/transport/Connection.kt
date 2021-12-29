@@ -12,7 +12,8 @@ import ink.anur.inject.bean.Nigate
 import ink.anur.inject.bean.NigateInject
 import ink.anur.io.client.ReConnectableClient
 import ink.anur.io.common.RepublicResponse
-import ink.anur.io.common.handler.ChannelInactiveHandler
+import ink.anur.io.common.handler.ChannelActiveHandler
+import ink.anur.io.common.transport.Connection.ChannelHandlerContextHandler.ChchMode.*
 import ink.anur.pojo.SendLicense
 import ink.anur.pojo.SendLicenseResponse
 import ink.anur.pojo.Syn
@@ -23,8 +24,6 @@ import ink.anur.pojo.common.AbstractStruct.Companion.getIdentifier
 import ink.anur.pojo.common.AbstractStruct.Companion.getRequestType
 import ink.anur.pojo.common.AbstractStruct.Companion.isResp
 import ink.anur.pojo.common.RequestTypeEnum
-import ink.anur.timewheel.TimedTask
-import ink.anur.timewheel.Timer
 import ink.anur.util.TimeUtil
 import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
@@ -34,7 +33,6 @@ import java.lang.Runnable
 import java.lang.UnsupportedOperationException
 import java.nio.ByteBuffer
 import java.util.concurrent.*
-import kotlin.coroutines.CoroutineContext
 import kotlin.system.exitProcess
 
 /**
@@ -108,10 +106,25 @@ class Connection(
 
     /* * destroy * */
 
+    fun registerDestroyHandler(func: (ChannelHandlerContext?) -> Unit) {
+        contextHandler.getChannelHandlerContext()
+            ?.pipeline()
+            ?.addLast(
+                ChannelActiveHandler(
+                    channelInactiveHook = func
+                )
+            )
+            ?: func(contextHandler.getChannelHandlerContext())
+    }
+
+    /**
+     * do not calling this for shut down a connect
+     * use ChannelHandlerContextHandler.disConnect instead
+     */
     fun destroy() {
         running = false
         shutDownHooker.shutdown()
-        contextHandler.disConnect()
+        contextHandler.deEstablish()
         uniqueConnection.remove(republicNode)
         destroyLicense.enable()
     }
@@ -129,14 +142,21 @@ class Connection(
 
         while (running) {
             pinLicense.license()
-            doEstablish()
+            tryEstablish()
             Thread.sleep(1000)
         }
 
         logger.info("connection [Pin] mode to node $republicNode is destroy")
     }
 
-    private fun doEstablish() {
+    private fun tryEstablish() {
+
+        /**
+         * 1. disable pin license if is already establish (may connected by socket mode)
+         * 2. get the channel and start handshake
+         * 3. publish send license after successful handshake
+         */
+
         if (contextHandler.established()) {
             logger.trace("connection is already established, so disable [ConnectLicense]")
             pinLicense.disable()
@@ -159,16 +179,14 @@ class Connection(
                         .Resp()
                 }
 
-                this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.PIN, it)
+                this.contextHandler.establish(PIN, it)
 
                 sendWithNoSendLicenseAndWaitForResponseAsync(
                     channel,
                     SendLicense(inetConnection.localNodeAddr),
                     SendLicenseResponse::class.java,
                     consumer = { resp ->
-                        resp.also {
-                            this.sendLicense()
-                        }
+                        resp.also { this.publishSendLicense() }
                     },
                     handler = CoroutineExceptionHandler { _, e ->
                         logger.error(
@@ -196,7 +214,7 @@ class Connection(
             try {
                 if (syn.allowConnect(createdTs, randomSeed, republicNode.addr) || syn.clientMode()) {
                     logger.trace("allowing remote node ${syn.getAddr()} establish to local ")
-                    if (this.contextHandler.establish(ChannelHandlerContextHandler.ChchMode.SOCKET, ctx)) {
+                    if (this.contextHandler.establish(SOCKET, ctx)) {
                         sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr).asResp(syn))
                     }
                 } else {
@@ -211,8 +229,8 @@ class Connection(
 
     /* send license */
 
-    private fun sendLicense() {
-        contextHandler.sendLicense()
+    private fun publishSendLicense() {
+        contextHandler.publishSendLicense()
     }
 
     /* * send with no send license * */
@@ -223,12 +241,13 @@ class Connection(
         expect: Class<T>,
         timeout: Long = 3000,
         unit: TimeUnit = TimeUnit.MILLISECONDS
-    ): Deferred<RepublicResponse<T>> = GlobalScope.async {
-        doSendAndWaitForResponse(struct, expect, timeout, unit) {
-            sendWithNoSendLicense(channel, it)
+    ): Deferred<RepublicResponse<T>> = runBlocking {
+        async {
+            doSendAndWaitForResponse(struct, expect, timeout, unit) {
+                sendWithNoSendLicense(channel, it)
+            }
         }
     }
-
 
     fun <T> sendWithNoSendLicenseAndWaitForResponseAsync(
         channel: Channel,
@@ -238,11 +257,13 @@ class Connection(
         unit: TimeUnit = TimeUnit.MILLISECONDS,
         consumer: (T) -> Unit,
         handler: CoroutineExceptionHandler,
-    ) = GlobalScope.launch(handler) {
-        val response = doSendAndWaitForResponse(struct, expect, timeout, unit) {
-            sendWithNoSendLicense(channel, it)
+    ) = runBlocking(handler) {
+        launch {
+            val response = doSendAndWaitForResponse(struct, expect, timeout, unit) {
+                sendWithNoSendLicense(channel, it)
+            }
+            consumer.invoke(response.Resp())
         }
-        consumer.invoke(response.Resp())
     }
 
     /* * normal sending * */
@@ -252,9 +273,11 @@ class Connection(
         expect: Class<T>,
         timeout: Long = 3000,
         unit: TimeUnit = TimeUnit.MILLISECONDS
-    ): Deferred<RepublicResponse<T>> = GlobalScope.async {
-        doSendAndWaitForResponse(struct, expect, timeout, unit) {
-            send(it)
+    ) = runBlocking {
+        async {
+            doSendAndWaitForResponse(struct, expect, timeout, unit) {
+                send(it)
+            }
         }
     }
 
@@ -265,11 +288,13 @@ class Connection(
         unit: TimeUnit = TimeUnit.MILLISECONDS,
         consumer: (T) -> Unit,
         handler: CoroutineExceptionHandler
-    ) = GlobalScope.launch(handler) {
-        val response = doSendAndWaitForResponse(struct, expect, timeout, unit) {
-            send(it)
+    ) = runBlocking(handler) {
+        async {
+            val response = doSendAndWaitForResponse(struct, expect, timeout, unit) {
+                send(it)
+            }
+            consumer.invoke(response.Resp())
         }
-        consumer.invoke(response.Resp())
     }
 
     /* * send async * */
@@ -427,11 +452,12 @@ class Connection(
                     if (!uniqueConnection.containsKey(this)) {
                         logger.debug(
                             "init connection to ${this.host}:${this.port} ${
-                                clientMode.takeIf { it }?.let { "with client mode." }
+                                clientMode.takeIf { it }?.let { "with client mode." } ?: ""
                             }"
                         )
                         uniqueConnection[this] =
-                            Connection(this.host, this.port, clientMode).also { it.tryEstablishLicense() }
+                            Connection(this.host, this.port, clientMode)
+                                .also { it.tryEstablishLicense() }
                     }
                 }
             }
@@ -499,7 +525,7 @@ class Connection(
                     RequestTypeEnum.SYN -> this.mayConnectByRemote(Syn(msg))
 
                     /* send licensing */
-                    RequestTypeEnum.SEND_LICENSE -> this.sendLicense(SendLicense(msg))
+                    RequestTypeEnum.SEND_LICENSE -> this.publishSendLicense(SendLicense(msg))
 
                     /* handling */
                     else -> {
@@ -530,9 +556,9 @@ class Connection(
             }
         }
 
-        private fun ChannelHandlerContext.sendLicense(sendLicense: SendLicense) {
+        private fun ChannelHandlerContext.publishSendLicense(sendLicense: SendLicense) {
             val republicNode = RepublicNode.construct(sendLicense.getAddr())
-            republicNode.getOrCreateConnection().sendLicense()
+            republicNode.getOrCreateConnection().publishSendLicense()
             doSend(this.channel(), SendLicenseResponse().asResp(sendLicense))
         }
 
@@ -581,10 +607,15 @@ class Connection(
         private var socket: ChannelHandlerContext? = null
 
         @Volatile
-        private var mode = ChchMode.UN_CONNECTED
+        private var mode = UN_CONNECTED
 
-        fun established() = mode != ChchMode.UN_CONNECTED
+        fun established() = mode != UN_CONNECTED
 
+        /**
+         * establish is do after connected or connect to other node
+         *  - if connect to other node, use ChchMode.PIN mode
+         *  - else use ChchMode.SOCKET mode
+         */
         @Synchronized
         fun establish(mode: ChchMode, ctx: ChannelHandlerContext): Boolean {
             return if (established()) {
@@ -593,16 +624,18 @@ class Connection(
                 false
             } else {
                 try {
-                    ctx.pipeline().addLast(ChannelInactiveHandler {
-                        disConnect()
-                    })
+                    ctx.pipeline().addLast(
+                        ChannelActiveHandler(
+                            channelInactiveHook = { deEstablish() }
+                        )
+                    )
 
                     when (mode) {
-                        ChchMode.PIN -> {
+                        PIN -> {
                             pin = ctx
                             socket?.close()
                         }
-                        ChchMode.SOCKET -> {
+                        SOCKET -> {
                             socket = ctx
                             pin?.close()
                         }
@@ -626,14 +659,18 @@ class Connection(
                     true
                 } catch (e: Exception) {
                     logger.error("error occur while establish with $republicNode!", e)
-                    disConnect()
+                    deEstablish()
                     false
                 }
             }
         }
 
+        /**
+         * deEstablish do not disconnect from channel
+         * and start to try pin to the remote
+         */
         @Synchronized
-        fun disConnect(): Boolean {
+        fun deEstablish(): Boolean {
             return if (!established()) {
                 false
             } else {
@@ -646,17 +683,18 @@ class Connection(
                 }
 
                 when (mode) {
-                    ChchMode.PIN -> pin?.channel()?.close()
-                    ChchMode.SOCKET -> socket?.channel()?.close()
+                    PIN -> pin?.channel()?.close()
+                    SOCKET -> socket?.channel()?.close()
+                    UN_CONNECTED -> TODO()
                 }
 
-                this.mode = ChchMode.UN_CONNECTED
+                this.mode = UN_CONNECTED
                 this.sendLicense.disable()
                 this.pinLicense.enable()
                 republicNode.wakare()
 
                 if (clientMode) { // todo may bug
-                    republicNode.getConnection()?.destroy()
+                    //                    republicNode.getConnection()?.destroy()
                     validClientConnection.remove(republicNode)
                 }
 
@@ -669,10 +707,10 @@ class Connection(
          */
         fun getChannelHandlerContext(): ChannelHandlerContext? {
             return when (mode) {
-                ChchMode.PIN -> {
+                PIN -> {
                     pin
                 }
-                ChchMode.SOCKET -> {
+                SOCKET -> {
                     socket
                 }
                 else -> {
@@ -697,14 +735,14 @@ class Connection(
         }
 
         @Synchronized
-        fun settingPin(it: ChannelHandlerContext) {
+        fun settingPin(it: ChannelHandlerContext?) {
             pin = it
             pinLicense.enable()
         }
 
         @Synchronized
-        fun sendLicense() {
-            if (mode != ChchMode.UN_CONNECTED) {
+        fun publishSendLicense() {
+            if (mode != UN_CONNECTED) {
                 sendLicense.enable()
                 logger.info("remote node $republicNode publish SendLicense to local")
             } else {

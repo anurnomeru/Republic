@@ -16,27 +16,36 @@ class ReconnectHandler(private val reconnectLatch: CountDownLatch) : ChannelInbo
     private val logger = Debugger(this::class.java).switch(DebuggerLevel.INFO)
 
     @Throws(Exception::class)
-    override fun channelActive(ctx: ChannelHandlerContext) {
+    override fun channelActive(ctx: ChannelHandlerContext?) {
         super.channelActive(ctx)
     }
 
     @Throws(Exception::class)
-    override fun channelInactive(ctx: ChannelHandlerContext) {
+    override fun channelInactive(ctx: ChannelHandlerContext?) {
         super.channelInactive(ctx)
 
-        ctx.close()
+        ctx?.close()
         reconnectLatch.countDown()
     }
 
     @Throws(Exception::class)
-    override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
+    override fun exceptionCaught(ctx: ChannelHandlerContext?, cause: Throwable) {
         super.channelInactive(ctx)
         if (reconnectLatch.count == 1L) {
-            logger.debug("channel disconnect: [{}], try to reconnect...", ctx.channel()
-                    .remoteAddress())
+            logger.debug(
+                "channel disconnect: [{}], try to reconnect...", ctx?.channel()
+                    ?.remoteAddress() ?: "Unknown channel context"
+            )
         }
-        ctx.close()
-        logger.debug("channel disconnect: [{}], cause by: {}", ctx.channel()
-                .remoteAddress(), cause.message)
+        ctx?.close()?.let {
+            logger.debug(
+                "channel disconnect: [{}], cause by: {}", ctx.channel()
+                    .remoteAddress(), cause.message
+            )
+        } ?: let {
+            logger.debug(
+                "Unknown channel disconnected"
+            )
+        }
     }
 }

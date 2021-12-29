@@ -19,7 +19,7 @@ class KanashiDecoder : ByteToMessageDecoder() {
         }
     }
 
-    private fun decode(ctx: ChannelHandlerContext, buffer: ByteBuf): ByteBuffer? {
+    private fun decode(ctx: ChannelHandlerContext?, buffer: ByteBuf): ByteBuffer? {
         buffer.markReaderIndex()
         val maybeLength = buffer.readInt()
         val remain = buffer.readableBytes()
