@@ -37,7 +37,7 @@ class Canvass : AbstractStruct {
         byteBuffer.position(GenerationOffset)
 
         this.generation = byteBuffer.getLong()
-        buffer!!.reset()
+        buffer.reset()
     }
 
     override fun writeIntoChannel(channel: Channel) {

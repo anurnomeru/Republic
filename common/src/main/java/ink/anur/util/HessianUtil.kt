@@ -25,19 +25,6 @@ class HessianUtil {
     }
 
     companion object {
-        @JvmStatic
-        fun main(args: Array<String>) {
-            val map = HashMap<String, Any>()
-            map.put("sdfasdf", MotherFucker(Lists.newArrayList("zzzz", "11111")))
-            map.put("f", "Asdfasdfasdf");
-            map.put("sdfasdfsdf", "Asdfasdfasdf");
-
-            val demo = Demo(SomeFuck("sdfsdf", null), 123123345345L, 123123123, map)
-            val ser = MotherFucker(Lists.newArrayList(demo, null, map))
-            val des1 = des(ser(ser), MotherFucker::class.java)
-
-            println()
-        }
 
         fun ser(any: Any): ByteArray {
             val bos = ByteArrayOutputStream()

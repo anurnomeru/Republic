@@ -24,6 +24,6 @@ import java.util.Locale
  * Created by Anur IjuoKaruKas on 2019/9/23
  */
 object Os {
-    val name = System.getProperty("os.name").toLowerCase(Locale.ROOT)
+    val name = System.getProperty("os.name").lowercase(Locale.ROOT)
     val isWindows = name.startsWith("windows")
 }

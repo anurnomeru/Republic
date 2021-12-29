@@ -4,19 +4,32 @@
 
 plugins {
     id 'ink.anur.java-conventions'
+    id 'org.jetbrains.kotlin.jvm' version '1.6.0'
 }
 
 dependencies {
-    implementation 'io.netty:netty-all:4.1.42.Final'
-    implementation 'com.caucho:hessian:4.0.63'
-    implementation 'com.google.guava:guava:27.0-jre'
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.5.0'
-    implementation 'org.jetbrains.kotlin:kotlin-reflect:1.5.0'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.0-RC'
-    implementation 'org.slf4j:slf4j-api:1.7.25'
-    implementation 'ch.qos.logback:logback-core:1.2.3'
-    implementation 'ch.qos.logback:logback-classic:1.2.3'
-    testImplementation 'org.jetbrains.kotlin:kotlin-test:1.5.0'
+    api 'io.netty:netty-all:4.1.42.Final'
+    api 'com.caucho:hessian:4.0.63'
+    api 'com.google.guava:guava:27.0-jre'
+    api 'org.slf4j:slf4j-api:1.7.25'
+    api 'ch.qos.logback:logback-core:1.2.3'
+    api 'ch.qos.logback:logback-classic:1.2.3'
+
+    api "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.6.0"
+    api 'org.jetbrains.kotlin:kotlin-reflect:1.6.0'
+    api 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.0'
+    testImplementation 'org.jetbrains.kotlin:kotlin-test:1.6.0'
 }
 
 description = 'common'
+
+compileKotlin {
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+}
+compileTestKotlin {
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+}

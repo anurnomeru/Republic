@@ -54,7 +54,7 @@ open class Register : AbstractStruct {
     }
 
     fun getRegistrySign(): Long {
-        return buffer!!.getLong(RegistrySignOffset)
+        return buffer.getLong(RegistrySignOffset)
     }
 
     override fun writeIntoChannel(channel: Channel) {

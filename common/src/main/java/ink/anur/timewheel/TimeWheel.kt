@@ -57,7 +57,7 @@ class TimeWheel(val tickMs: Long, val wheelSize: Int, val delayQueue: DelayQueue
                 }
             } else {
                 val timeWheel = getOverflowWheel() // 当maybeInThisBucket大于等于wheelSize时，需要将它扔到上一层的时间轮
-                timeWheel!!.addTask(timedTask)
+                timeWheel.addTask(timedTask)
             }
         }
         return true

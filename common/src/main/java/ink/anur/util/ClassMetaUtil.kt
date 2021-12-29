@@ -8,7 +8,7 @@ import java.lang.reflect.Method
 object ClassMetaUtil {
 
     fun firstCharToLowCase(name: String): String {
-        return name.first().toLowerCase() + name.substring(1, name.length)
+        return name.first().lowercase() + name.substring(1, name.length)
     }
 
 

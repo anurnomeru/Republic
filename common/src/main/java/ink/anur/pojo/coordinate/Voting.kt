@@ -54,7 +54,7 @@ class Voting : AbstractStruct {
         this.fromLeaderNode = translateToBool(byteBuffer.get())
         this.askVoteGeneration = byteBuffer.getLong()
         this.generation = byteBuffer.getLong()
-        buffer!!.reset()
+        buffer.reset()
     }
 
     constructor(agreed: Boolean, fromLeaderNode: Boolean, canvassGeneration: Long, voteGeneration: Long) {
