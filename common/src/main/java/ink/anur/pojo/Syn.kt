@@ -19,9 +19,7 @@ class Syn : AbstractStruct {
         private const val CreatedTsLength = 8
         private const val RandomSeedOffset = CreatedTsOffset + CreatedTsLength
         private const val RandomSeedLength = 8
-        private const val ClientModeOffset = RandomSeedOffset + RandomSeedLength
-        private const val ClientModeLength = 1
-        private const val AddrSizeOffset = ClientModeOffset + ClientModeLength
+        private const val AddrSizeOffset = RandomSeedOffset + RandomSeedLength
         private const val AddrSizeLength = 4
         private const val AddrOffset = AddrSizeOffset + AddrSizeLength
         private const val Capacity = AddrOffset
@@ -33,13 +31,10 @@ class Syn : AbstractStruct {
 
     private val randomSeed: Long
 
-    private val clientMode: Boolean
-
-    constructor(addr: String, createdTs: Long, randomSeed: Long, clientMode: Boolean = false) {
+    constructor(addr: String, createdTs: Long, randomSeed: Long) {
         this.addr = addr
         this.createdTs = createdTs
         this.randomSeed = randomSeed
-        this.clientMode = clientMode
 
         val bytes = addr.toByteArray(Charset.defaultCharset())
         val size = bytes.size
@@ -47,7 +42,6 @@ class Syn : AbstractStruct {
         init(Capacity + size, RequestTypeEnum.SYN) {
             it.putLong(createdTs)
             it.putLong(randomSeed)
-            it.put(translateToByte(clientMode))
             it.putInt(size)
             it.put(bytes)
         }
@@ -57,7 +51,6 @@ class Syn : AbstractStruct {
         buffer = byteBuffer
         this.createdTs = byteBuffer.getLong(CreatedTsOffset)
         this.randomSeed = byteBuffer.getLong(RandomSeedOffset)
-        this.clientMode = translateToBool(byteBuffer.get(ClientModeOffset))
         val size = byteBuffer.getInt(AddrSizeOffset)
 
         byteBuffer.position(Capacity)
@@ -68,6 +61,8 @@ class Syn : AbstractStruct {
     }
 
     fun getAddr(): String = addr
+    fun getCreateTs(): Long = createdTs
+    fun getRandomSeed(): Long = randomSeed
 
     override fun writeIntoChannel(channel: Channel) {
         val wrappedBuffer = Unpooled.wrappedBuffer(buffer)
@@ -78,11 +73,9 @@ class Syn : AbstractStruct {
         return size()
     }
 
-    fun clientMode() = clientMode
-
     fun allowConnect(createdTs: Long, randomSeed: Long, addr: String): Boolean {
-        return compare(this.createdTs, createdTs) {
-            compare(this.randomSeed, randomSeed) {
+        return this.createdTs == createdTs || compare(this.createdTs, createdTs) {
+            this.randomSeed == randomSeed || compare(this.randomSeed, randomSeed) {
                 compare(this.addr.hashCode().toLong(), addr.hashCode().toLong()) {
                     throw UnsupportedOperationException()
                 }

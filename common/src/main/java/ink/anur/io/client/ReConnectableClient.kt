@@ -71,7 +71,6 @@ class ReConnectableClient(
 
                     @Throws(Exception::class)
                     override fun initChannel(socketChannel: SocketChannel) {
-                        socketChannel.attr(AttributeKey.newInstance<String>("「$host:$port」"))
 
                         socketChannel.pipeline()
                             .addLast(KanashiDecoder())

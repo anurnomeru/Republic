@@ -49,7 +49,6 @@ class KanashiClientConnector {
         // we should send heart beat to server, if server get wrong,
         // there should be re connect a new server
         //
-        // todo disconnect register
         while (true) {
             val nowIndex = nowConnectCounting % size
             nowConnectCounting++
@@ -62,8 +61,8 @@ class KanashiClientConnector {
                  * 3. start to handle route info from server
                  */
 
-                val connection = nowConnectNode.getOrCreateConnection(false)
-                if (connection.waitForSendLicense(5, TimeUnit.SECONDS)) {
+                val connection = nowConnectNode.getOrCreateConnection(true)
+                if (connection.waitForSendLicense(inetConfiguration.timeoutMs, TimeUnit.SECONDS)) {
                     logger.info("successful connect to server node $nowConnectNode, sending RPC registration...")
 
                     val rpcRouteInfo = runBlocking {

@@ -15,9 +15,9 @@ import ink.anur.inject.config.ConfigurationIgnore;
  */
 @Configuration(prefix = "inet")
 public class InetConfiguration {
-    private String localNodeAddr;
-    private String clientAddr;
-    private long timeoutMs = 2000L;
+    private String localAddr;
+    private String clusterAddr;
+    private long timeoutMs;
 
     @ConfigurationIgnore
     private List<RepublicNode> allCache;
@@ -30,7 +30,7 @@ public class InetConfiguration {
         if (allCache == null) {
             synchronized (this) {
                 if (allCache == null) {
-                    allCache = Stream.of(clientAddr.split(";"))
+                    allCache = Stream.of(clusterAddr.split(";"))
                                      .map(RepublicNode.Companion::construct)
                                      .collect(Collectors.toList());
                 }
@@ -42,7 +42,7 @@ public class InetConfiguration {
 
     @Nonnull
     public String getLocalNodeAddr() {
-        return localNodeAddr;
+        return localAddr;
     }
 
     @Nonnull
@@ -50,7 +50,7 @@ public class InetConfiguration {
         if (local == null) {
             synchronized (this) {
                 if (local == null) {
-                    local = RepublicNode.Companion.construct(localNodeAddr);
+                    local = RepublicNode.Companion.construct(localAddr);
                 }
             }
         }

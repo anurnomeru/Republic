@@ -8,6 +8,7 @@ import ink.anur.core.common.License
 import ink.anur.core.common.RequestMapping
 import ink.anur.debug.Debugger
 import ink.anur.exception.io.RequestTimeoutException
+import ink.anur.inject.Block
 import ink.anur.inject.bean.Nigate
 import ink.anur.inject.bean.NigateInject
 import ink.anur.io.client.ReConnectableClient
@@ -28,6 +29,7 @@ import ink.anur.util.TimeUtil
 import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext
+import io.netty.util.internal.ConcurrentSet
 import kotlinx.coroutines.*
 import java.lang.Runnable
 import java.lang.UnsupportedOperationException
@@ -40,13 +42,18 @@ import kotlin.system.exitProcess
  */
 class Connection(
     private val host: String, private val port: Int,
+
     /**
      * client Mode will never try to establish positive to remote node
      *
      * TODO switching mode for now is un supported
      */
-    private val clientMode: Boolean = false
-) : Runnable {
+    initiativeMode: Boolean = false,
+
+    private val createdTs: Long = TimeUtil.getTime(),
+    private val randomSeed: Long = ThreadLocalRandom.current().nextLong(),
+
+    ) : Runnable {
 
     @NigateInject
     private lateinit var inetConnection: InetConfiguration
@@ -61,10 +68,6 @@ class Connection(
 
     val republicNode = RepublicNode.construct(host, port)
 
-    private val createdTs = TimeUtil.getTime()
-
-    private val randomSeed = ThreadLocalRandom.current().nextLong()
-
     private val shutDownHooker = ShutDownHooker()
 
     private val pinLicense = License()
@@ -74,7 +77,7 @@ class Connection(
     private var currentWaitDeck = ConcurrentSkipListSet<Int>()
 
     private val contextHandler =
-        ChannelHandlerContextHandler(republicNode, sendLicense, pinLicense, clientMode, currentWaitDeck)
+        ChannelHandlerContextHandler(republicNode, sendLicense, pinLicense, initiativeMode, currentWaitDeck)
 
     private val asyncSendingQueue = ConcurrentHashMap<RequestTypeEnum, AbstractStruct>()
 
@@ -96,7 +99,9 @@ class Connection(
     })
 
     init {
-        if (!clientMode) {
+        logger.info("Connection is created with initiativeMode: $initiativeMode, createTs: $createdTs.")
+
+        if (initiativeMode) {
             KanashiIOExecutors.execute(client)
             KanashiIOExecutors.execute(connectionThread)
         }
@@ -169,7 +174,7 @@ class Connection(
                 val channel = it.channel()
                 val deferred = sendWithNoSendLicenseAndWaitForResponse(
                     channel,
-                    Syn(inetConnection.localNodeAddr, createdTs, randomSeed, clientMode),
+                    Syn(inetConnection.localNodeAddr, createdTs, randomSeed),
                     SynResponse::class.java
                 )
 
@@ -212,7 +217,7 @@ class Connection(
         } else {
             logger.trace("remote node ${syn.getAddr()} attempt to establish with local server")
             try {
-                if (syn.allowConnect(createdTs, randomSeed, republicNode.addr) || syn.clientMode()) {
+                if (syn.allowConnect(createdTs, randomSeed, republicNode.addr)) {
                     logger.trace("allowing remote node ${syn.getAddr()} establish to local ")
                     if (this.contextHandler.establish(SOCKET, ctx)) {
                         sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr).asResp(syn))
@@ -381,7 +386,9 @@ class Connection(
     }
 
     companion object {
-        private val validClientConnection = ConcurrentSkipListSet<RepublicNode>()
+
+        private val validClientConnection: ConcurrentHashMap.KeySetView<RepublicNode, Boolean> =
+            ConcurrentHashMap.newKeySet()
         private val asyncWaitDeck = ConcurrentHashMap<Int /* identifier */, () -> Unit>()
         private val waitDeck = ConcurrentHashMap<Int /* identifier */, CountDownLatch>()
         private val response = ConcurrentHashMap<Int /* identifier */, ByteBuffer>()
@@ -446,17 +453,22 @@ class Connection(
          * if connection is first created, then try connect to the remote node
          * until connection establish
          */
-        fun RepublicNode.getOrCreateConnection(clientMode: Boolean = false): Connection {
+        @Block
+        fun RepublicNode.getOrCreateConnection(
+            initiativeMode: Boolean = true,
+            createdTs: Long = TimeUtil.getTime(),
+            randomSeed: Long = ThreadLocalRandom.current().nextLong(),
+        ): Connection {
             if (!uniqueConnection.containsKey(this)) {
                 synchronized(Connection::class.java) {
                     if (!uniqueConnection.containsKey(this)) {
                         logger.debug(
                             "init connection to ${this.host}:${this.port} ${
-                                clientMode.takeIf { it }?.let { "with client mode." } ?: ""
+                                initiativeMode.takeIf { it }?.let { "with initiative mode." } ?: "with server mode."
                             }"
                         )
                         uniqueConnection[this] =
-                            Connection(this.host, this.port, clientMode)
+                            Connection(this.host, this.port, initiativeMode, createdTs, randomSeed)
                                 .also { it.tryEstablishLicense() }
                     }
                 }
@@ -512,7 +524,7 @@ class Connection(
                 }
                 val awd = asyncWaitDeck[identifier]?.also {
                     response[identifier] = msg
-                    KanashiIOExecutors.execute(Runnable { it.invoke() })
+                    runBlocking { launch { it.invoke() } }
                 }
                 if (wd == null && awd == null) {
                     logger.error("receive un deck msg [type:${requestType}] [identifier:${identifier}], may timeout or error occur!")
@@ -564,7 +576,8 @@ class Connection(
 
         private fun ChannelHandlerContext.mayConnectByRemote(syn: Syn) {
             val republicNode = RepublicNode.construct(syn.getAddr())
-            republicNode.getOrCreateConnection(syn.clientMode()).mayConnectByRemote(this, syn)
+            republicNode.getOrCreateConnection(false, syn.getCreateTs(), syn.getRandomSeed())
+                .mayConnectByRemote(this, syn)
         }
 
         /**
@@ -596,7 +609,7 @@ class Connection(
         private val republicNode: RepublicNode,
         private val sendLicense: License,
         private val pinLicense: License,
-        private val clientMode: Boolean,
+        private val initiativeMode: Boolean,
         private val currentWaitDeck: ConcurrentSkipListSet<Int>
     ) {
 
@@ -652,7 +665,7 @@ class Connection(
                     )
                     ctx.tsubasa(republicNode)
 
-                    if (clientMode) {
+                    if (!initiativeMode) {
                         validClientConnection.add(republicNode)
                     }
 
@@ -693,7 +706,7 @@ class Connection(
                 this.pinLicense.enable()
                 republicNode.wakare()
 
-                if (clientMode) { // todo may bug
+                if (!initiativeMode) { // todo may bug
                     //                    republicNode.getConnection()?.destroy()
                     validClientConnection.remove(republicNode)
                 }

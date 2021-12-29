@@ -3,12 +3,13 @@ package ink.anur.common.struct
 import ink.anur.config.InetConfiguration
 import ink.anur.inject.bean.Nigate
 import java.net.InetSocketAddress
+import java.util.Comparator
 import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Created by Anur on 2020/9/30
  */
-class RepublicNode private constructor(val host: String, val port: Int) {
+class RepublicNode private constructor(val host: String, val port: Int) : Comparator<RepublicNode?> {
 
     val addr = "$host:$port"
 
@@ -55,5 +56,15 @@ class RepublicNode private constructor(val host: String, val port: Int) {
 
     override fun toString(): String {
         return "RepublicNode(host='$host', port=$port)"
+    }
+
+    override fun compare(o1: RepublicNode?, o2: RepublicNode?): Int {
+        if (o1?.equals(o2) == true) {
+            return 0
+        }
+        if (o2 == null) {
+            return 1
+        }
+        return o1?.hashCode()?.compareTo(o2.hashCode()) ?: 0
     }
 }
