@@ -9,6 +9,7 @@ plugins {
 
 dependencies {
     api project(':common')
+    testImplementation 'org.jetbrains.kotlin:kotlin-test'
 }
 
 description = 'server'

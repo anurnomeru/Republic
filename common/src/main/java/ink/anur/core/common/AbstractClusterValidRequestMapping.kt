@@ -7,8 +7,6 @@ import java.nio.ByteBuffer
 
 /**
  * Created by Anur IjuoKaruKas on 2020/2/25
- *
- * 定义一个消息如何消费的顶级接口
  */
 abstract class AbstractClusterValidRequestMapping : RequestMapping {
 
@@ -19,7 +17,6 @@ abstract class AbstractClusterValidRequestMapping : RequestMapping {
 
     override fun handleRequest(republicNode: RepublicNode, msg: ByteBuffer) {
         handleClusterValidRequest(republicNode, msg)
-
     }
 
     abstract fun handleClusterValidRequest(republicNode: RepublicNode, msg: ByteBuffer)

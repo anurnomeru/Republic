@@ -1,165 +1,101 @@
 package ink.anur.mutex
 
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.locks.ReentrantReadWriteLock
+import java.util.concurrent.locks.*
 
 /**
  * Created by Anur IjuoKaruKas on 2019/7/10
- *
- * 提供一个基于读写锁的二次封装类
  */
-open class ReentrantReadWriteLocker : ReentrantReadWriteLock() {
+open class ReentrantReadWriteLocker {
 
-    private val readLock: ReadLock = readLock()
-
-    private val writeLock: WriteLock = writeLock()
-
-    private val switch = writeLock.newCondition()
+    private var rwLock = ReentrantReadWriteLock()
+    private val rl = rwLock.readLock()
+    private val wl = rwLock.writeLock()
+    private val condition: Condition = wl.newCondition()
 
     @Volatile
-    private var switcher = 0
+    private var switcher: Int = 0
 
     fun switchOff() {
         switcher = 1
     }
 
     fun switchOn() {
-        try {
-            writeLock.lock()
-            switcher = 0
-            switch.signalAll()
-        } finally {
-            writeLock.unlock()
+        runBlocking {
+            launch {
+                rl.lock()
+                try {
+                    switcher = 0
+                    condition.signalAll()
+                } finally {
+                    rl.unlock()
+                }
+            }
         }
     }
 
-    /**
-     * 提供一个统一的锁入口
-     */
     fun writeLocker(doSomething: () -> Unit) {
-        try {
-            writeLock.lock()
-
-            if (switcher > 0) {
-                switch.await()
-            }
-
-            doSomething.invoke()
-        } finally {
-            writeLock.unlock()
-        }
+        writeLockSupplier { doSomething() }
     }
 
-    /**
-     * 提供一个统一的锁入口
-     */
-    fun <T> writeLockSupplier(supplier: () -> T): T? {
-        val t: T
-        try {
-            writeLock.lock()
-
-            if (switcher > 0) {
-                switch.await()
-            }
-
-            t = supplier.invoke()
-        } finally {
-            writeLock.unlock()
-        }
-        return t
-    }
-
-    /**
-     * 提供一个统一的锁入口
-     */
     fun <T> writeLockSupplierCompel(supplier: () -> T): T {
-        val t: T
-        try {
-            writeLock.lock()
-
-            if (switcher > 0) {
-                switch.await()
-            }
-
-            t = supplier.invoke()
-        } finally {
-            writeLock.unlock()
-        }
-        return t
+        return writeLockSupplier(supplier)!!
     }
 
-    /**
-     * 提供一个统一的锁入口
-     */
-    fun <T> readLockSupplier(supplier: () -> T, timeout: Long, unit: TimeUnit): T? {
-        val t: T
+    fun <T> writeLockSupplier(supplier: () -> T): T? {
 
-        val tryLock = readLock.tryLock(timeout, unit)
+        wl.lock()
         try {
             if (switcher > 0) {
-                switch.await()
+                condition.await()
             }
 
-            t = supplier.invoke()
+            return supplier.invoke()
         } finally {
-            if (tryLock) {
-                readLock.unlock()
-            }
+            wl.unlock()
         }
-        return t
+    }
+
+    fun readLocker(doSomething: () -> Unit) {
+        readLockSupplier(doSomething)
+    }
+
+    fun <T> readLockSupplierCompel(supplier: () -> T): T {
+        return readLockSupplier(supplier)!!
     }
 
     fun <T> readLockSupplier(supplier: () -> T): T? {
-        val t: T
 
-        readLock.lock()
+        rl.tryLock()
         try {
             if (switcher > 0) {
-                switch.await()
+                wl.lock()
+                condition.await()
+                wl.unlock()
             }
 
-            t = supplier.invoke()
+            return supplier.invoke()
         } finally {
-            readLock.unlock()
-        }
-        return t
-    }
-
-    /**
-     * 提供一个统一的锁入口
-     */
-    fun <T> readLockSupplierCompel(supplier: () -> T): T {
-        val t: T
-        try {
-            readLock.lock()
-
-            if (switcher > 0) {
-                switch.await()
-            }
-
-            t = supplier.invoke()
-        } finally {
-            readLock.unlock()
-        }
-        return t
-    }
-
-
-    /**
-     * 提供一个统一的锁入口
-     */
-    fun readLocker(doSomething: () -> Unit) {
-        try {
-            readLock.lock()
-
-            if (switcher > 0) {
-                switch.await()
-            }
-
-            doSomething.invoke()
-        } finally {
-            readLock.unlock()
+            wl.unlock()
         }
     }
 
+    fun readLockSupplier(supplier: () -> Boolean, timeout: Long, unit: TimeUnit): Boolean? {
+        if (rl.tryLock(timeout, unit)) {
+            try {
+                if (switcher > 0) {
+                    wl.lock()
+                    condition.await()
+                    wl.unlock()
+                }
+
+                return supplier.invoke()
+            } finally {
+                wl.unlock()
+            }
+        }
+        return null
+    }
 }

@@ -7,4 +7,4 @@ import ink.anur.pojo.metastruct.SerializableMeta
 /**
  * Created by Anur IjuoKaruKas on 2021/5/16
  */
-class ProposalMeta(val rte: RequestTypeEnum,val meta: MetaStruct<*>) : SerializableMeta
+class ProposalMeta(val rte: RequestTypeEnum, val meta: MetaStruct<*>) : SerializableMeta

@@ -5,6 +5,7 @@ import ink.anur.inject.bean.NigateBean
 import ink.anur.inject.event.Event
 import ink.anur.inject.event.NigateListener
 import ink.anur.mutex.ReentrantReadWriteLocker
+import org.jetbrains.annotations.TestOnly
 import java.util.concurrent.TimeUnit
 
 /**
@@ -29,9 +30,19 @@ class ClusterStateController {
         validLock.switchOff()
     }
 
+    @TestOnly
+    fun letClusterValid(){
+        validLock.switchOn()
+    }
+
     // Acquire make sure the func is running while cluster valid
     fun Acquire(timeout: Long = 3, unit: TimeUnit = TimeUnit.SECONDS): Boolean {
         return validLock.readLockSupplier({ true }, timeout, unit) ?: false
+    }
+
+    // Acquire make sure the func is running while cluster valid
+    fun Acquire(): Boolean {
+        return validLock.readLockSupplier { true } ?: false
     }
 
     @Throws

@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Created by Anur on 2020/9/30
  */
-class RepublicNode private constructor(val host: String, val port: Int) : Comparator<RepublicNode?> {
+class RepublicNode private constructor(val host: String, val port: Int) {
 
     val addr = "$host:$port"
 
@@ -56,15 +56,5 @@ class RepublicNode private constructor(val host: String, val port: Int) : Compar
 
     override fun toString(): String {
         return "RepublicNode(host='$host', port=$port)"
-    }
-
-    override fun compare(o1: RepublicNode?, o2: RepublicNode?): Int {
-        if (o1?.equals(o2) == true) {
-            return 0
-        }
-        if (o2 == null) {
-            return 1
-        }
-        return o1?.hashCode()?.compareTo(o2.hashCode()) ?: 0
     }
 }

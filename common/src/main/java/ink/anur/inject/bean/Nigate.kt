@@ -2,6 +2,7 @@ package ink.anur.inject.bean
 
 import com.google.common.collect.Lists
 import ink.anur.exception.*
+import ink.anur.inject.aop.AopRegistry
 import ink.anur.inject.config.Configuration
 import ink.anur.inject.config.ConfigurationFactory
 import ink.anur.inject.event.NigateListenerService
@@ -13,12 +14,13 @@ import ink.anur.util.ClassMetaUtil
 import ink.anur.util.TimeUtil
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
+import org.jetbrains.annotations.TestOnly
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
-import java.lang.reflect.Proxy
+import java.lang.reflect.Proxy.newProxyInstance
 import java.net.JarURLConnection
 import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
@@ -124,12 +126,17 @@ object Nigate {
 
     fun getBeanByName(name: String): Any = beanContainer.getBeanByName(name)
 
+    @TestOnly
+    fun markAsOverRegistry() {
+        beanContainer.overRegistry = true
+    }
+
     /**
      * 注册某个bean
      */
     fun registerToNigate(injected: Any, alias: String? = null) {
         if (!beanContainer.overRegistry) {
-            throw KanashiException("暂时不支持在初始化完成前进行构造注入！")
+            throw KanashiException("Can not register a bean before constructors init!")
         }
         val newArrayList = Lists.newArrayList(injected)
         beanContainer.register(injected, alias, false)
@@ -243,20 +250,24 @@ object Nigate {
                     }
                     annotations.containsKey(KanashiRpc::class) -> {
                         val annotation = annotations[KanashiRpc::class] as KanashiRpc
-                        val name = register(clazz.getDeclaredConstructor().newInstance(), annotation.alias, true)
+                        val name = register(newNigateInstance(clazz), annotation.alias, true)
                         beanDefinitionMapping[name] = NigateBeanDefinition(fromJar, path)
                         logger.debug("$clazz register as KanashiRpc")
                         return
                     }
                     annotations.containsKey(NigateBean::class) -> {
                         val annotation = annotations[NigateBean::class] as NigateBean
-                        val name = register(clazz.getDeclaredConstructor().newInstance(), annotation.alias, false)
+                        val name = register(newNigateInstance(clazz), annotation.alias, false)
                         beanDefinitionMapping[name] = NigateBeanDefinition(fromJar, path)
                         logger.debug("$clazz register as NigateBean")
                         return
                     }
                 }
             }
+        }
+
+        fun <T> newNigateInstance(clazz: Class<T>): T {
+            return AopRegistry.MayProxyFor(clazz.getDeclaredConstructor().newInstance())
         }
 
         /**
@@ -571,7 +582,7 @@ object Nigate {
 
         private val interfaceName = interfaces.simpleName
 
-        val proxyBean: Any = Proxy.newProxyInstance(interfaces.classLoader, arrayOf(interfaces), this)
+        val proxyBean: Any = newProxyInstance(interfaces.classLoader, arrayOf(interfaces), this)
 
         override fun invoke(proxy: Any?, method: Method, args: Array<out Any>?): Any? {
             val rpcSenderService = getBeanByClass(RpcSenderService::class.java)
