@@ -8,12 +8,12 @@ plugins {
 }
 
 dependencies {
-    api 'io.netty:netty-all:4.1.42.Final'
-    api 'com.caucho:hessian:4.0.63'
-    api 'com.google.guava:guava:27.0-jre'
-    api 'org.slf4j:slf4j-api:1.7.25'
-    api 'ch.qos.logback:logback-core:1.2.3'
-    api 'ch.qos.logback:logback-classic:1.2.3'
+    api 'io.netty:netty-all:4.1.72.Final'
+    api 'com.caucho:hessian:4.0.65'
+    api 'com.google.guava:guava:29.0-jre'
+    api 'org.slf4j:slf4j-api:1.7.32'
+    api 'ch.qos.logback:logback-core:1.2.10'
+    api 'ch.qos.logback:logback-classic:1.2.10'
     api 'cglib:cglib:3.3.0'
 
     api "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.6.0"
