@@ -5,11 +5,16 @@
 plugins {
     id 'ink.anur.java-conventions'
     id 'org.jetbrains.kotlin.jvm' version '1.6.0'
+    id 'application'
 }
 
 dependencies {
     api project(':common')
 }
+
+applicationDefaultJvmArgs = [
+        "--add-opens", "java.base/java.lang=ALL-UNNAMED"
+]
 
 description = 'client'
 repositories {

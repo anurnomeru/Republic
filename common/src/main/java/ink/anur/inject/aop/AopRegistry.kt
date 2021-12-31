@@ -33,7 +33,7 @@ object AopRegistry {
             getInvocationHolder(annotation)?.also {
                 val methods = annotationToMethods[annotation]!!
                 result = ProxyInstance(methods, it).genProxy(bean)
-                logger.info(
+                logger.debug(
                     "Create cglib proxy for class $clazz according by annotation $annotation for methods " +
                             "${methods.map { method -> method.name }}"
                 )

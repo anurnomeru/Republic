@@ -14,7 +14,7 @@ dependencies {
     api 'org.slf4j:slf4j-api:1.7.25'
     api 'ch.qos.logback:logback-core:1.2.3'
     api 'ch.qos.logback:logback-classic:1.2.3'
-    api 'cglib:cglib:2.2.2'
+    api 'cglib:cglib:3.3.0'
 
     api "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.6.0"
     api 'org.jetbrains.kotlin:kotlin-reflect:1.6.0'

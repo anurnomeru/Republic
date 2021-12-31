@@ -25,12 +25,12 @@ open class ReentrantReadWriteLocker {
     fun switchOn() {
         runBlocking {
             launch {
-                rl.lock()
+                wl.lock()
                 try {
                     switcher = 0
                     condition.signalAll()
                 } finally {
-                    rl.unlock()
+                    wl.unlock()
                 }
             }
         }
@@ -78,7 +78,7 @@ open class ReentrantReadWriteLocker {
 
             return supplier.invoke()
         } finally {
-            wl.unlock()
+            rl.unlock()
         }
     }
 
@@ -93,7 +93,7 @@ open class ReentrantReadWriteLocker {
 
                 return supplier.invoke()
             } finally {
-                wl.unlock()
+                rl.unlock()
             }
         }
         return null

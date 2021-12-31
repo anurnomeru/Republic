@@ -14,6 +14,7 @@ import ink.anur.util.ClassMetaUtil
 import ink.anur.util.TimeUtil
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
+import net.sf.cglib.proxy.Enhancer
 import org.jetbrains.annotations.TestOnly
 import org.slf4j.LoggerFactory
 import java.io.File
