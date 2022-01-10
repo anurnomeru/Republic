@@ -66,7 +66,7 @@ class KanashiClientConnector {
                 if (connection.waitForSendLicense(inetConfiguration.timeoutMs, TimeUnit.SECONDS)) {
                     logger.info("successful connect to server node $nowConnectNode, sending RPC registration...")
 
-                    val response = runBlocking {
+                    runBlocking {
                         connection.sendAndWaitForResponse(
                             RpcRegistration(
                                 RpcRegistrationMeta(

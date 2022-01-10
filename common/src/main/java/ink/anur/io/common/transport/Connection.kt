@@ -480,6 +480,12 @@ class Connection(
             getOrCreateConnection().send(struct)
         }
 
+        fun RepublicNode.registerDestroyHandler(func: (ChannelHandlerContext?) -> Unit) {
+            getConnection()?.registerDestroyHandler(func) ?: runBlocking {
+                launch { func(null) }
+            }
+        }
+
         /**
          * actually send the struct and wait for response
          *
