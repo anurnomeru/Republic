@@ -88,7 +88,7 @@ class KanashiClientConnector {
                         logger.info("the connection from $nowConnectNode is destroy")
                         nowActiveNode = null
                     }
-                    break
+                    return
                 } else {
                     logger.error("fail to connect with server node $nowConnectNode")
                 }

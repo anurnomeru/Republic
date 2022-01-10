@@ -23,13 +23,13 @@ import ink.anur.pojo.common.AbstractStruct
 import ink.anur.pojo.common.AbstractStruct.Companion.ensureValid
 import ink.anur.pojo.common.AbstractStruct.Companion.getIdentifier
 import ink.anur.pojo.common.AbstractStruct.Companion.getRequestType
+import ink.anur.pojo.common.AbstractStruct.Companion.getRespIdentifier
 import ink.anur.pojo.common.AbstractStruct.Companion.isResp
 import ink.anur.pojo.common.RequestTypeEnum
 import ink.anur.util.TimeUtil
 import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext
-import io.netty.util.internal.ConcurrentSet
 import kotlinx.coroutines.*
 import java.lang.Runnable
 import java.lang.UnsupportedOperationException
@@ -266,8 +266,9 @@ class Connection(
         launch {
             val response = doSendAndWaitForResponse(struct, expect, timeout, unit) {
                 sendWithNoSendLicense(channel, it)
+            }.also {
+                consumer.invoke(it.Resp())
             }
-            consumer.invoke(response.Resp())
         }
     }
 
@@ -295,10 +296,11 @@ class Connection(
         handler: CoroutineExceptionHandler
     ) = runBlocking(handler) {
         async {
-            val response = doSendAndWaitForResponse(struct, expect, timeout, unit) {
+            doSendAndWaitForResponse(struct, expect, timeout, unit) {
                 send(it)
+            }.also {
+                consumer.invoke(it.Resp())
             }
-            consumer.invoke(response.Resp())
         }
     }
 
@@ -340,36 +342,30 @@ class Connection(
     /**
      * synchronized and wait for response
      */
-    private fun <T> doSendAndWaitForResponse(
+    private suspend fun <T> doSendAndWaitForResponse(
         struct: AbstractStruct, expect: Class<T>,
         timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS,
         howToSend: (AbstractStruct) -> Unit
     ): RepublicResponse<T> {
         struct.raiseResp()
         val resIdentifier = struct.getRespIdentifier()
-        val cdl = CountDownLatch(1)
+        val bbChan = kotlinx.coroutines.channels.Channel<ByteBuffer?>(0)
+            .also { waitDeck[resIdentifier] = it }
 
         try {
-            logger.trace("waiting response for res identifier $resIdentifier")
-
-            currentWaitDeck.add(resIdentifier)
-            waitDeck[resIdentifier] = cdl
             howToSend.invoke(struct)
+            logger.debug("==> send msg [type:${struct.getRequestType()}] [identifier:${struct.getIdentifier()}]")
 
-            @Suppress("BlockingMethodInNonBlockingContext") if (!cdl.await(timeout, unit)) {
-                logger.trace("waiting response for res identifier $resIdentifier fail")
-            } else {
-                logger.trace("receive response for res identifier $resIdentifier")
+            val result = withTimeoutOrNull(unit.toMillis(timeout)) {
+                bbChan.receive()
             }
 
-            return ((response[resIdentifier]
+            return ((result
                 ?.let { RepublicResponse(expect.getDeclaredConstructor(ByteBuffer::class.java).newInstance(it)) }
                 ?: RepublicResponse.ExceptionWith(RequestTimeoutException("Request timeout after ${timeout}ms of waiting for response from $republicNode"))))
 
         } finally {
-            currentWaitDeck.remove(resIdentifier)
-            response.remove(resIdentifier)
-            waitDeck.remove(resIdentifier)
+            waitDeck.remove(resIdentifier)?.also { it.close() }
         }
     }
 
@@ -389,9 +385,9 @@ class Connection(
 
         private val validClientConnection: ConcurrentHashMap.KeySetView<RepublicNode, Boolean> =
             ConcurrentHashMap.newKeySet()
-        private val asyncWaitDeck = ConcurrentHashMap<Int /* identifier */, () -> Unit>()
-        private val waitDeck = ConcurrentHashMap<Int /* identifier */, CountDownLatch>()
-        private val response = ConcurrentHashMap<Int /* identifier */, ByteBuffer>()
+
+        private val waitDeck =
+            ConcurrentHashMap<Int /* identifier */, kotlinx.coroutines.channels.Channel<ByteBuffer?>>()
         private val uniqueConnection = ConcurrentHashMap<RepublicNode, Connection>()
         private val requestMappingRegister = mutableMapOf<RequestTypeEnum, RequestMapping>()
         private val logger = Debugger(this::class.java)
@@ -434,9 +430,7 @@ class Connection(
                 channel.write(Unpooled.copyInt(struct.totalSize()))
                 struct.writeIntoChannel(channel)
                 channel.flush()
-                struct.getRequestType().takeIf { it != RequestTypeEnum.HEAT_BEAT }?.also {
-                    logger.debug("==> send msg [type:{}]", it)
-                }
+                struct.getRequestType().takeIf { it != RequestTypeEnum.HEAT_BEAT }
             }
         }
 
@@ -510,24 +504,20 @@ class Connection(
 
             val requestType = msg.getRequestType()
             val identifier = msg.getIdentifier()
+            val identifierResp = msg.getRespIdentifier()
             val resp = msg.isResp()
 
             requestType.takeIf { it != RequestTypeEnum.HEAT_BEAT }?.also {
-                logger.debug("<== receive msg [type:${it}]")
+                logger.debug("<== receive msg [type:${it}]" + resp.takeIf { t -> t }
+                    .let { " correspond [identifier:$identifierResp]" })
             }
             val republicNode = this.tsubasa()
 
             if (resp) {
-                val wd = waitDeck[identifier]?.also {
-                    response[identifier] = msg
-                    it.countDown()
-                }
-                val awd = asyncWaitDeck[identifier]?.also {
-                    response[identifier] = msg
-                    runBlocking { launch { it.invoke() } }
-                }
-                if (wd == null && awd == null) {
-                    logger.error("receive un deck msg [type:${requestType}] [identifier:${identifier}], may timeout or error occur!")
+                waitDeck[identifier]?.also { chan ->
+                    runBlocking { chan.send(msg) }
+                } ?: also {
+                    logger.error("receive un deck msg [type:${requestType}] correspond [identifier:${identifierResp}], may timeout or error occur!")
                 }
             } else {
                 val requestMapping = requestMappingRegister[requestType]
@@ -689,10 +679,14 @@ class Connection(
             } else {
                 logger.error("remote node $republicNode using [$mode] is disconnect")
 
-                // while disconnect to remote node, wake up sleeping thread
-                // this is a 'fast recovery' mode, it is unnecessary to wait the response from disconnected node
-                for (identifier in currentWaitDeck.iterator()) {
-                    waitDeck[identifier]?.countDown()
+                runBlocking {
+                    logger.debug("notify all wait deck to stop waiting")
+                    // while disconnect to remote node, wake up sleeping thread
+                    // this is a 'fast recovery' mode, it is unnecessary to wait the response from disconnected node
+                    for (identifier in currentWaitDeck.iterator()) {
+                        waitDeck[identifier]?.send(null)
+                    }
+                    logger.debug("all wait deck has been stop")
                 }
 
                 when (mode) {

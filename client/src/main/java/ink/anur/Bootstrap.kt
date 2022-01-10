@@ -11,7 +11,6 @@ object Bootstrap {
 
     @JvmStatic
     fun main(args: Array<String>) {
-        val enhancer = Enhancer()
         runBlocking { Nigate.start(args) }
     }
 }

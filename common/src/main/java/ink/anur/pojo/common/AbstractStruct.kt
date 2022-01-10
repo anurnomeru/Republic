@@ -55,6 +55,8 @@ abstract class AbstractStruct {
 
         fun ByteBuffer.getIdentifier(): Int = this.getInt(IdentifierOffset)
 
+        fun ByteBuffer.getRespIdentifier():Int = this.getInt(IdentifierOffset) or respIdentifierMask
+
         fun ByteBuffer.ensureValid() {
             val stored = this.checksumStored()
             val compute = this.checksumCompute()
