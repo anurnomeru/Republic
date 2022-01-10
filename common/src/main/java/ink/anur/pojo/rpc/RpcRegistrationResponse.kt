@@ -1,10 +1,8 @@
 package ink.anur.pojo.rpc
 
-import ink.anur.exception.codeabel_exception.CodeableException
 import ink.anur.pojo.common.RequestTypeEnum
 import ink.anur.pojo.metastruct.MetaStruct
 import ink.anur.pojo.rpc.meta.EmptyMeta
-import ink.anur.pojo.rpc.meta.RpcRegistrationMeta
 import java.nio.ByteBuffer
 
 class RpcRegistrationResponse : MetaStruct<EmptyMeta> {

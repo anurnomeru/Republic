@@ -9,6 +9,7 @@ import ink.anur.inject.bean.NigateInject
 import ink.anur.io.common.transport.Connection.Companion.getOrCreateConnection
 import ink.anur.pojo.rpc.RpcRouteInfo
 import ink.anur.pojo.rpc.RpcRegistration
+import ink.anur.pojo.rpc.RpcRegistrationResponse
 import ink.anur.pojo.rpc.meta.RpcRegistrationMeta
 import ink.anur.rpc.RpcRouteInfoHandlerService
 import kotlinx.coroutines.runBlocking
@@ -65,7 +66,7 @@ class KanashiClientConnector {
                 if (connection.waitForSendLicense(inetConfiguration.timeoutMs, TimeUnit.SECONDS)) {
                     logger.info("successful connect to server node $nowConnectNode, sending RPC registration...")
 
-                    val rpcRouteInfo = runBlocking {
+                    val response = runBlocking {
                         connection.sendAndWaitForResponse(
                             RpcRegistration(
                                 RpcRegistrationMeta(
@@ -73,15 +74,14 @@ class KanashiClientConnector {
                                     Nigate.getRpcBeanPath(),
                                     Nigate.getRpcInterfacePath()
                                 )
-                            ), RpcRouteInfo::class.java
+                            ), RpcRegistrationResponse::class.java
                         )
                             .await()
                             .ExceptionHandler { connection.destroy() }
                             .Resp()
                     }
 
-                    logger.info("rpc successful registry to server node $nowConnectNode and getting latest route info")
-                    rpcRouteInfoHandlerService.handlerRouteInfo(rpcRouteInfo)
+                    logger.info("rpc successful registry to server node $nowConnectNode")
                     nowActiveNode = nowConnectNode
 
                     connection.registerDestroyHandler {

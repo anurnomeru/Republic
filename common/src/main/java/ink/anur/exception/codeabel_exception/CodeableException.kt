@@ -28,7 +28,7 @@ abstract class CodeableException : KanashiException {
         }
 
         fun Error(errorCode: Int): CodeableException {
-            return map[errorCode]?.getConstructor()?.newInstance() ?: UnkownCodeableException()
+            return map[errorCode]?.getConstructor()?.newInstance() ?: UnkownCodeableException(errorCode)
         }
     }
 }
