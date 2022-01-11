@@ -4,6 +4,8 @@ import ink.anur.common.struct.RepublicNode
 import ink.anur.core.common.AbstractRequestMapping
 import ink.anur.inject.bean.NigateBean
 import ink.anur.aop.OnClusterValid
+import ink.anur.inject.bean.Nigate
+import ink.anur.inject.bean.NigateAfterBootStrap
 import ink.anur.inject.bean.NigateInject
 import ink.anur.io.common.transport.Connection.Companion.registerDestroyHandler
 import ink.anur.io.common.transport.Connection.Companion.sendAsync
@@ -19,7 +21,12 @@ import java.nio.ByteBuffer
 open class RpcRegistrationHandlerService : AbstractRequestMapping() {
 
     @NigateInject
-    private lateinit var rpcRouteInfoSyncerService: RpcRouteInfoSyncerService
+    lateinit var rpcRouteInfoSyncerService: RpcRouteInfoSyncerService
+
+    @NigateAfterBootStrap
+    fun doinit(){
+        Nigate.injectOnly(this)
+    }
 
     override fun typeSupport(): RequestTypeEnum {
         return RequestTypeEnum.RPC_REGISTRATION

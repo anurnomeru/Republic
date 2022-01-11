@@ -61,10 +61,11 @@ object AopRegistry {
         fun <T> genProxy(target: T): T {
             val enhancer = Enhancer()
             enhancer.setSuperclass(target!!::class.java)
+            enhancer.setCallbackType(MethodInterceptor::class.java)
             enhancer.setCallback(this)
+
             return enhancer.create() as T
         }
-
 
         @Throws(Throwable::class)
         override fun intercept(

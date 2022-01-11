@@ -7,6 +7,7 @@ import ink.anur.config.InetConfiguration
 import ink.anur.core.common.License
 import ink.anur.core.common.RequestMapping
 import ink.anur.debug.Debugger
+import ink.anur.exception.codeabel_exception.MaxSendAttemptException
 import ink.anur.exception.io.RequestTimeoutException
 import ink.anur.inject.Block
 import ink.anur.inject.bean.Nigate
@@ -31,10 +32,10 @@ import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext
 import kotlinx.coroutines.*
-import java.lang.Runnable
-import java.lang.UnsupportedOperationException
+import kotlinx.coroutines.channels.ticker
 import java.nio.ByteBuffer
 import java.util.concurrent.*
+import java.util.concurrent.locks.StampedLock
 import kotlin.system.exitProcess
 
 /**
@@ -99,7 +100,14 @@ class Connection(
     })
 
     init {
-        logger.info("Connection is created with initiativeMode: $initiativeMode, createTs: $createdTs.")
+
+        logger.info(
+            "Connection is created with initiativeMode: $initiativeMode in ${
+                TimeUtil.getTimeFormatted(
+                    createdTs
+                )
+            }"
+        )
 
         if (initiativeMode) {
             KanashiIOExecutors.execute(client)
@@ -244,11 +252,12 @@ class Connection(
         channel: Channel,
         struct: AbstractStruct,
         expect: Class<T>,
-        timeout: Long = 3000,
-        unit: TimeUnit = TimeUnit.MILLISECONDS
+        timeout: Long = 30000,
+        unit: TimeUnit = TimeUnit.MILLISECONDS,
+        innerRetry: Int = 1,
     ): Deferred<RepublicResponse<T>> = runBlocking {
         async {
-            doSendAndWaitForResponse(struct, expect, timeout, unit) {
+            return@async doSendAndWaitForResponse(struct, expect, timeout, unit, innerRetry) {
                 sendWithNoSendLicense(channel, it)
             }
         }
@@ -260,11 +269,12 @@ class Connection(
         expect: Class<T>,
         timeout: Long = 3000,
         unit: TimeUnit = TimeUnit.MILLISECONDS,
+        innerRetry: Int = 1,
         consumer: (T) -> Unit,
         handler: CoroutineExceptionHandler,
     ) = runBlocking(handler) {
         launch {
-            val response = doSendAndWaitForResponse(struct, expect, timeout, unit) {
+            val response = doSendAndWaitForResponse(struct, expect, timeout, unit, innerRetry) {
                 sendWithNoSendLicense(channel, it)
             }.also {
                 consumer.invoke(it.Resp())
@@ -278,10 +288,11 @@ class Connection(
         struct: AbstractStruct,
         expect: Class<T>,
         timeout: Long = 3000,
-        unit: TimeUnit = TimeUnit.MILLISECONDS
+        unit: TimeUnit = TimeUnit.MILLISECONDS,
+        innerRetry: Int = 1,
     ) = runBlocking {
         async {
-            doSendAndWaitForResponse(struct, expect, timeout, unit) {
+            doSendAndWaitForResponse(struct, expect, timeout, unit, innerRetry) {
                 send(it)
             }
         }
@@ -292,11 +303,12 @@ class Connection(
         expect: Class<T>,
         timeout: Long = 3000,
         unit: TimeUnit = TimeUnit.MILLISECONDS,
+        innerRetry: Int = 1,
         consumer: (T) -> Unit,
         handler: CoroutineExceptionHandler
     ) = runBlocking(handler) {
         async {
-            doSendAndWaitForResponse(struct, expect, timeout, unit) {
+            doSendAndWaitForResponse(struct, expect, timeout, unit, innerRetry) {
                 send(it)
             }.also {
                 consumer.invoke(it.Resp())
@@ -342,10 +354,12 @@ class Connection(
     /**
      * synchronized and wait for response
      */
+    @OptIn(ObsoleteCoroutinesApi::class)
     private suspend fun <T> doSendAndWaitForResponse(
         struct: AbstractStruct, expect: Class<T>,
         timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS,
-        howToSend: (AbstractStruct) -> Unit
+        innerRetry: Int = 1,
+        howToSend: (AbstractStruct) -> Unit,
     ): RepublicResponse<T> {
         struct.raiseResp()
         val resIdentifier = struct.getRespIdentifier()
@@ -353,16 +367,16 @@ class Connection(
             .also { waitDeck[resIdentifier] = it }
 
         try {
-            howToSend.invoke(struct)
-            logger.debug("==> send msg [type:${struct.getRequestType()}] [identifier:${struct.getIdentifier()}]")
+            val ticker = ticker(unit.toMillis(timeout), 0)
 
-            val result = withTimeoutOrNull(unit.toMillis(timeout)) {
-                bbChan.receive()
+            repeat(innerRetry) {
+                ticker.receive()
+                howToSend.invoke(struct)
             }
 
-            return ((result
+            return ((bbChan.receiveCatching().getOrNull()
                 ?.let { RepublicResponse(expect.getDeclaredConstructor(ByteBuffer::class.java).newInstance(it)) }
-                ?: RepublicResponse.ExceptionWith(RequestTimeoutException("Request timeout after ${timeout}ms of waiting for response from $republicNode"))))
+                ?: RepublicResponse.ExceptionWith(MaxSendAttemptException(innerRetry))))
 
         } finally {
             waitDeck.remove(resIdentifier)?.also { it.close() }
@@ -389,6 +403,8 @@ class Connection(
         private val waitDeck =
             ConcurrentHashMap<Int /* identifier */, kotlinx.coroutines.channels.Channel<ByteBuffer?>>()
         private val uniqueConnection = ConcurrentHashMap<RepublicNode, Connection>()
+        private val connectionLock = StampedLock()
+
         private val requestMappingRegister = mutableMapOf<RequestTypeEnum, RequestMapping>()
         private val logger = Debugger(this::class.java)
 
@@ -425,6 +441,7 @@ class Connection(
         }
 
         private fun doSend(channel: Channel, struct: AbstractStruct) {
+            logger.debug("==> send msg [type:${struct.getRequestType()}] [identifier:${struct.getIdentifier()}]")
             synchronized(channel) {
                 struct.computeChecksum()
                 channel.write(Unpooled.copyInt(struct.totalSize()))
@@ -453,21 +470,35 @@ class Connection(
             createdTs: Long = TimeUtil.getTime(),
             randomSeed: Long = ThreadLocalRandom.current().nextLong(),
         ): Connection {
-            if (!uniqueConnection.containsKey(this)) {
-                synchronized(Connection::class.java) {
-                    if (!uniqueConnection.containsKey(this)) {
-                        logger.debug(
-                            "init connection to ${this.host}:${this.port} ${
-                                initiativeMode.takeIf { it }?.let { "with initiative mode." } ?: "with server mode."
-                            }"
-                        )
-                        uniqueConnection[this] =
-                            Connection(this.host, this.port, initiativeMode, createdTs, randomSeed)
-                                .also { it.tryEstablishLicense() }
-                    }
+
+            var connection = uniqueConnection[this]
+            if (connection == null) {
+
+                val writeStamped = connectionLock.writeLock()
+
+                connection = uniqueConnection[this]
+                if (connection != null) {
+                    return connection
                 }
+
+                val conn: Connection
+                try {
+                    conn = Connection(this.host, this.port, initiativeMode, createdTs, randomSeed)
+                    uniqueConnection[this] = conn
+                } finally {
+                    connectionLock.unlockWrite(writeStamped)
+                }
+
+                conn.also { it.tryEstablishLicense() }
+
+                logger.debug(
+                    "init connection to ${this.host}:${this.port} ${
+                        "with initiativeMode: $initiativeMode"
+                    }"
+                )
+                return conn
             }
-            return uniqueConnection[this]!!
+            return connection
         }
 
         fun RepublicNode.getConnection(): Connection? = uniqueConnection[this]
@@ -572,7 +603,8 @@ class Connection(
 
         private fun ChannelHandlerContext.mayConnectByRemote(syn: Syn) {
             val republicNode = RepublicNode.construct(syn.getAddr())
-            republicNode.getOrCreateConnection(false, syn.getCreateTs(), syn.getRandomSeed())
+            republicNode
+                .getOrCreateConnection(false, syn.getCreateTs(), syn.getRandomSeed())
                 .mayConnectByRemote(this, syn)
         }
 

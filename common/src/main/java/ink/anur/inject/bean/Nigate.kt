@@ -14,7 +14,6 @@ import ink.anur.util.ClassMetaUtil
 import ink.anur.util.TimeUtil
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
-import net.sf.cglib.proxy.Enhancer
 import org.jetbrains.annotations.TestOnly
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -27,6 +26,7 @@ import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.full.memberFunctions
+import kotlin.reflect.full.memberProperties
 import kotlin.reflect.jvm.isAccessible
 import kotlin.reflect.jvm.javaField
 import kotlin.reflect.jvm.javaType
@@ -345,7 +345,7 @@ object Nigate {
          * 为某个bean注入成员变量，如果注入的接口是一个 RPC 接口，则会为接口创建一个动态代理
          */
         fun inject(injected: Any) {
-            for (kProperty in injected::class.declaredMemberProperties) {
+            for (kProperty in injected::class.memberProperties) {
                 for (annotation in kProperty.annotations) {
                     if (annotation.annotationClass == NigateInject::class) {
                         annotation as NigateInject

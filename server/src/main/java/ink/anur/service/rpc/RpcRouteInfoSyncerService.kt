@@ -3,6 +3,7 @@ package ink.anur.service.rpc
 import ink.anur.common.struct.RepublicNode
 import ink.anur.debug.Debugger
 import ink.anur.inject.bean.NigateBean
+import ink.anur.io.common.transport.Connection.Companion.send
 import ink.anur.io.common.transport.Connection.Companion.sendAsync
 import ink.anur.pojo.rpc.RpcRouteInfo
 import ink.anur.pojo.rpc.meta.RpcRouteInfoMeta
@@ -36,7 +37,7 @@ class RpcRouteInfoSyncerService {
     }
 
     private fun doNotify(republicNode: RepublicNode, rpcRouteInfo: RpcRouteInfo) {
-        republicNode.sendAsync(rpcRouteInfo)
+        republicNode.send(rpcRouteInfo)
     }
 
     private fun notifyAllNode() {
