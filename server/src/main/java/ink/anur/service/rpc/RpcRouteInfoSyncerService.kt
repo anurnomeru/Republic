@@ -4,14 +4,17 @@ import ink.anur.common.struct.RepublicNode
 import ink.anur.debug.Debugger
 import ink.anur.inject.bean.NigateBean
 import ink.anur.io.common.transport.Connection.Companion.send
+import ink.anur.io.common.transport.Connection.Companion.sendAndWaitingResponse
 import ink.anur.io.common.transport.Connection.Companion.sendAsync
 import ink.anur.pojo.rpc.RpcRouteInfo
 import ink.anur.pojo.rpc.meta.RpcRouteInfoMeta
+import kotlinx.coroutines.ObsoleteCoroutinesApi
 import java.util.concurrent.CopyOnWriteArraySet
 
 /**
  * Created by Anur IjuoKaruKas on 2022/1/10
  */
+@ObsoleteCoroutinesApi
 @NigateBean
 class RpcRouteInfoSyncerService {
 
@@ -37,7 +40,7 @@ class RpcRouteInfoSyncerService {
     }
 
     private fun doNotify(republicNode: RepublicNode, rpcRouteInfo: RpcRouteInfo) {
-        republicNode.send(rpcRouteInfo)
+        republicNode.sendAndWaitingResponse(rpcRouteInfo, Any::class.java)
     }
 
     private fun notifyAllNode() {
@@ -46,6 +49,4 @@ class RpcRouteInfoSyncerService {
             doNotify(republicNode, routeForSend)
         }
     }
-
-
 }

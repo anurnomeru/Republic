@@ -8,7 +8,6 @@ import ink.anur.core.common.License
 import ink.anur.core.common.RequestMapping
 import ink.anur.debug.Debugger
 import ink.anur.exception.codeabel_exception.MaxSendAttemptException
-import ink.anur.exception.io.RequestTimeoutException
 import ink.anur.inject.Block
 import ink.anur.inject.bean.Nigate
 import ink.anur.inject.bean.NigateInject
@@ -31,16 +30,20 @@ import ink.anur.util.TimeUtil
 import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext
+import io.netty.channel.embedded.EmbeddedChannel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ticker
+import org.jetbrains.annotations.TestOnly
 import java.nio.ByteBuffer
 import java.util.concurrent.*
 import java.util.concurrent.locks.StampedLock
 import kotlin.system.exitProcess
+import kotlin.OptIn as OptIn1
 
 /**
  * Created by Anur on 2020/10/3
  */
+@ObsoleteCoroutinesApi
 class Connection(
     private val host: String, private val port: Int,
 
@@ -153,10 +156,13 @@ class Connection(
     override fun run() {
         logger.info("connection [Pin] mode to node $republicNode start to work")
 
+        val ticker = ticker(1000, 0)
         while (running) {
-            pinLicense.license()
-            tryEstablish()
-            Thread.sleep(1000)
+            runBlocking {
+                ticker.receive()
+                pinLicense.license()
+                tryEstablish()
+            }
         }
 
         logger.info("connection [Pin] mode to node $republicNode is destroy")
@@ -354,7 +360,6 @@ class Connection(
     /**
      * synchronized and wait for response
      */
-    @OptIn(ObsoleteCoroutinesApi::class)
     private suspend fun <T> doSendAndWaitForResponse(
         struct: AbstractStruct, expect: Class<T>,
         timeout: Long = 3000, unit: TimeUnit = TimeUnit.MILLISECONDS,
@@ -367,14 +372,13 @@ class Connection(
             .also { waitDeck[resIdentifier] = it }
 
         try {
-            val ticker = ticker(unit.toMillis(timeout), 0)
-
-            repeat(innerRetry) {
-                ticker.receive()
+//            val ticker = ticker(unit.toMillis(timeout), 0)
+//            repeat(innerRetry) {
+//                ticker.receive()
                 howToSend.invoke(struct)
-            }
+//            }
 
-            return ((bbChan.receiveCatching().getOrNull()
+            return ((bbChan.receive()
                 ?.let { RepublicResponse(expect.getDeclaredConstructor(ByteBuffer::class.java).newInstance(it)) }
                 ?: RepublicResponse.ExceptionWith(MaxSendAttemptException(innerRetry))))
 
@@ -395,6 +399,7 @@ class Connection(
         return contextHandler.established()
     }
 
+    @ObsoleteCoroutinesApi
     companion object {
 
         private val validClientConnection: ConcurrentHashMap.KeySetView<RepublicNode, Boolean> =
@@ -409,6 +414,8 @@ class Connection(
         private val logger = Debugger(this::class.java)
 
         private val TSUBASA = ConcurrentHashMap<Channel, RepublicNode>()
+
+        val ticker = ticker(100, 0)
 
         /*
          * this thread is using for sending async
@@ -431,13 +438,18 @@ class Connection(
                         }
                     }
                 }
-                Thread.sleep(100)
+                runBlocking { ticker.receive() }
             }
         }
 
         init {
             t.name = "AsyncSender"
             KanashiExecutors.execute(t)
+        }
+
+        @TestOnly
+        fun MockSend(channel: EmbeddedChannel, struct: AbstractStruct) {
+            doSend(channel, struct)
         }
 
         private fun doSend(channel: Channel, struct: AbstractStruct) {
@@ -537,28 +549,19 @@ class Connection(
          * receive a msg and signal cdl
          */
         fun ChannelHandlerContext.receive(msg: ByteBuffer) {
-            msg.ensureValid()
+            val msgPack = DoDecode(msg)
 
-            val requestType = msg.getRequestType()
-            val identifier = msg.getIdentifier()
-            val identifierResp = msg.getRespIdentifier()
-            val resp = msg.isResp()
-
-            requestType.takeIf { it != RequestTypeEnum.HEAT_BEAT }?.also {
-                logger.debug("<== receive msg [type:${it}]" + resp.takeIf { t -> t }
-                    .let { " correspond [identifier:$identifierResp]" })
-            }
             val republicNode = this.tsubasa()
 
-            if (resp) {
-                waitDeck[identifier]?.also { chan ->
+            if (msgPack.resp) {
+                waitDeck[msgPack.identifier]?.also { chan ->
                     runBlocking { chan.send(msg) }
                 } ?: also {
-                    logger.error("receive un deck msg [type:${requestType}] correspond [identifier:${identifierResp}], may timeout or error occur!")
+                    logger.error("receive un deck msg [type:${msgPack.requestType}] correspond [identifier:${msgPack.identifierResp}], may timeout or error occur!")
                 }
             } else {
-                val requestMapping = requestMappingRegister[requestType]
-                when (requestType) {
+                val requestMapping = requestMappingRegister[msgPack.requestType]
+                when (msgPack.requestType) {
 
                     /* establishing */
                     RequestTypeEnum.SYN -> this.mayConnectByRemote(Syn(msg))
@@ -571,20 +574,20 @@ class Connection(
                         when {
                             republicNode == null -> {
                                 logger.error(
-                                    "haven't established but receive msg type:[$requestType] from channel ${
+                                    "haven't established but receive msg type:[$msgPack.requestType] from channel ${
                                         this.channel().remoteAddress()
                                     }"
                                 )
                             }
                             requestMapping == null -> {
-                                logger.error("msg type:[$requestType] from $republicNode has not custom requestMapping !!!")
+                                logger.error("msg type:[$msgPack.requestType] from $republicNode has not custom requestMapping !!!")
                             }
                             else -> {
                                 try {
                                     requestMapping.handleRequest(republicNode, msg) // 收到正常的请求
                                 } catch (e: Exception) {
                                     logger.error(
-                                        "Error occur while process msg type:[$requestType] from $republicNode",
+                                        "Error occur while process msg type:[$msgPack.requestType] from $republicNode",
                                         e
                                     )
                                 }
@@ -594,6 +597,28 @@ class Connection(
                 }
             }
         }
+
+        fun DoDecode(msg: ByteBuffer): MsgPack {
+            msg.ensureValid()
+
+            val requestType = msg.getRequestType()
+            val identifier = msg.getIdentifier()
+            val identifierResp = msg.getRespIdentifier()
+            val resp = msg.isResp()
+
+            requestType.takeIf { it != RequestTypeEnum.HEAT_BEAT }?.also {
+                logger.debug("<== receive msg [type:${it}]" + resp.takeIf { t -> t }
+                    .let { " correspond [identifier:$identifierResp]" })
+            }
+            return MsgPack(requestType, identifier, identifierResp, resp)
+        }
+
+        class MsgPack(
+            val requestType: RequestTypeEnum,
+            val identifier: Int,
+            val identifierResp: Int,
+            val resp: Boolean
+        )
 
         private fun ChannelHandlerContext.publishSendLicense(sendLicense: SendLicense) {
             val republicNode = RepublicNode.construct(sendLicense.getAddr())

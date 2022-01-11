@@ -7,11 +7,10 @@ import ink.anur.inject.bean.Nigate
 import ink.anur.inject.bean.NigateBean
 import ink.anur.inject.bean.NigateInject
 import ink.anur.io.common.transport.Connection.Companion.getOrCreateConnection
-import ink.anur.pojo.rpc.RpcRouteInfo
 import ink.anur.pojo.rpc.RpcRegistration
 import ink.anur.pojo.rpc.RpcRegistrationResponse
 import ink.anur.pojo.rpc.meta.RpcRegistrationMeta
-import ink.anur.rpc.RpcRouteInfoHandlerService
+import kotlinx.coroutines.ObsoleteCoroutinesApi
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
@@ -19,14 +18,12 @@ import kotlin.random.Random
 /**
  * Created by Anur IjuoKaruKas on 2020/4/8
  */
+@ObsoleteCoroutinesApi
 @NigateBean
 class KanashiClientConnector {
 
     @NigateInject
     private lateinit var inetConfiguration: InetConfiguration
-
-    @NigateInject
-    private lateinit var rpcRouteInfoHandlerService: RpcRouteInfoHandlerService
 
     private val logger = Debugger(this::class.java)
 

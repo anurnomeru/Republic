@@ -12,11 +12,13 @@ import ink.anur.io.common.transport.Connection.Companion.sendAsync
 import ink.anur.pojo.common.RequestTypeEnum
 import ink.anur.pojo.rpc.RpcRegistration
 import ink.anur.pojo.rpc.RpcRegistrationResponse
+import kotlinx.coroutines.ObsoleteCoroutinesApi
 import java.nio.ByteBuffer
 
 /**
  * Created by Anur IjuoKaruKas on 2020/4/9
  */
+@ObsoleteCoroutinesApi
 @NigateBean
 open class RpcRegistrationHandlerService : AbstractRequestMapping() {
 

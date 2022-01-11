@@ -1,6 +1,5 @@
 package ink.anur.pojo.metastruct
 
-import ink.anur.exception.KanashiException
 import ink.anur.exception.codeabel_exception.CodeableException
 import ink.anur.pojo.common.AbstractStruct
 import ink.anur.pojo.common.RequestTypeEnum
@@ -59,6 +58,7 @@ abstract class MetaStruct<T : SerializableMeta> : AbstractStruct {
 
         val limit = byteBuffer.limit()
         this.buffer = byteBuffer
+        this.buffer.position(OriginMessageOverhead)
         this.errorCode = buffer.int
 
         if (errorCode == 0) {

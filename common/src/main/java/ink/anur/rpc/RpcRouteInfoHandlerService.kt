@@ -28,7 +28,7 @@ class RpcRouteInfoHandlerService : AbstractRequestMapping() {
     private lateinit var providerAddressMapping: MutableMap<String, RpcInetSocketAddress>
 
     override fun typeSupport(): RequestTypeEnum {
-        return RequestTypeEnum.RPC_PROVIDER_MAPPING
+        return RequestTypeEnum.RPC_ROUTE_INFO
     }
 
     override fun handleRequest(republicNode: RepublicNode, msg: ByteBuffer) {

@@ -32,7 +32,7 @@ enum class RequestTypeEnum(val byteSign: Int) {
 
     RPC_REGISTRATION_RESPONSE(99998),
 
-    RPC_PROVIDER_MAPPING(99997),
+    RPC_ROUTE_INFO(99997),
 
     RPC_REQUEST(98999),
 
