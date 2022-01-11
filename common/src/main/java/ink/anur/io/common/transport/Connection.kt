@@ -159,9 +159,9 @@ class Connection(
         val ticker = ticker(1000, 0)
         while (running) {
             runBlocking {
-                ticker.receive()
                 pinLicense.license()
                 tryEstablish()
+                ticker.receive()
             }
         }
 

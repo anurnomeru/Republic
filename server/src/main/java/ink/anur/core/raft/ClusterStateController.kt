@@ -6,6 +6,7 @@ import ink.anur.inject.event.Event
 import ink.anur.inject.event.NigateListener
 import ink.anur.mutex.ReentrantReadWriteLocker
 import org.jetbrains.annotations.TestOnly
+import org.slf4j.LoggerFactory
 import java.util.concurrent.TimeUnit
 
 /**

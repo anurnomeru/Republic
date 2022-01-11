@@ -12,21 +12,28 @@ import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioSocketChannel
 import io.netty.util.AttributeKey
+import kotlinx.coroutines.ObsoleteCoroutinesApi
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Semaphore
 import javax.annotation.concurrent.ThreadSafe
+import kotlin.math.min
 
 /**
  * Created by Anur IjuoKaruKas on 2020/2/23
  *
  * 可重连的客户端
  */
+@ObsoleteCoroutinesApi
 class ReConnectableClient(
     private val host: String, private val port: Int,
     private val shutDownHooker: ShutDownHooker,
     private val channelActiveHook: ((ChannelHandlerContext?) -> Unit)? = null,
     private val channelInactiveHook: ((ChannelHandlerContext?) -> Unit)? = null
 ) : Runnable {
+
+    companion object {
+        var sleepBackOff: Long = 200
+    }
 
     private val logger = Debugger(this::class.java)
 
@@ -44,8 +51,7 @@ class ReConnectableClient(
                 logger.debug("Connection to the node $this is shutting down!")
             } else {
 
-                // todo 暂时这么写，后续需要创建一个类将 ReConnectableClient 包起来，屏蔽一些细节
-                Thread.sleep(20000)
+                Thread.sleep(sleepBackOff)
                 KanashiIOExecutors.execute(
                     ReConnectableClient(
                         host,
@@ -83,7 +89,10 @@ class ReConnectableClient(
 
             val channelFuture = bootstrap.connect(host, port)
             channelFuture.addListener { future ->
-                if (!future.isSuccess) {
+                if (future.isSuccess) {
+                    sleepBackOff = 200
+                } else {
+                    sleepBackOff = min(sleepBackOff + 200, 2000)
                     if (reconnectLatch.count == 1L) {
                         logger.trace("try connect to node $this but failed, try to re connect...")
                     }
