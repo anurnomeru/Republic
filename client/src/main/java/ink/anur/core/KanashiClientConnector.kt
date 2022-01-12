@@ -67,7 +67,6 @@ class KanashiClientConnector {
                         connection.sendAndWaitForResponse(
                             RpcRegistration(
                                 RpcRegistrationMeta(
-                                    inetConfiguration.localNodeAddr,
                                     Nigate.getRpcBeanPath(),
                                     Nigate.getRpcInterfacePath()
                                 )

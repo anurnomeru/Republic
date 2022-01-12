@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Created by Anur on 2020/9/30
  */
-class RepublicNode private constructor(val host: String, val port: Int) {
+class RepublicNode(val host: String, val port: Int) {
 
     val addr = "$host:$port"
 
@@ -20,10 +20,6 @@ class RepublicNode private constructor(val host: String, val port: Int) {
         fun construct(addr: String): RepublicNode {
             val split: Array<String> = addr.split(":").toTypedArray()
             return construct(split[0], split[1].toInt())
-        }
-
-        fun construct(inetSocketAddress: InetSocketAddress): RepublicNode {
-            return construct(inetSocketAddress.hostName, inetSocketAddress.port)
         }
 
         fun construct(host: String, port: Int): RepublicNode {

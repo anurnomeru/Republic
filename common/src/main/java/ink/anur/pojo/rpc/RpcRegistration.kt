@@ -6,7 +6,7 @@ import ink.anur.pojo.metastruct.SerializableMeta
 import ink.anur.pojo.rpc.meta.RpcRegistrationMeta
 import java.nio.ByteBuffer
 
-class RpcRegistration : MetaStruct<RpcRegistrationMeta>, SerializableMeta {
+class RpcRegistration : MetaStruct<RpcRegistrationMeta> {
     constructor(serializableMeta: RpcRegistrationMeta) : super(serializableMeta)
     constructor(byteBuffer: ByteBuffer) : super(byteBuffer)
 

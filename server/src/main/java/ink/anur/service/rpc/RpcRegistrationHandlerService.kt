@@ -26,7 +26,7 @@ open class RpcRegistrationHandlerService : AbstractRequestMapping() {
     lateinit var rpcRouteInfoSyncerService: RpcRouteInfoSyncerService
 
     @NigateAfterBootStrap
-    fun doinit(){
+    fun doinit() {
         Nigate.injectOnly(this)
     }
 
@@ -37,12 +37,19 @@ open class RpcRegistrationHandlerService : AbstractRequestMapping() {
     @OnClusterValid
     override fun handleRequest(republicNode: RepublicNode, msg: ByteBuffer) {
         val rpcRegistration = RpcRegistration(msg)
-
+        val rpcRegistrationMeta = rpcRegistration.GetMeta()
         republicNode.sendAsync(RpcRegistrationResponse().asResp(rpcRegistration))
+
+        // first registry to rpc route info
+        // then update the route info and notify all node
 
         rpcRouteInfoSyncerService.NotifyMe(republicNode)
         republicNode.registerDestroyHandler {
             rpcRouteInfoSyncerService.OutOfDeck(republicNode)
+            rpcRouteInfoSyncerService.RemoveFromRouteInfo(republicNode)
         }
+
+        rpcRouteInfoSyncerService.UpdateRouteInfo(republicNode, rpcRegistrationMeta)
+
     }
 }

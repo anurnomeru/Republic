@@ -374,14 +374,8 @@ class Connection(
             .also { waitDeck[resIdentifier] = it }
 
         try {
-//            val ticker = ticker(unit.toMillis(timeout), 0)
-//            repeat(innerRetry) {
-//                ticker.receive()
-                howToSend.invoke(struct)
-//            }
-
+            howToSend.invoke(struct)
             return ((bbChan.receive()
-                ?.also { logger.trace("receive msg ${it.getRequestType()}") }
                 ?.let { RepublicResponse(expect.getDeclaredConstructor(ByteBuffer::class.java).newInstance(it)) }
                 ?: RepublicResponse.ExceptionWith(MaxSendAttemptException(innerRetry))))
 

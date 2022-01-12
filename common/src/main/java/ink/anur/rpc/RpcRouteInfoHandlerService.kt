@@ -11,6 +11,7 @@ import ink.anur.pojo.rpc.RpcRouteInfo
 import ink.anur.pojo.rpc.RpcRequest
 import ink.anur.pojo.rpc.meta.RpcInetSocketAddress
 import java.nio.ByteBuffer
+import kotlin.random.Random
 
 /**
  * Created by Anur IjuoKaruKas on 2020/4/10
@@ -22,10 +23,10 @@ class RpcRouteInfoHandlerService : AbstractRequestMapping() {
 
     private val lk = ReentrantReadWriteLocker()
 
+    private var random = Random(1)
+
     private lateinit var providerMapping: MutableMap<String/* bean */,
             MutableMap<String /* methodSign */, MutableSet<String/* serverName */>>>
-
-    private lateinit var providerAddressMapping: MutableMap<String, RpcInetSocketAddress>
 
     override fun typeSupport(): RequestTypeEnum {
         return RequestTypeEnum.RPC_ROUTE_INFO
@@ -39,26 +40,33 @@ class RpcRouteInfoHandlerService : AbstractRequestMapping() {
         val rpcProviderMappingMeta = routeInfo.GetMeta()
         lk.writeLockSupplier {
             providerMapping = rpcProviderMappingMeta.providerMapping
-            providerAddressMapping = rpcProviderMappingMeta.addressMapping
 
             if (logger.isDebugEnable()) {
                 logger.debug("RPC PROVIDER MAPPING: $providerMapping")
-                logger.debug("RPC ADDRESS MAPPING: $providerAddressMapping")
             }
         }
     }
 
-    fun searchValidProvider(rpcRequest: RpcRequest): Map<String, RpcInetSocketAddress>? {
-        return lk.readLockSupplier {
-            val requestMeta = rpcRequest.GetMeta()
-            val bean = requestMeta.requestBean ?: requestMeta.requestInterface
+    fun searchValidProvider(rpcRequest: RpcRequest): RepublicNode = lk.readLockSupplierCompel {
+        val requestMeta = rpcRequest.GetMeta()
+        val bean = requestMeta.requestBean ?: requestMeta.requestInterface
 
-            val validProvider = providerMapping[bean]?.let { it[requestMeta.requestMethodSign] }
-            if (validProvider == null || validProvider.isEmpty()) {
-                throw RPCNonAvailableProviderException("Can not find provider from republic server")
-            } else {
-                return@readLockSupplier providerAddressMapping.filter { validProvider.contains(it.key) }
+        val validProvider = providerMapping[bean]?.let { it[requestMeta.requestMethodSign] }
+        if (validProvider == null || validProvider.isEmpty()) {
+            throw RPCNonAvailableProviderException("Can not find provider from republic server")
+        } else {
+            val index = random.nextInt() % validProvider.count()
+            var count = 0
+
+            val addr = validProvider.firstOrNull {
+                if (count == index) {
+                    true
+                } else {
+                    count++
+                    false
+                }
             }
+            return@readLockSupplierCompel RepublicNode.construct(addr!!)
         }
     }
 }
