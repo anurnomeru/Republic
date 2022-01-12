@@ -9,14 +9,15 @@ plugins {
 }
 
 dependencies {
-    api project(':common')
+    api project(':client')
 }
 
 
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
     kotlinOptions.freeCompilerArgs += ["-Xuse-experimental=io.ktor.locations.KtorExperimentalLocationsAPI"]
 }
-description = 'client'
+
+description = 'provider'
 repositories {
     mavenCentral()
 }

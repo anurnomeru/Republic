@@ -6,3 +6,5 @@ rootProject.name = 'republic'
 include(':common')
 include(':server')
 include(':client')
+include(':providerDemo')
+include(':consumerDemo')

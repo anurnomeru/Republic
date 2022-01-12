@@ -1,5 +1,7 @@
 package ink.anur.config;
 
+import java.io.IOException;
+import java.net.ServerSocket;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -17,7 +19,7 @@ import ink.anur.inject.config.ConfigurationIgnore;
 public class InetConfiguration {
     private String localAddr;
     private String clusterAddr;
-    private long timeoutMs;
+    private long timeoutMs = 30000;
 
     @ConfigurationIgnore
     private List<RepublicNode> allCache;
@@ -31,8 +33,8 @@ public class InetConfiguration {
             synchronized (this) {
                 if (allCache == null) {
                     allCache = Stream.of(clusterAddr.split(";"))
-                                     .map(RepublicNode.Companion::construct)
-                                     .collect(Collectors.toList());
+                            .map(RepublicNode.Companion::construct)
+                            .collect(Collectors.toList());
                 }
             }
         }
@@ -42,6 +44,14 @@ public class InetConfiguration {
 
     @Nonnull
     public String getLocalNodeAddr() {
+        if (localAddr == null) {
+            synchronized (this) {
+                if (localAddr == null) {
+                    localAddr = "0.0.0.0:" + findFreePort();
+                }
+            }
+        }
+
         return localAddr;
     }
 
@@ -50,7 +60,7 @@ public class InetConfiguration {
         if (local == null) {
             synchronized (this) {
                 if (local == null) {
-                    local = RepublicNode.Companion.construct(localAddr);
+                    local = RepublicNode.Companion.construct(getLocalNodeAddr());
                 }
             }
         }
@@ -61,5 +71,20 @@ public class InetConfiguration {
     @Nonnull
     public Long getTimeoutMs() {
         return timeoutMs;
+    }
+
+    private static int findFreePort() {
+        int port = 0;
+        // For ServerSocket port number 0 means that the port number is automatically allocated.
+        try (ServerSocket socket = new ServerSocket(0)) {
+            // Disable timeout and reuse address after closing the socket.
+            socket.setReuseAddress(true);
+            port = socket.getLocalPort();
+        } catch (IOException ignored) {
+        }
+        if (port > 0) {
+            return port;
+        }
+        throw new RuntimeException("Could not find a free port");
     }
 }

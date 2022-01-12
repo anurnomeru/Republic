@@ -192,11 +192,13 @@ class Connection(
                     SynResponse::class.java
                 )
 
+                logger.trace("$this: sending syn request to channel $channel")
                 val result = runBlocking {
                     deferred
                         .await()
                         .Resp()
                 }
+                logger.trace("$this: receive syn response from channel $channel")
 
                 this.contextHandler.establish(PIN, it)
 
@@ -379,6 +381,7 @@ class Connection(
 //            }
 
             return ((bbChan.receive()
+                ?.also { logger.trace("receive msg ${it.getRequestType()}") }
                 ?.let { RepublicResponse(expect.getDeclaredConstructor(ByteBuffer::class.java).newInstance(it)) }
                 ?: RepublicResponse.ExceptionWith(MaxSendAttemptException(innerRetry))))
 
