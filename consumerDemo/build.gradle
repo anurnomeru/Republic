@@ -10,6 +10,7 @@ plugins {
 
 dependencies {
     api project(':client')
+    api project(':bridge')
 }
 
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {

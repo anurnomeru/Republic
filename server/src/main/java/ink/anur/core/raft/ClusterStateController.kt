@@ -1,12 +1,12 @@
 package ink.anur.core.raft
 
+import ink.anur.debug.Debugger
 import ink.anur.exception.codeabel_exception.ClusterInvalidException
 import ink.anur.inject.bean.NigateBean
 import ink.anur.inject.event.Event
 import ink.anur.inject.event.NigateListener
-import ink.anur.mutex.ReentrantReadWriteLocker
+import ink.anur.mutex.SwitchableReentrantReadWriteLocker
 import org.jetbrains.annotations.TestOnly
-import org.slf4j.LoggerFactory
 import java.util.concurrent.TimeUnit
 
 /**
@@ -15,7 +15,8 @@ import java.util.concurrent.TimeUnit
 @NigateBean
 class ClusterStateController {
 
-    private val validLock = ReentrantReadWriteLocker()
+    private val validLock = SwitchableReentrantReadWriteLocker()
+    private val logger = Debugger(this::class.java)
 
     init {
         validLock.switchOff()

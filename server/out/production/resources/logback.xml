@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <property name="STDOUT_PATTERN"
+              value="%d{HH:mm:ss.SSS} %easyHighlight(%5.5level) %magenta(%pid) --- [%thread] %cyan(%-20.40logger{39} [%line]) : %msg%n"/>
+
+    <!-- Stop output INFO at start -->
+    <statusListener class="ch.qos.logback.core.status.NopStatusListener"/>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="ink.anur.logger.EasyPatternLayout">
+                <pattern>
+                    ${logging.console.pattern:-${STDOUT_PATTERN}}
+                </pattern>
+            </layout>
+        </encoder>
+    </appender>
+
+    <root level="TRACE">
+        <appender-ref ref="STDOUT"/>
+    </root>
+
+    <logger name="io.netty" level="INFO"/>
+
+</configuration>

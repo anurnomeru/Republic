@@ -6,9 +6,9 @@ import ink.anur.inject.aop.AopRegistry
 import ink.anur.inject.config.Configuration
 import ink.anur.inject.config.ConfigurationFactory
 import ink.anur.inject.event.NigateListenerService
-import ink.anur.inject.rpc.KanashiRpc
+import ink.anur.inject.rpc.RepublicBean
 import ink.anur.inject.rpc.KanashiRpcBean
-import ink.anur.inject.rpc.KanashiRpcInject
+import ink.anur.inject.rpc.Republic
 import ink.anur.rpc.RpcSenderService
 import ink.anur.util.ClassMetaUtil
 import ink.anur.util.TimeUtil
@@ -24,7 +24,6 @@ import java.lang.reflect.Proxy.newProxyInstance
 import java.net.JarURLConnection
 import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.full.memberFunctions
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.jvm.isAccessible
@@ -249,8 +248,8 @@ object Nigate {
                         logger.debug("$clazz register as Configuration")
                         return
                     }
-                    annotations.containsKey(KanashiRpc::class) -> {
-                        val annotation = annotations[KanashiRpc::class] as KanashiRpc
+                    annotations.containsKey(RepublicBean::class) -> {
+                        val annotation = annotations[RepublicBean::class] as RepublicBean
                         val name = register(newNigateInstance(clazz), annotation.alias, true)
                         beanDefinitionMapping[name] = NigateBeanDefinition(fromJar, path)
                         logger.debug("$clazz register as KanashiRpc")
@@ -390,8 +389,8 @@ object Nigate {
 
                         javaField.isAccessible = true
                         javaField.set(injected, injection)
-                    } else if (annotation.annotationClass == KanashiRpcInject::class) {
-                        annotation as KanashiRpcInject
+                    } else if (annotation.annotationClass == Republic::class) {
+                        annotation as Republic
                         val javaField = kProperty.javaField!!
                         val fieldClass = kProperty.returnType.javaType as Class<*>
 
@@ -538,12 +537,18 @@ object Nigate {
                     beanContainer.autoRegister(classPath, clazz, fromJar)
                 }
             } catch (e: ClassNotFoundException) {
-                e.printStackTrace()
+                logger.debug(e.toString())
+            } catch (e: NoClassDefFoundError) {
+                logger.debug("Error when scan $classPath but skip: $e")
             }
         }
 
         fun doScan() {
-            getClasses("ink.anur")
+//            val mainClassPkg = System.getProperty("sun.java.command")
+
+//            getClasses(mainClassPkg.substring(0, maxOf(0, mainClassPkg.indexOfLast { it == Char('.'.code) })))
+//            getClasses("ink.anur")
+            getClasses("service")
         }
 
         fun getRPCBeanByInterface(interfaceName: String): MutableList<KanashiRpcBean>? {

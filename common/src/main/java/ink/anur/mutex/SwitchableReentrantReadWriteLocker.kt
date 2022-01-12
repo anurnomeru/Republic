@@ -1,5 +1,6 @@
 package ink.anur.mutex
 
+import ink.anur.debug.Debugger
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.TimeUnit
@@ -8,12 +9,13 @@ import java.util.concurrent.locks.*
 /**
  * Created by Anur IjuoKaruKas on 2019/7/10
  */
-open class ReentrantReadWriteLocker {
+open class SwitchableReentrantReadWriteLocker {
 
     private var rwLock = ReentrantReadWriteLock()
     private val rl = rwLock.readLock()
     private val wl = rwLock.writeLock()
     private val condition: Condition = wl.newCondition()
+    private val logger = Debugger(this::class.java)
 
     @Volatile
     private var switcher: Int = 0
@@ -68,14 +70,14 @@ open class ReentrantReadWriteLocker {
 
     fun <T> readLockSupplier(supplier: () -> T): T? {
 
+        if (switcher > 0) {
+            wl.lock()
+            condition.await()
+            wl.unlock()
+        }
+
         rl.tryLock()
         try {
-            if (switcher > 0) {
-                wl.lock()
-                condition.await()
-                wl.unlock()
-            }
-
             return supplier.invoke()
         } finally {
             rl.unlock()
@@ -83,14 +85,14 @@ open class ReentrantReadWriteLocker {
     }
 
     fun readLockSupplier(supplier: () -> Boolean, timeout: Long, unit: TimeUnit): Boolean? {
+        if (switcher > 0) {
+            wl.lock()
+            condition.await()
+            wl.unlock()
+        }
+
         if (rl.tryLock(timeout, unit)) {
             try {
-                if (switcher > 0) {
-                    wl.lock()
-                    condition.await()
-                    wl.unlock()
-                }
-
                 return supplier.invoke()
             } finally {
                 rl.unlock()

@@ -8,8 +8,14 @@ class RpcRouteInfoMeta(
             MutableMap<String /* methodSign */, MutableSet<String/* localNodeAddr */>>> = mutableMapOf(),
 ) : SerializableMeta {
 
-    fun StringInfo():String {
-        val info = StringBuilder("Valid Provider:")
+    fun StringInfo(): String {
+
+        if (providerMapping.isEmpty()) {
+            return "No valid provider"
+        }
+
+        val info = StringBuilder()
+        info.appendLine("Valid provider:")
         for (mutableEntry in providerMapping) {
             info.appendLine(" - Bean: ${mutableEntry.key}")
             for (e in mutableEntry.value) {

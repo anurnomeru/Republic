@@ -5,11 +5,10 @@ import ink.anur.core.common.AbstractRequestMapping
 import ink.anur.debug.Debugger
 import ink.anur.exception.RPCNonAvailableProviderException
 import ink.anur.inject.bean.NigateBean
-import ink.anur.mutex.ReentrantReadWriteLocker
+import ink.anur.mutex.SwitchableReentrantReadWriteLocker
 import ink.anur.pojo.common.RequestTypeEnum
 import ink.anur.pojo.rpc.RpcRouteInfo
 import ink.anur.pojo.rpc.RpcRequest
-import ink.anur.pojo.rpc.meta.RpcInetSocketAddress
 import java.nio.ByteBuffer
 import kotlin.random.Random
 
@@ -21,7 +20,7 @@ class RpcRouteInfoHandlerService : AbstractRequestMapping() {
 
     private val logger = Debugger(this::class.java)
 
-    private val lk = ReentrantReadWriteLocker()
+    private val lk = SwitchableReentrantReadWriteLocker()
 
     private var random = Random(1)
 

@@ -11,7 +11,7 @@ import kotlin.test.Test
 class TestForProposalMeta {
 
     val meta = RpcRegistrationMeta(
-        "127.0", mapOf<String/* bean */, HashSet<String /* method */>>(), mapOf(),
+        mapOf<String/* bean */, HashSet<String /* method */>>(), mapOf(),
     )
 
     val rpcRegistration = RpcRegistration(
@@ -20,8 +20,8 @@ class TestForProposalMeta {
 
     @Test
     fun testSer() {
-//        val proposal = Proposal(ProposalMeta(RequestTypeEnum.RPC_REGISTRATION, rpcRegistration))
-//        val getMeta = proposal.GetMeta()
+        //        val proposal = Proposal(ProposalMeta(RequestTypeEnum.RPC_REGISTRATION, rpcRegistration))
+        //        val getMeta = proposal.GetMeta()
     }
 
     @Test
@@ -29,7 +29,7 @@ class TestForProposalMeta {
         val ser = HessianUtil.ser(rpcRegistration)
         val des = HessianUtil.des(ser, RpcRegistration::class.java)
 
-        assert(des.GetMeta().localNodeAddr == meta.localNodeAddr)
+        assert(des.GetMeta().RPC_BEAN == meta.RPC_BEAN)
     }
 
     @Test
@@ -37,6 +37,6 @@ class TestForProposalMeta {
         val ser = HessianUtil.ser(meta)
         val des = HessianUtil.des(ser, RpcRegistrationMeta::class.java)
 
-        assert(des.localNodeAddr == meta.localNodeAddr)
+        assert(des.RPC_BEAN == meta.RPC_BEAN)
     }
 }
