@@ -13,7 +13,10 @@ import ink.anur.inject.rpc.Republic
 import ink.anur.rpc.RpcSenderService
 import ink.anur.util.ClassMetaUtil
 import ink.anur.util.TimeUtil
+import kotlinx.coroutines.ObsoleteCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.annotations.TestOnly
 import org.slf4j.LoggerFactory
@@ -470,7 +473,7 @@ object Nigate {
                             annotation as NigateAfterBootStrap
                             try {
                                 memberFunction.isAccessible = true
-                                memberFunction.call(bean)
+                                KanashinUlimitedExecutors.execute { memberFunction.call(bean) }
                             } catch (e: Exception) {
                                 logger.error("class [${bean::class}] invoke after bootstrap method [${memberFunction.name}] error : ${e.message}")
                                 e.printStackTrace()
@@ -552,7 +555,7 @@ object Nigate {
             val mainClassPkg = System.getProperty("sun.java.command")
             getClasses(mainClassPkg.substring(0, maxOf(0, mainClassPkg.indexOfLast { it == Char('.'.code) })))
             getClasses("ink.anur")
-//            getClasses("service")
+            //            getClasses("service")
         }
 
         fun getRPCBeanByInterface(interfaceName: String): MutableList<KanashiRpcBean>? {
@@ -589,6 +592,7 @@ object Nigate {
             .mapValues { it.value.map { bean -> HashSet(bean.getMethodMapping().keys) } }
     }
 
+    @ObsoleteCoroutinesApi
     class RpcRequestInvocation(interfaces: Class<out Any>, private val alias: String?) : InvocationHandler {
 
         private val interfaceName = interfaces.simpleName
@@ -598,7 +602,9 @@ object Nigate {
         override fun invoke(proxy: Any?, method: Method, args: Array<out Any>?): Any? {
             val rpcSenderService = getBeanByClass(RpcSenderService::class.java)
             return runBlocking {
-                return@runBlocking rpcSenderService.sendRpcRequest(method, interfaceName, alias, args)
+                return@runBlocking async(KanashinUlimitedExecutors.Dispatcher) {
+                    return@async rpcSenderService.sendRpcRequest(method, interfaceName, alias, args)
+                }.await()
             }
         }
     }

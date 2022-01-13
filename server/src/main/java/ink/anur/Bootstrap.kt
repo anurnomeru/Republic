@@ -1,6 +1,8 @@
 package ink.anur
 
+import ink.anur.common.KanashiExecutors
 import ink.anur.inject.bean.Nigate
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 
@@ -10,5 +12,5 @@ import kotlinx.coroutines.runBlocking
 object Bootstrap {
 
     @JvmStatic
-    fun main(args: Array<String>) = runBlocking { Nigate.start(args) }
+    fun main(args: Array<String>) = runBlocking<Unit> { launch(KanashiExecutors.Dispatcher) { Nigate.start(args) } }
 }

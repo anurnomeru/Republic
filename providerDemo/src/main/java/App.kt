@@ -1,4 +1,6 @@
+import ink.anur.common.KanashiExecutors
 import ink.anur.inject.bean.Nigate
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -8,6 +10,6 @@ object App {
 
     @JvmStatic
     fun main(args: Array<String>) {
-        runBlocking { Nigate.start(args) }
+        runBlocking { launch(KanashiExecutors.Dispatcher) { Nigate.start(args) } }
     }
 }

@@ -1,8 +1,10 @@
 package ink.anur.common
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder
+import kotlinx.coroutines.CoroutineDispatcher
 import org.slf4j.LoggerFactory
 import java.util.concurrent.*
+import kotlin.coroutines.CoroutineContext
 
 /**
  * Created by Anur IjuoKaruKas on 2019/7/14
@@ -10,6 +12,12 @@ import java.util.concurrent.*
  * 全局线程池
  */
 object KanashinUlimitedExecutors {
+
+    val Dispatcher = object : CoroutineDispatcher() {
+        override fun dispatch(context: CoroutineContext, block: Runnable) {
+            KanashiExecutors.execute(block)
+        }
+    }
 
     private val logger = LoggerFactory.getLogger(this::class.java)
 

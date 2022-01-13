@@ -1,6 +1,7 @@
 package ink.anur.inject.event
 
 import ink.anur.common.KanashiExecutors
+import ink.anur.common.KanashinUlimitedExecutors
 import ink.anur.exception.NigateListenerException
 import ink.anur.inject.bean.NigateBean
 import kotlinx.coroutines.launch
@@ -51,7 +52,7 @@ class NigateListenerService {
         val mutableList = EVENT_POOL[onEvent] ?: return
         for (listenerContainer in mutableList) {
             runBlocking {
-                launch { listenerContainer.onEvent() }
+                launch(KanashinUlimitedExecutors.Dispatcher) { listenerContainer.onEvent() }
             }
         }
     }

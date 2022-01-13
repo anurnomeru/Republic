@@ -157,7 +157,7 @@ class Connection(
 
         val ticker = ticker(1000, 0)
         while (running) {
-            runBlocking {
+            runBlocking(KanashinUlimitedExecutors.Dispatcher) {
                 pinLicense.license()
                 tryEstablish()
                 ticker.receive()
@@ -263,7 +263,7 @@ class Connection(
         unit: TimeUnit = TimeUnit.MILLISECONDS,
         innerRetry: Int = 1,
     ): Deferred<RepublicResponse<T>> = runBlocking {
-        async {
+        async(KanashinUlimitedExecutors.Dispatcher) {
             return@async doSendAndWaitForResponse(struct, expect, timeout, unit, innerRetry) {
                 sendWithNoSendLicense(channel, it)
             }
@@ -298,7 +298,7 @@ class Connection(
         unit: TimeUnit = TimeUnit.MILLISECONDS,
         innerRetry: Int = 1,
     ) = runBlocking {
-        async {
+        async(KanashinUlimitedExecutors.Dispatcher) {
             doSendAndWaitForResponse(struct, expect, timeout, unit, innerRetry) {
                 send(it)
             }
@@ -434,7 +434,7 @@ class Connection(
                         }
                     }
                 }
-                runBlocking { ticker.receive() }
+                runBlocking { launch(KanashinUlimitedExecutors.Dispatcher) { ticker.receive() } }
             }
         }
 
@@ -521,7 +521,7 @@ class Connection(
 
         fun RepublicNode.registerDestroyHandler(func: (ChannelHandlerContext?) -> Unit) {
             getConnection()?.registerDestroyHandler(func) ?: runBlocking {
-                launch { func(null) }
+                launch(KanashinUlimitedExecutors.Dispatcher) { func(null) }
             }
         }
 
@@ -551,7 +551,7 @@ class Connection(
 
             if (msgPack.resp) {
                 waitDeck[msgPack.identifier]?.also { chan ->
-                    runBlocking { chan.send(msg) }
+                    runBlocking { launch(KanashiExecutors.Dispatcher) { chan.send(msg) } }
                 } ?: also {
                     logger.error("receive un deck msg [type:${msgPack.requestType}] correspond [identifier:${msgPack.identifierResp}], may timeout or error occur!")
                 }
@@ -739,13 +739,15 @@ class Connection(
                 logger.error("remote node $republicNode using [$mode] is disconnect")
 
                 runBlocking {
-                    logger.debug("notify all wait deck to stop waiting")
-                    // while disconnect to remote node, wake up sleeping thread
-                    // this is a 'fast recovery' mode, it is unnecessary to wait the response from disconnected node
-                    for (identifier in currentWaitDeck.iterator()) {
-                        waitDeck[identifier]?.send(null)
+                    launch(KanashinUlimitedExecutors.Dispatcher) {
+                        logger.debug("notify all wait deck to stop waiting")
+                        // while disconnect to remote node, wake up sleeping thread
+                        // this is a 'fast recovery' mode, it is unnecessary to wait the response from disconnected node
+                        for (identifier in currentWaitDeck.iterator()) {
+                            waitDeck[identifier]?.send(null)
+                        }
+                        logger.debug("all wait deck has been stop")
                     }
-                    logger.debug("all wait deck has been stop")
                 }
 
                 when (mode) {

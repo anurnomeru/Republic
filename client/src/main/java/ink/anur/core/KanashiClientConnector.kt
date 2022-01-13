@@ -25,6 +25,9 @@ class KanashiClientConnector {
     @NigateInject
     private lateinit var inetConfiguration: InetConfiguration
 
+    @NigateInject
+    private lateinit var rpcStateController:RpcStateController
+
     private val logger = Debugger(this::class.java)
 
     private var nowConnectCounting = Random(1).nextInt()
@@ -79,8 +82,10 @@ class KanashiClientConnector {
 
                     logger.info("rpc successful registry to server node $nowConnectNode")
                     nowActiveNode = nowConnectNode
+                    rpcStateController.onRpcValid()
 
                     connection.registerDestroyHandler {
+                        rpcStateController.onRpcInvalid()
                         logger.info("the connection from $nowConnectNode is destroy")
                         nowActiveNode = null
                     }

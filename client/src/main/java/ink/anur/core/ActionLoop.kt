@@ -6,6 +6,7 @@ import ink.anur.inject.bean.NigateBean
 import ink.anur.inject.bean.NigateInject
 import kotlinx.coroutines.ObsoleteCoroutinesApi
 import kotlinx.coroutines.channels.ticker
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -27,7 +28,9 @@ class ActionLoop {
         val ticker = ticker(200, 0)
         while (true) {
             runBlocking {
-                ticker.receive()
+                launch(KanashiExecutors.Dispatcher) {
+                    ticker.receive()
+                }
             }
 
             kanashiClientConnector.ReportAndAcquireRpcRouteInfo()

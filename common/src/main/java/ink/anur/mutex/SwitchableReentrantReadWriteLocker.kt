@@ -1,5 +1,6 @@
 package ink.anur.mutex
 
+import ink.anur.common.KanashinUlimitedExecutors
 import ink.anur.debug.Debugger
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -26,7 +27,7 @@ open class SwitchableReentrantReadWriteLocker {
 
     fun switchOn() {
         runBlocking {
-            launch {
+            launch(KanashinUlimitedExecutors.Dispatcher) {
                 wl.lock()
                 try {
                     switcher = 0
