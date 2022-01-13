@@ -1,6 +1,7 @@
 package ink.anur.inject.bean
 
 import com.google.common.collect.Lists
+import ink.anur.common.KanashinUlimitedExecutors
 import ink.anur.exception.*
 import ink.anur.inject.aop.AopRegistry
 import ink.anur.inject.config.Configuration
@@ -170,7 +171,7 @@ object Nigate {
         private val rpcBean = mutableMapOf<String, KanashiRpcBean>()
 
         /**
-         * 远程调用下，接口下的实现
+         * 远程调用下，接口下的实现(可能有多个)
          */
         private val rpcInterfaceBean = mutableMapOf<String, MutableList<KanashiRpcBean>>()
 
@@ -394,7 +395,11 @@ object Nigate {
                         val javaField = kProperty.javaField!!
                         val fieldClass = kProperty.returnType.javaType as Class<*>
 
-                        val alias = if (annotation.alias == UndefineAlias) annotation.alias else null
+                        val alias = if (annotation.alias.equals(UndefineAlias)) {
+                            null
+                        } else {
+                            annotation.alias
+                        }
 
                         javaField.isAccessible = true
                         javaField.set(injected, RpcRequestInvocation(fieldClass, alias).proxyBean)
@@ -544,11 +549,10 @@ object Nigate {
         }
 
         fun doScan() {
-//            val mainClassPkg = System.getProperty("sun.java.command")
-
-//            getClasses(mainClassPkg.substring(0, maxOf(0, mainClassPkg.indexOfLast { it == Char('.'.code) })))
-//            getClasses("ink.anur")
-            getClasses("service")
+            val mainClassPkg = System.getProperty("sun.java.command")
+            getClasses(mainClassPkg.substring(0, maxOf(0, mainClassPkg.indexOfLast { it == Char('.'.code) })))
+            getClasses("ink.anur")
+//            getClasses("service")
         }
 
         fun getRPCBeanByInterface(interfaceName: String): MutableList<KanashiRpcBean>? {
@@ -573,7 +577,8 @@ object Nigate {
      * 获取当前 Provider 下所有提供服务的 bean 的方法定义 methodSign
      */
     fun getRpcBeanPath(): Map<String/* bean */, HashSet<String /* method */>> {
-        return beanContainer.getRpcBeans().mapValues { HashSet(it.value.getMethodMapping().keys) }
+        return beanContainer.getRpcBeans()
+            .mapValues { HashSet(it.value.getMethodMapping().keys) }
     }
 
     /**

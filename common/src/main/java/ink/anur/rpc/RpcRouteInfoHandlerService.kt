@@ -24,8 +24,8 @@ class RpcRouteInfoHandlerService : AbstractRequestMapping() {
 
     private var random = Random(1)
 
-    private lateinit var providerMapping: MutableMap<String/* bean */,
-            MutableMap<String /* methodSign */, MutableSet<String/* serverName */>>>
+    private var providerMapping: MutableMap<String/* bean */,
+            MutableMap<String /* methodSign */, MutableSet<String/* serverName */>>> = mutableMapOf()
 
     override fun typeSupport(): RequestTypeEnum {
         return RequestTypeEnum.RPC_ROUTE_INFO
@@ -41,7 +41,7 @@ class RpcRouteInfoHandlerService : AbstractRequestMapping() {
             providerMapping = rpcProviderMappingMeta.providerMapping
 
             if (logger.isDebugEnable()) {
-                logger.debug("RPC PROVIDER MAPPING: $providerMapping")
+                logger.debug("RPC PROVIDER MAPPING: ${rpcProviderMappingMeta.StringInfo()}")
             }
         }
     }

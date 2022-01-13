@@ -1,7 +1,7 @@
 package ink.anur.io.common.transport
 
 import ink.anur.common.KanashiExecutors
-import ink.anur.common.KanashiIOExecutors
+import ink.anur.common.KanashinUlimitedExecutors
 import ink.anur.common.struct.RepublicNode
 import ink.anur.config.InetConfiguration
 import ink.anur.core.common.License
@@ -38,7 +38,6 @@ import java.nio.ByteBuffer
 import java.util.concurrent.*
 import java.util.concurrent.locks.StampedLock
 import kotlin.system.exitProcess
-import kotlin.OptIn as OptIn1
 
 /**
  * Created by Anur on 2020/10/3
@@ -113,8 +112,8 @@ class Connection(
         )
 
         if (initiativeMode) {
-            KanashiIOExecutors.execute(client)
-            KanashiIOExecutors.execute(connectionThread)
+            KanashinUlimitedExecutors.execute(client)
+            KanashinUlimitedExecutors.execute(connectionThread)
         }
     }
 

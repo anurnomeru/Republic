@@ -7,12 +7,14 @@ import ink.anur.inject.bean.NigateInject
 import ink.anur.inject.bean.NigatePostConstruct
 import ink.anur.io.common.transport.ShutDownHooker
 import ink.anur.io.server.CoordinateServer
+import kotlinx.coroutines.ObsoleteCoroutinesApi
 
 /**
  * Created by Anur IjuoKaruKas on 2020/2/22
  *
  * 集群内通讯、协调服务器操作类服务端，负责协调相关的业务
  */
+@ObsoleteCoroutinesApi
 @NigateBean
 class ServerService : Shutdownable {
 

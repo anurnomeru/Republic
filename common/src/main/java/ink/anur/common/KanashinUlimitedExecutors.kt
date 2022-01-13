@@ -9,7 +9,7 @@ import java.util.concurrent.*
  *
  * 全局线程池
  */
-object KanashiIOExecutors {
+object KanashinUlimitedExecutors {
 
     private val logger = LoggerFactory.getLogger(this::class.java)
 

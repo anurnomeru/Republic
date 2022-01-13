@@ -11,10 +11,11 @@ class RpcRouteInfoMeta(
     fun StringInfo(): String {
 
         if (providerMapping.isEmpty()) {
-            return "No valid provider"
+            return "\nNo valid provider"
         }
 
         val info = StringBuilder()
+        info.appendLine()
         info.appendLine("Valid provider:")
         for (mutableEntry in providerMapping) {
             info.appendLine(" - Bean: ${mutableEntry.key}")
@@ -23,7 +24,6 @@ class RpcRouteInfoMeta(
                 for (s in e.value) {
                     info.appendLine(" >>>>> $s")
                 }
-                info.appendLine()
             }
         }
 

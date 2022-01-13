@@ -48,7 +48,7 @@ class RpcRouteInfoSyncerService {
                     }
                 }
 
-                if (entry.value.isEmpty()){
+                if (entry.value.isEmpty()) {
                     outerIter.remove()
                 }
             }
@@ -65,24 +65,30 @@ class RpcRouteInfoSyncerService {
     fun UpdateRouteInfo(republicNode: RepublicNode, rpcRegistrationMeta: RpcRegistrationMeta) {
         synchronized(this) {
             val meta = latestRoute.GetMeta()
-            for (entry in rpcRegistrationMeta.RPC_BEAN) {
-                val bean = entry.key
-                val methodSigns = entry.value
-                if (meta.providerMapping[bean] == null) {
-                    meta.providerMapping[bean] = mutableMapOf()
-                }
+            val registerFun: (Map<String/* bean */, List<HashSet<String /* method */>>>) -> Unit = { map ->
+                for (entry in map) {
+                    val bean = entry.key
+                    val methodSignss = entry.value
+                    if (meta.providerMapping[bean] == null) {
+                        meta.providerMapping[bean] = mutableMapOf()
+                    }
 
-                val m: MutableMap<String /* methodSign */, MutableSet<String/* localNodeAddr */>> =
-                    meta.providerMapping[bean]!!
+                    val m: MutableMap<String /* methodSign */, MutableSet<String/* localNodeAddr */>> =
+                        meta.providerMapping[bean]!!
 
-                methodSigns.forEach {
-                    if (m[it] == null) {
-                        m[it] = mutableSetOf(republicNode.addr)
-                    } else {
-                        m[it]!!.add(republicNode.addr)
+                    for (methodSigns in methodSignss) {
+                        for (methodSign in methodSigns) {
+                            if (m[methodSign] == null) {
+                                m[methodSign] = mutableSetOf(republicNode.addr)
+                            } else {
+                                m[methodSign]!!.add(republicNode.addr)
+                            }
+                        }
                     }
                 }
             }
+
+            registerFun(rpcRegistrationMeta.RPC_INTERFACE_BEAN)
 
             logger.info("$RepublicNode start to provide services")
             logger.info(meta.StringInfo())
@@ -98,7 +104,7 @@ class RpcRouteInfoSyncerService {
     private fun notifyAllNode() {
         val routeForSend: RpcRouteInfo
         synchronized(this) {
-            routeForSend = RpcRouteInfo(latestRoute.buffer)
+            routeForSend = RpcRouteInfo(RpcRouteInfo(latestRoute.GetMeta()).buffer)
         }
 
         for (republicNode in deck) {
