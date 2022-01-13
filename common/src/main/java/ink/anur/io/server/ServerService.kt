@@ -1,4 +1,4 @@
-package ink.anur.core.server
+package ink.anur.io.server
 
 import ink.anur.common.Shutdownable
 import ink.anur.config.InetConfiguration
@@ -12,7 +12,7 @@ import kotlinx.coroutines.ObsoleteCoroutinesApi
 /**
  * Created by Anur IjuoKaruKas on 2020/2/22
  *
- * 集群内通讯、协调服务器操作类服务端，负责协调相关的业务
+ * the server listen at local port specified
  */
 @ObsoleteCoroutinesApi
 @NigateBean

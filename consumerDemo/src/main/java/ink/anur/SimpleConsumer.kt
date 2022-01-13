@@ -23,20 +23,16 @@ class SimpleConsumer {
 
     @NigateAfterBootStrap
     fun rpcLoop() {
-        val ticker = ticker(2000)
 
-        KanashinUlimitedExecutors.execute(Runnable {
-            runBlocking {
-                while (true){
-                    ticker.receive()
+        KanashinUlimitedExecutors.execute {
+                while (true) {
+                    Thread.sleep(2000)
                     try {
                         logger.info("receive from provider: ${simpleProvider.foo()}")
                     } catch (e: Exception) {
                         logger.info("error when sending rpc request")
                     }
                 }
-            }
-        })
-
+        }
     }
 }
