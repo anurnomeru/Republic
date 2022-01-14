@@ -1,15 +1,22 @@
 package ink.anur.service.rpc
 
 import ink.anur.common.struct.RepublicNode
+import ink.anur.core.common.AbstractRequestMapping
 import ink.anur.debug.Debugger
 import ink.anur.inject.bean.NigateBean
+import ink.anur.io.common.transport.Connection.Companion.registerDestroyHandler
 import ink.anur.io.common.transport.Connection.Companion.send
 import ink.anur.io.common.transport.Connection.Companion.sendAndWaitingResponse
 import ink.anur.io.common.transport.Connection.Companion.sendAsync
+import ink.anur.pojo.common.RequestTypeEnum
+import ink.anur.pojo.rpc.Ok
+import ink.anur.pojo.rpc.RpcRegistration
+import ink.anur.pojo.rpc.RpcRegistrationReport
 import ink.anur.pojo.rpc.RpcRouteInfo
 import ink.anur.pojo.rpc.meta.RpcRegistrationMeta
 import ink.anur.pojo.rpc.meta.RpcRouteInfoMeta
 import kotlinx.coroutines.ObsoleteCoroutinesApi
+import java.nio.ByteBuffer
 import java.util.concurrent.CopyOnWriteArraySet
 
 /**
@@ -25,13 +32,17 @@ class RpcRouteInfoSyncerService {
     @Volatile
     private var latestRoute = RpcRouteInfo(RpcRouteInfoMeta())
 
-    fun NotifyMe(republicNode: RepublicNode) {
-        deck.add(republicNode)
+    fun NotifyMeWhenChanged(republicNode: RepublicNode) {
+        if (deck.add(republicNode)) {
+            republicNode.registerDestroyHandler {
+                DontMissMe(republicNode)
+            }
+        }
     }
 
-    fun OutOfDeck(republicNode: RepublicNode) {
-        deck.remove(republicNode)
+    private fun DontMissMe(republicNode: RepublicNode) {
         logger.debug("remote node $republicNode is out of route info syncer deck.")
+        deck.remove(republicNode)
     }
 
     fun RemoveFromRouteInfo(republicNode: RepublicNode) {
@@ -53,16 +64,14 @@ class RpcRouteInfoSyncerService {
                 }
             }
 
-            logger.info("$RepublicNode is offline")
+            logger.info("$republicNode is offline")
             logger.info(meta.StringInfo())
         }
-
-
 
         notifyAllNode()
     }
 
-    fun UpdateRouteInfo(republicNode: RepublicNode, rpcRegistrationMeta: RpcRegistrationMeta) {
+    fun UpdateRouteInfo(rpcRegistrationMeta: RpcRegistrationMeta, listenBy: RepublicNode) {
         synchronized(this) {
             val meta = latestRoute.GetMeta()
             val registerFun: (Map<String/* bean */, List<HashSet<String /* method */>>>) -> Unit = { map ->
@@ -79,9 +88,9 @@ class RpcRouteInfoSyncerService {
                     for (methodSigns in methodSignss) {
                         for (methodSign in methodSigns) {
                             if (m[methodSign] == null) {
-                                m[methodSign] = mutableSetOf(republicNode.addr)
+                                m[methodSign] = mutableSetOf(rpcRegistrationMeta.provider.addr)
                             } else {
-                                m[methodSign]!!.add(republicNode.addr)
+                                m[methodSign]!!.add(rpcRegistrationMeta.provider.addr)
                             }
                         }
                     }
@@ -90,8 +99,21 @@ class RpcRouteInfoSyncerService {
 
             registerFun(rpcRegistrationMeta.RPC_INTERFACE_BEAN)
 
-            logger.info("$RepublicNode start to provide services")
+            logger.info("${rpcRegistrationMeta.provider} start to provide services")
             logger.info(meta.StringInfo())
+        }
+
+        listenBy.registerDestroyHandler {
+            RemoveFromRouteInfo(rpcRegistrationMeta.provider)
+        }
+
+        notifyAllNode()
+    }
+
+    fun UpdateRouteInfo(rpcRouteInfo: RpcRouteInfo) {
+        synchronized(this) {
+            latestRoute = rpcRouteInfo
+            logger.info(rpcRouteInfo.GetMeta().StringInfo())
         }
 
         notifyAllNode()

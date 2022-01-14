@@ -191,13 +191,11 @@ class Connection(
                     SynResponse::class.java
                 )
 
-                logger.trace("$this: sending syn request to channel $channel")
                 val result = runBlocking {
                     deferred
                         .await()
                         .Resp()
                 }
-                logger.trace("$this: receive syn response from channel $channel")
 
                 this.contextHandler.establish(PIN, it)
 
@@ -230,10 +228,10 @@ class Connection(
             logger.trace("local node already establish and syn ctx from ${syn.getAddr()} will be close")
             ctx.close()
         } else {
-            logger.trace("remote node ${syn.getAddr()} attempt to establish with local server")
+            logger.trace("remote node $this attempt to establish with local server")
             try {
                 if (syn.allowConnect(createdTs, randomSeed, republicNode.addr)) {
-                    logger.trace("allowing remote node ${syn.getAddr()} establish to local ")
+                    logger.trace("allowing remote node $this establish to local ")
                     if (this.contextHandler.establish(SOCKET, ctx)) {
                         sendWithNoSendLicense(ctx.channel(), SynResponse(inetConnection.localNodeAddr).asResp(syn))
                     }
@@ -449,7 +447,7 @@ class Connection(
         }
 
         private fun doSend(channel: Channel, struct: AbstractStruct) {
-            logger.debug("==> send msg [type:${struct.getRequestType()}] [identifier:${struct.getIdentifier()}]")
+            logger.trace("==> send msg [type:${struct.getRequestType()}] [identifier:${struct.getIdentifier()}]")
             synchronized(channel) {
                 struct.computeChecksum()
                 channel.write(Unpooled.copyInt(struct.totalSize()))
@@ -463,6 +461,7 @@ class Connection(
          * registry RequestMapping for handle response
          */
         fun registerRequestMapping(typeEnum: RequestTypeEnum, requestMapping: RequestMapping) {
+            logger.info("Register Request Mapping for $typeEnum mapping: ${requestMapping::class}" )
             requestMappingRegister[typeEnum] = requestMapping
         }
 
@@ -500,7 +499,7 @@ class Connection(
                 conn.also { it.tryEstablishLicense() }
 
                 logger.debug(
-                    "init connection to ${this.host}:${this.port} ${
+                    "init connection to ${this.toString()} ${
                         "with initiativeMode: $initiativeMode"
                     }"
                 )
@@ -603,7 +602,7 @@ class Connection(
             val resp = msg.isResp()
 
             requestType.takeIf { it != RequestTypeEnum.HEAT_BEAT }?.also {
-                logger.debug("<== receive msg [type:${it}]" + resp.takeIf { t -> t }
+                logger.trace("<== receive msg [type:${it}]" + resp.takeIf { t -> t }
                     .let { " correspond [identifier:$identifierResp]" })
             }
             return MsgPack(requestType, identifier, identifierResp, resp)
@@ -740,13 +739,13 @@ class Connection(
 
                 runBlocking {
                     launch(KanashinUlimitedExecutors.Dispatcher) {
-                        logger.debug("notify all wait deck to stop waiting")
+                        logger.trace("notify all wait deck to stop waiting")
                         // while disconnect to remote node, wake up sleeping thread
                         // this is a 'fast recovery' mode, it is unnecessary to wait the response from disconnected node
                         for (identifier in currentWaitDeck.iterator()) {
                             waitDeck[identifier]?.send(null)
                         }
-                        logger.debug("all wait deck has been stop")
+                        logger.trace("all wait deck has been stop")
                     }
                 }
 

@@ -1,5 +1,6 @@
 package ink.anur.core
 
+import ink.anur.common.KanashinUlimitedExecutors
 import ink.anur.common.struct.RepublicNode
 import ink.anur.config.InetConfiguration
 import ink.anur.debug.Debugger
@@ -7,10 +8,11 @@ import ink.anur.inject.bean.Nigate
 import ink.anur.inject.bean.NigateBean
 import ink.anur.inject.bean.NigateInject
 import ink.anur.io.common.transport.Connection.Companion.getOrCreateConnection
+import ink.anur.pojo.rpc.Ok
 import ink.anur.pojo.rpc.RpcRegistration
-import ink.anur.pojo.rpc.RpcRegistrationResponse
 import ink.anur.pojo.rpc.meta.RpcRegistrationMeta
 import kotlinx.coroutines.ObsoleteCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
@@ -26,7 +28,7 @@ class KanashiClientConnector {
     private lateinit var inetConfiguration: InetConfiguration
 
     @NigateInject
-    private lateinit var rpcStateController:RpcStateController
+    private lateinit var rpcStateController: RpcStateController
 
     private val logger = Debugger(this::class.java)
 
@@ -67,17 +69,20 @@ class KanashiClientConnector {
                     logger.info("successful connect to server node $nowConnectNode, sending RPC registration...")
 
                     runBlocking {
-                        connection.sendAndWaitForResponse(
-                            RpcRegistration(
-                                RpcRegistrationMeta(
-                                    mutableMapOf(),
-                                    Nigate.getRpcInterfacePath()
-                                )
-                            ), RpcRegistrationResponse::class.java
-                        )
-                            .await()
-                            .ExceptionHandler { connection.destroy() }
-                            .Resp()
+                        launch(KanashinUlimitedExecutors.Dispatcher) {
+                            connection.sendAndWaitForResponse(
+                                RpcRegistration(
+                                    RpcRegistrationMeta(
+                                        inetConfiguration.localNode,
+                                        mutableMapOf(),
+                                        Nigate.getRpcInterfacePath()
+                                    )
+                                ), Ok::class.java
+                            )
+                                .await()
+                                .ExceptionHandler { connection.destroy() }
+                                .Resp()
+                        }
                     }
 
                     logger.info("rpc successful registry to server node $nowConnectNode")

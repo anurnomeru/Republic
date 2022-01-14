@@ -2,6 +2,7 @@ package ink.anur.common.struct
 
 import ink.anur.config.InetConfiguration
 import ink.anur.inject.bean.Nigate
+import ink.anur.pojo.metastruct.SerializableMeta
 import java.net.InetSocketAddress
 import java.util.Comparator
 import java.util.concurrent.ConcurrentHashMap
@@ -9,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Created by Anur on 2020/9/30
  */
-class RepublicNode(val host: String, val port: Int) {
+class RepublicNode(val host: String, val port: Int) : SerializableMeta {
 
     val addr = "$host:$port"
 

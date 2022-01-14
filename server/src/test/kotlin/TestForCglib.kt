@@ -37,7 +37,7 @@ class TestForCglib {
 
         mayProxyFor.handleRequest(
             RepublicNode.Companion.construct("127.0.0.1:8080"),
-            RpcRegistration(RpcRegistrationMeta()).buffer
+            RpcRegistration(RpcRegistrationMeta(RepublicNode("z", 1))).buffer
         )
     }
 }

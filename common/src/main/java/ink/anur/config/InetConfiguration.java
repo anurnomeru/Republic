@@ -35,6 +35,8 @@ public class InetConfiguration {
                     allCache = Stream.of(clusterAddr.split(";"))
                             .map(RepublicNode.Companion::construct)
                             .collect(Collectors.toList());
+
+                    allCache.add(getLocalNode());
                 }
             }
         }

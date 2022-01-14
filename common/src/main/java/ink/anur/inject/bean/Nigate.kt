@@ -16,7 +16,6 @@ import ink.anur.util.TimeUtil
 import kotlinx.coroutines.ObsoleteCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.annotations.TestOnly
 import org.slf4j.LoggerFactory
@@ -28,6 +27,7 @@ import java.lang.reflect.Proxy.newProxyInstance
 import java.net.JarURLConnection
 import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.reflect.KFunction
 import kotlin.reflect.full.memberFunctions
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.jvm.isAccessible
@@ -416,6 +416,7 @@ object Nigate {
         }
 
         fun postConstruct(beans: MutableCollection<Any>, onStartUp: Boolean) {
+            val list = mutableListOf<PostConstructFunc>()
             val removes = mutableListOf<Any>()
 
             for (bean in beans) {
@@ -440,7 +441,17 @@ object Nigate {
 
                                 try {
                                     memberFunction.isAccessible = true
-                                    memberFunction.call(bean)
+
+                                    val priority =
+                                        bean::class.annotations.find {
+                                            it.annotationClass == NigatePostConstructPriority::class
+                                        }?.let {
+                                            it as NigatePostConstructPriority
+                                            it.priority
+                                        } ?: 0
+
+                                    list.add(PostConstructFunc(memberFunction, bean, priority))
+
                                 } catch (e: Exception) {
                                     logger.error("class [${bean::class}] invoke post construct method [${memberFunction.name}] error : ${e.message}")
                                     e.printStackTrace()
@@ -456,12 +467,18 @@ object Nigate {
                     }
                 }
             }
+
             for (remove in removes) {
                 lazyPostConstructBean.remove(remove)
             }
 
             if (lazyPostConstructBean.keys.size > 0) {
                 postConstruct(lazyPostConstructBean.keys, onStartUp)
+            }
+
+            list.sortBy { -it.priority }
+            for (postConstructFunc in list) {
+                postConstructFunc.kf.call(postConstructFunc.b)
             }
         }
 
@@ -473,7 +490,7 @@ object Nigate {
                             annotation as NigateAfterBootStrap
                             try {
                                 memberFunction.isAccessible = true
-                                KanashinUlimitedExecutors.execute { memberFunction.call(bean) }
+                                memberFunction.call(bean)
                             } catch (e: Exception) {
                                 logger.error("class [${bean::class}] invoke after bootstrap method [${memberFunction.name}] error : ${e.message}")
                                 e.printStackTrace()
@@ -486,6 +503,8 @@ object Nigate {
                 }
             }
         }
+
+        private class PostConstructFunc(val kf: KFunction<*>, val b: Any, val priority: Int)
 
         private fun getClasses(packagePath: String) {
             val path = packagePath.replace(".", "/")

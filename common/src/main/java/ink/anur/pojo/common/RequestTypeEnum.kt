@@ -24,19 +24,26 @@ enum class RequestTypeEnum(val byteSign: Int) {
 
     APPEND_ENTRIES(10004),
 
-    PROPOSAL(10005),
-
-    PROPOSAL_RESPONSE(10006),
+    OK(10005),
 
     RPC_REGISTRATION(99999),
 
-    RPC_REGISTRATION_RESPONSE(99998),
+    /**
+     * report to registration center leader
+     */
+    RPC_REGISTRATION_REPORT(99998),
 
-    RPC_ROUTE_INFO(99997),
+    /**
+     * report to registration center leader the node is off line
+     */
+    RPC_REGISTRATION_LEAVE(99997),
+
+    RPC_ROUTE_INFO(99990),
 
     RPC_REQUEST(98999),
 
     RPC_RESPONSE(98998),
+
     ;
 
     companion object {
@@ -53,7 +60,7 @@ enum class RequestTypeEnum(val byteSign: Int) {
         }
 
         fun parseByByteSign(byteSign: Int): RequestTypeEnum =
-                byteSignMap[byteSign]
-                        ?: throw UnsupportedOperationException("can not receive byte sign $byteSign")
+            byteSignMap[byteSign]
+                ?: throw UnsupportedOperationException("can not receive byte sign $byteSign")
     }
 }

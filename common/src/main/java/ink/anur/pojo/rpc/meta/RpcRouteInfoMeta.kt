@@ -11,7 +11,7 @@ class RpcRouteInfoMeta(
     fun StringInfo(): String {
 
         if (providerMapping.isEmpty()) {
-            return "\nNo valid provider"
+            return "No valid provider"
         }
 
         val info = StringBuilder()
