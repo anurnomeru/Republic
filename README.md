@@ -1,5 +1,5 @@
 # Republic
-Republic 是一款简单易用的 RPC 框架，基于 kotlin 开发，支持 Java、Kotlin。它并不需要寄托于 spring 环境使用，依赖极少，只使用了netty、hessian、以及 guava。初版的 QPS 不算太高，本地测试在 6000 左右。
+Republic 是一款简单易用的 RPC 框架，基于 raft 实现了高可用的注册中心，基于 kotlin 开发，支持 Java、Kotlin。它并不需要寄托于 spring 环境使用，依赖极少，只使用了 netty、hessian、以及 guava。初版的 QPS 不算太高，本地测试在 6000 左右。
 
 除了 RPC 相关功能，Republic 也自实现了 Bean 管理、注入、Aop、Listener 等功能。
 
@@ -62,5 +62,4 @@ open class SimpleConsumer {
 启动该模块下的 `App` 即可。
 
 ### 二、Roadmap
- - 注册中心新增集群模式，以支持高可用
  - 提高 QPS
