@@ -14,7 +14,7 @@ inet.localAddr=127.0.0.1:60001
 #
 # addr config composed with client.addr.{serverName}={host}:{port}
 #
-inet.clusterAddr=127.0.0.1:60001
+inet.clusterAddr=127.0.0.1:60001;127.0.0.1:60002
 #
 # elect control
 #
@@ -23,7 +23,38 @@ elect.votesBackOffMs=700
 elect.heartBeatMs=750
 ```
 
-注册中心虽然是支持集群模式，也是支持选举的，但是由于目前还没有写 RPC 相关的逻辑，所以集群注册中心只能启动一个。
+注册中心支持集群模式，推荐启动 3 个以上的 server，其余两个配置如下：
+
+```java
+# enable the debug mode to prevent follower become candidate when did not received heart beat from leader for while
+inet.localAddr=127.0.0.1:60002
+#
+# addr config composed with client.addr.{serverName}={host}:{port}
+#
+inet.clusterAddr=127.0.0.1:60001;127.0.0.1:60003
+#
+# elect control
+#
+elect.electionTimeoutMs=1500
+elect.votesBackOffMs=700
+elect.heartBeatMs=750
+```
+
+
+```java
+# enable the debug mode to prevent follower become candidate when did not received heart beat from leader for while
+inet.localAddr=127.0.0.1:60003
+#
+# addr config composed with client.addr.{serverName}={host}:{port}
+#
+inet.clusterAddr=127.0.0.1:60002;127.0.0.1:60003
+#
+# elect control
+#
+elect.electionTimeoutMs=1500
+elect.votesBackOffMs=700
+elect.heartBeatMs=750
+```
 
 ##### 2.服务提供者
 
